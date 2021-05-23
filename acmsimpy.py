@@ -1,12 +1,13 @@
 # %%
-from concurrent.futures import ThreadPoolExecutor
-from datetime import time
 from numba import njit, jitclass, types, vectorize, prange
 from numba import int32, float64    # import the types
+from datetime import time
 from pylab import np, plt
 plt.style.use('ggplot')
 
-
+import multiprocessing
+multiprocessing.cpu_count()
+# del nb.config.NUMBA_DEFAULT_NUM_THREADS
 
 # %%
 @jitclass(
@@ -111,6 +112,30 @@ class The_Motor_Controller:
         self.uab_cmd = np.zeros(2, dtype=np.float64)
         self.cmd_rpm_speed = 0.0;
 
+@jitclass(
+    spec=[
+        ('Kp', float64),
+        ('Ki', float64),
+        ('Err', float64),
+        ('Ref', float64),
+        ('Fbk', float64),
+        ('Out', float64),
+        ('OutLimit', float64),
+        ('ErrPrev', float64),
+        ('OutPrev', float64),
+    ])
+class The_PI_Regulator:
+    def __init__(self, KP_CODE, KI_CODE, OUTPUT_LIMIT):
+        self.Kp = KP_CODE
+        self.Ki = KI_CODE
+        self.Err      = 0.0
+        self.Ref      = 0.0
+        self.Fbk      = 0.0
+        self.Out      = 0.0
+        self.OutLimit = OUTPUT_LIMIT
+        self.ErrPrev  = 0.0
+        self.OutPrev  = 0.0
+
 @njit(nogil=True)
 def MACHINE_DYNAMICS(t, x, ACM, CLARKE_TRANS_TORQUE_GAIN=1.5):
     fx = np.zeros(5)
@@ -173,30 +198,6 @@ def RK4(t, ACM, hs):
             # derivatives
             # ACM.x_dot[i] = (k1[i] + 2*(k2[i] + k3[i]) + k4[i])/6.0 / hs 
 
-@jitclass(
-    spec=[
-        ('Kp', float64),
-        ('Ki', float64),
-        ('Err', float64),
-        ('Ref', float64),
-        ('Fbk', float64),
-        ('Out', float64),
-        ('OutLimit', float64),
-        ('ErrPrev', float64),
-        ('OutPrev', float64),
-    ])
-class The_PI_Regulator:
-    def __init__(self, KP_CODE, KI_CODE, OUTPUT_LIMIT):
-        self.Kp = KP_CODE
-        self.Ki = KI_CODE
-        self.Err      = 0.0
-        self.Ref      = 0.0
-        self.Fbk      = 0.0
-        self.Out      = 0.0
-        self.OutLimit = OUTPUT_LIMIT
-        self.ErrPrev  = 0.0
-        self.OutPrev  = 0.0
-
 @njit(nogil=True)
 def incremental_pi(reg):
     reg.Err = reg.Ref - reg.Fbk
@@ -207,8 +208,8 @@ def incremental_pi(reg):
         reg.Out =   reg.OutLimit
     elif reg.Out < -reg.OutLimit:
         reg.Out =  -reg.OutLimit
-    reg.ErrPrev = reg.Err; 
-    reg.OutPrev = reg.Out;
+    reg.ErrPrev = reg.Err
+    reg.OutPrev = reg.Out
 
 @njit(nogil=True)
 def null_id_control(ACM, CTRL, pid_id, pid_iq, pid_speed):
@@ -228,6 +229,7 @@ def null_id_control(ACM, CTRL, pid_id, pid_iq, pid_speed):
 
     return CTRL.udq_cmd
 
+""" MAIN """
 @njit(nogil=True)
 def ACMSimPy(omega_ob, TIME=10, MACHINE_TS=1e-4, CL_TS=1e-4):
     # watch variabels
@@ -255,12 +257,15 @@ def ACMSimPy(omega_ob, TIME=10, MACHINE_TS=1e-4, CL_TS=1e-4):
         #define SPEED_LOOP_LIMIT_AMPERE (2.0*1.414*3)
 
     # Main loop
-    down_sampling_ceiling = int(CL_TS / MACHINE_TS); print('down sample:', down_sampling_ceiling)
+    down_sampling_ceiling = int(CL_TS / MACHINE_TS); print('\tdown sample:', down_sampling_ceiling)
     jj = 0; watch_index = 0
     for ii in range(len(machine_times)):
         """ Machine Simulation """
         # Numerical Integration (ode4) with 5 states
         t = machine_times[ii]
+        # debug
+        # ACM.udq[0] = 1*np.sin(2*np.pi*t)
+        # ACM.udq[1] = 1*np.cos(2*np.pi*t)
         RK4(t, ACM, hs=MACHINE_TS)
         jj += 1
         if jj >= down_sampling_ceiling:
@@ -345,32 +350,27 @@ plt.plot(times, speed)
 # %%
 %%time
 @njit(nogil=True, parallel=False)  # THIS IS ACTUALLY FASTER
-def run_sims(end, TIME=5.5, MACHINE_TS=1e-4, CL_TS=1e-4):
-    times = np.arange(0, TIME, MACHINE_TS)
-    list_speed = [np.zeros_like(times) for i in range(end)]
-    index = 0
+def RUN(end, TIME=5.5, MACHINE_TS=1e-4, CL_TS=1e-4):
+    control_times = np.arange(0, TIME, CL_TS)
+    list_speed = [np.zeros_like(control_times) for i in range(end-1)]
+    parallel_index = 0
 
     for omega_ob in prange(1, int(end)):
-        times, id, iq, ia, ib, speed = ACMSimPy(
+        print(omega_ob, ' | ')
+        controL_times, id, iq, ia, ib, speed = ACMSimPy(
             omega_ob=omega_ob, TIME=TIME, MACHINE_TS=MACHINE_TS, CL_TS=CL_TS)
-        list_speed[index] = speed
-        index += 1
-    return times, list_speed
+        list_speed[parallel_index] = speed
+        parallel_index += 1
+    return controL_times, list_speed
 
-end = 6
-times, list_speed = run_sims(7, TIME=5.5, MACHINE_TS=1e-5)
-for i in range(end):
-    print(min(list_speed[i]))
-    plt.plot(times, list_speed[i], label=str(i))
-plt.legend();
-
-
-
-
-
-
-
-
+end = 12+1
+controL_times, list_speed = RUN(end=end, TIME=5.5, MACHINE_TS=1e-4)
+""" PLOT """
+plt.figure(figsize=(12,6))
+for i in range(len(list_speed)):
+    print('\t', min(list_speed[i]))
+    plt.plot(controL_times, list_speed[i], label=str(i))
+plt.legend(loc='upper left');
 
 
 
@@ -378,17 +378,57 @@ plt.legend();
 # %%
 %%time
 @njit(nogil=True, parallel=True) # THIS IS NOT WORKING AS PARALLEL!!!
-def run_sims(end=7):
-    for omega_ob in prange(int(end)):
-        ACMSimPy(omega_ob=omega_ob, TIME=5.5, MACHINE_TS=1e-5, CL_TS=1e-4)
-run_sims()
+def RUN(end=7):
+    for omega_ob in prange(1, int(end)):
+        # ACMSimPy(omega_ob=omega_ob, TIME=5.5, MACHINE_TS=1e-4, CL_TS=1e-4)
+        ACMSimPy(omega_ob, 5.5, 1e-4, 1e-4)
+        # print('TESA')
+RUN()
+RUN.parallel_diagnostics(level=4)
+
+
+# Numba has parallel feature, so ThreadPoolExecutor is not needed
+# from concurrent.futures import ThreadPoolExecutor
+# with ThreadPoolExecutor(12) as ex:  # THIS IS NOT WORKING AS PARALLEL!!!
+#     ex.map(ACMSimPy, np.arange(1, 7, 1))
+
+
+
+
+
+
+
+
+
 
 
 
 
 # %%
-%%time
-with ThreadPoolExecutor(12) as ex:  # THIS IS NOT WORKING AS PARALLEL!!!
-    ex.map(ACMSimPy, np.arange(1, 7, 1))
+from numba import njit
+@njit(parallel=True)
+def do_sum_parallel(A):
+    # each thread can accumulate its own partial sum, and then a cross
+    # thread reduction is performed to obtain the result to return
+    n = len(A)
+    acc = 0.
+    for i in prange(n):
+        acc += np.sqrt(A[i])
+    return acc
+
+@njit(parallel=True, fastmath=True)
+def do_sum_parallel_fast(A):
+    n = len(A)
+    acc = 0.
+    for i in prange(n):
+        acc += np.sqrt(A[i])
+    return acc
 
 
+
+# %%
+%time do_sum_parallel(np.arange(1,100,0.1))
+# %%
+%time do_sum_parallel_fast(np.arange(1,100,0.1))
+
+# %%
