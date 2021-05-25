@@ -5,9 +5,6 @@ from datetime import time
 from pylab import np, plt
 plt.style.use('ggplot')
 
-import multiprocessing
-multiprocessing.cpu_count()
-# del nb.config.NUMBA_DEFAULT_NUM_THREADS
 
 # %%
 @jitclass(
@@ -42,11 +39,11 @@ multiprocessing.cpu_count()
         ('iab', float64[:]),
     ])
 class The_AC_Machines:
-    def __init__(self, IN):
+    def __init__(self):
         # name plate data
         self.npp = 4
         self.npp_inv = 1.0/self.npp
-        self.IN = IN # Arms (line-to-line)
+        self.IN = 3 # Arms (line-to-line)
         # electrical parameters
         self.R = 1.1
         self.Ld = 5e-3
@@ -242,7 +239,7 @@ def ACMSimPy(omega_ob, TIME=10, MACHINE_TS=1e-4, CL_TS=1e-4):
     speed = np.zeros_like(control_times)
 
     # init
-    ACM = The_AC_Machines(3) # It's just that numba in nopython mode doesn't support keyword-argument. It works if you pass it as positional argument
+    ACM = The_AC_Machines() # It's just that numba in nopython mode doesn't support keyword-argument. It works if you pass it as positional argument
     CTRL = The_Motor_Controller(CL_TS, 4*CL_TS)
     reg_id = The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
     reg_iq = The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
@@ -330,10 +327,12 @@ def ACMSimPy(omega_ob, TIME=10, MACHINE_TS=1e-4, CL_TS=1e-4):
 
     return control_times, id, iq, ia, ib, speed
 # Compile
-%time watch = ACMSimPy(omega_ob=1, TIME=0.1, MACHINE_TS=1e-5, CL_TS=1e-4)
+ACMSimPy(omega_ob=1, TIME=0.1, MACHINE_TS=1e-4, CL_TS=1e-4)
+
+
 
 # %% 
-%time watch = ACMSimPy(omega_ob=1, TIME=5.5, MACHINE_TS=1e-5, CL_TS=1e-4)
+%time watch = ACMSimPy(omega_ob=1, TIME=5.5, MACHINE_TS=1e-4, CL_TS=1e-4)
 times, id, iq, ia, ib, speed = watch
 plt.figure(figsize=(12,6))
 plt.plot(times, id)
@@ -375,10 +374,34 @@ plt.legend(loc='upper left');
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # %%
 %%time
 @njit(nogil=True, parallel=True) # THIS IS NOT WORKING AS PARALLEL!!!
-def RUN(end=7):
+def RUN(end=13):
     for omega_ob in prange(1, int(end)):
         # ACMSimPy(omega_ob=omega_ob, TIME=5.5, MACHINE_TS=1e-4, CL_TS=1e-4)
         ACMSimPy(omega_ob, 5.5, 1e-4, 1e-4)
@@ -387,48 +410,39 @@ RUN()
 RUN.parallel_diagnostics(level=4)
 
 
-# Numba has parallel feature, so ThreadPoolExecutor is not needed
-# from concurrent.futures import ThreadPoolExecutor
-# with ThreadPoolExecutor(12) as ex:  # THIS IS NOT WORKING AS PARALLEL!!!
-#     ex.map(ACMSimPy, np.arange(1, 7, 1))
-
-
-
-
-
-
-
-
-
-
-
 
 
 # %%
-from numba import njit
-@njit(parallel=True)
-def do_sum_parallel(A):
-    # each thread can accumulate its own partial sum, and then a cross
-    # thread reduction is performed to obtain the result to return
-    n = len(A)
-    acc = 0.
-    for i in prange(n):
-        acc += np.sqrt(A[i])
-    return acc
-
-@njit(parallel=True, fastmath=True)
-def do_sum_parallel_fast(A):
-    n = len(A)
-    acc = 0.
-    for i in prange(n):
-        acc += np.sqrt(A[i])
-    return acc
+%%time
+if False:
+    # Numba has parallel feature, so ThreadPoolExecutor is not needed
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    with ThreadPoolExecutor(12) as ex:  # THIS IS NOT WORKING AS PARALLEL!!!
+        if True:
+            the_threads = [ex.submit(ACMSimPy, omega_ob) for omega_ob in range(1, 7)]
+            for f in as_completed(the_threads):
+                print(f.result())
+        else:
+            for f in ex.map(ACMSimPy, np.arange(1, 7, 1)):
+                print(f.result())
+    print('Done')
 
 
 
-# %%
-%time do_sum_parallel(np.arange(1,100,0.1))
-# %%
-%time do_sum_parallel_fast(np.arange(1,100,0.1))
+
+# %% https://www.youtube.com/watch?v=fKl2JW_qrso
+import multiprocessing
+print(multiprocessing.cpu_count())
+print('Conclusion: numba.jitclass is likely to not support multiprocessing.')
+
+processes = []
+for omega_ob in range(1,7):
+    p = multiprocessing.Process(target=ACMSimPy, args=[omega_ob])
+    p.start()
+    processes.append(p)
+
+for p in processes:
+    p.join()
+
 
 # %%

@@ -1,2 +1,2 @@
 # ACMSimPy
-AC Machine Simulation in Python
+AC Machine Simulation in Python (Accelerated with Numba)
