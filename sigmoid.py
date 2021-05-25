@@ -29,10 +29,10 @@ def sm_sigmoid(x, a):
 
 # %%
 get_fig()
-x = np.arange(-1, 1, 0.001)
-for a in [0.1, 1, 5, 20, 200, 500]:
+x = np.arange(-10, 10, 0.001)
+for a in [0.05494, 0.2, 1, 5, 20, 200]:
     y = sm_sigmoid(x, a)
-    plt.plot(x, y, label=f'a={a}')
+    plt.plot(x, y, label=f'$a={a}$')
 plt.legend()
 plt.grid()
 
