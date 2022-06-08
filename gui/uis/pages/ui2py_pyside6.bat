@@ -1,0 +1,1 @@
+D:\Programs\anaconda38\envs\main\Scripts\pyside6-uic.exe main_pages.ui  -o ui_main_pages.py

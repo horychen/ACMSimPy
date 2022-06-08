@@ -1,2 +1,2 @@
-# ACMSimPy
-AC Machine Simulation in Python (Accelerated with Numba)
+# ACMSimPy Visualized by PyOneDark Qt Modern GUI - With PySide6
+
