@@ -1,6 +1,6 @@
 # ACMSimPy Visualized by PyOneDark Qt Modern GUI
 
-![acmsimpy logo](https://github.com/horychen/ACMSimPy/blob/gui/g1090.png?raw=true)
+![acmsimpy logo](https://github.com/horychen/ACMSimPy/blob/gui/images/svg_images/g1090.png?raw=true)
 
 ## installation
 - 1. Download and install Anaconda 3
