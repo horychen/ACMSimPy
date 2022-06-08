@@ -384,9 +384,9 @@ class EmyFunctions(object):
             # Update the canvas
             if thread_index == 0:
                 while sum([el == CONSOLE.ii_list[0] for el in CONSOLE.ii_list]) < len(CONSOLE.ii_list):
-                    print('Pause:', thread_index, CONSOLE.ii_list)
+                    # print('Pause:', thread_index, CONSOLE.ii_list)
                     plt.pause(0.01)
-                print(thread_index, CONSOLE.ii_list)
+                # print(thread_index, CONSOLE.ii_list)
                 mainWindowObject.first_ax.set_xlim([end_time-CONSOLE.NUMBER_OF_SAMPLE_TO_SHOW*CONSOLE.CL_TS, end_time])
                 # first_ax.set_xticklabels(np.arange(0, int(round(end_time)), int(round(end_time))*0.1)) #, fontdict=font)
                 # return line01, line02, time_text # for using blit=True but blit does not update xticks and yticks
