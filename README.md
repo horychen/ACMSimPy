@@ -1,8 +1,6 @@
-# ACMSimPy Visualized by PyOneDark Qt Modern GUI
-
-![acmsimpy logo](https://github.com/horychen/ACMSimPy/blob/gui/gui/images/svg_images/g1090.png?raw=true)
-
 ![acmsimpy logo](https://github.com/horychen/ACMSimPy/blob/gui/gui/images/svg_images/logo_home_acmsimpy.svg?raw=true)
+
+# Motor Control Simulation Visualized by PyOneDark Qt Modern GUI
 
 ## installation
 - 1. Download and install Anaconda 3
@@ -10,6 +8,11 @@
 - 3. `conda activate main`
 - 4. `pip install PySide6 matplotlib pandas numba qtconsole`
 - 5. `cd /d D:\acmsimpy`
-- 5. `python main.py`
+- 6. `python main.py`
 
 ## Examples (incoming)
+
+> I would appreciate it if anyone is willing to redesign the logo for me.
+
+Jiahao
+8 June 2022
