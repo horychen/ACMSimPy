@@ -402,6 +402,8 @@ class EmyFunctions(object):
                 while sum([el == CONSOLE.ii_list[0] for el in CONSOLE.ii_list]) < len(CONSOLE.ii_list):
                     # print('Pause:', thread_index, CONSOLE.ii_list)
                     plt.pause(0.01)
+                    if CONSOLE.bool_exit == True:
+                        break
                 # print(thread_index, CONSOLE.ii_list)
                 mainWindowObject.first_ax.set_xlim([end_time-CONSOLE.NUMBER_OF_SAMPLE_TO_SHOW*CONSOLE.CL_TS, end_time])
                 # first_ax.set_xticklabels(np.arange(0, int(round(end_time)), int(round(end_time))*0.1)) #, fontdict=font)
@@ -412,7 +414,8 @@ class EmyFunctions(object):
             else:
                 while ii > CONSOLE.ii_list[0]:
                     plt.pause(0.01)
-
+                    if CONSOLE.bool_exit == True:
+                        break
         # Animation cannot be used as the thread along with the anim object will be killed after exit here.
         return 'Simulation (parallel) is done.' # the result to print
 

@@ -3,4 +3,4 @@ __pycache__/
 .git/
 .pyc
 
-user_input.txt
+user_input*.txt
