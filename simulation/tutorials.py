@@ -15,7 +15,8 @@ plt.style.use('ggplot')
             ('velocity_loop_ceiling', float64),
             # feedback / input
             ('theta_d', float64),
-            ('omega_elec', float64),
+            ('omega_r_elec', float64),
+            ('omega_syn', float64),
             # states
             ('timebase', float64),
             ('KA', float64),
@@ -66,7 +67,7 @@ class The_Motor_Controller:
         init_Ld = 5e-3,
         init_Lq = 6e-3,
         init_KE = 0.095,
-        init_Rreq = 0, # note division by 0 is equal to infinity
+        init_Rreq = None, # note division by 0 is equal to infinity
         init_Js = 0.0006168,
     ):
         ''' CONTROL '''
@@ -77,7 +78,8 @@ class The_Motor_Controller:
         self.velocity_loop_ceiling = 5
         # feedback / input
         self.theta_d = 0.0
-        self.omega_elec = 0.0
+        self.omega_r_elec = 0.0
+        self.omega_syn = 0.0
         # states
         self.timebase = 0.0
         self.KA = init_KE
@@ -160,8 +162,9 @@ class The_Motor_Controller:
         ('TLoad', float64),
         # output
         ('omega_slip', float64),
-        ('omega_elec', float64),
-        ('omega_mech', float64),
+        ('omega_r_elec', float64),
+        ('omega_r_mech', float64),
+        ('omega_syn', float64),
         ('theta_d', float64),
         ('theta_d_mech', float64),
         ('KA', float64),
@@ -194,8 +197,9 @@ class The_AC_Machine:
         self.TLoad = 0
         # output
         self.omega_slip = 0.0
-        self.omega_elec = 0.0
-        self.omega_mech = 0.0
+        self.omega_r_elec = 0.0
+        self.omega_r_mech = 0.0
+        self.omega_syn = 0.0
         self.theta_d = 0.0
         self.theta_d_mech = 0.0
         self.KA = CTRL.KA
@@ -294,16 +298,18 @@ def DYNAMICS_MACHINE(t, x, ACM, CLARKE_TRANS_TORQUE_GAIN=1.5):
     iQ = ACM.iQ # x[4]
     if ACM.Rreq>0:
         KA = x[2]
-        ACM.omega_slip = ACM.Rreq * iQ / KA
+        if KA>0:
+            ACM.omega_slip = ACM.Rreq * iQ / KA
+        else:
+            ACM.omega_slip = 0.0
     else:
         KA = (ACM.Ld - ACM.Lq) * iD + ACM.KE # x[2]
         ACM.omega_slip = 0.0
     omega_r_mech = x[1]
 
-    # 电磁子系统 (KA, iD, iQ as x[2], x[3], x[4])
     if ACM.Rreq > 0:
         # s KA
-        fx[2] = ACM.Rreq*iD - ACM.Rreq / (ACM.Ld - ACM.Lq) * KA # [Apply Park Transorm to (31b)]
+        fx[2] = ACM.Rreq*iD - ACM.Rreq*KA / (ACM.Ld - ACM.Lq) # Apply Park Transorm to (31b)
         fx[3] = 0.0 # Current source excitation
     else: 
         # s KA
@@ -311,7 +317,7 @@ def DYNAMICS_MACHINE(t, x, ACM, CLARKE_TRANS_TORQUE_GAIN=1.5):
         fx[2] = (ACM.Ld - ACM.Lq) * fx[3] + 0.0
     fx[4] = 0.0 # Current source excitation
 
-    # 机械子系统 (theta_d_mech, omega_mech as x[0], x[1])
+    # 机械子系统 (theta_d_mech, omega_r_mech as x[0], x[1])
     ACM.Tem = CLARKE_TRANS_TORQUE_GAIN * ACM.npp * KA * iQ # 电磁转矩计算
     fx[0] = omega_r_mech + ACM.omega_slip / ACM.npp # mech. angular rotor position (accumulated)
     fx[1] = (ACM.Tem - ACM.TLoad) / ACM.Js  # mech. angular rotor speed
@@ -381,13 +387,14 @@ def incremental_pi(reg):
 @njit(nogil=True)
 def FOC(CTRL, reg_speed):
     reg_speed.Ref = CTRL.cmd_rpm / 60 * 2*np.pi * CTRL.npp # [elec.rad]
-    reg_speed.Fbk = CTRL.omega_elec # [elec.rad]
+    reg_speed.Fbk = CTRL.omega_r_elec # [elec.rad]
     CTRL.velocity_loop_counter += 1
     if CTRL.velocity_loop_counter >= CTRL.velocity_loop_ceiling:
         CTRL.velocity_loop_counter = 0
         incremental_pi(reg_speed)
     CTRL.cmd_idq[1] = reg_speed.Out
-    # CTRL.cmd_idq[0] = 0.0
+    if CTRL.Rreq>0: # IM
+        CTRL.cmd_idq[0] = 0.9 / (CTRL.Ld - CTRL.Lq)
     # return CTRL.cmd_udq
     pass
 
@@ -429,12 +436,12 @@ def DSP(ACM, CTRL, reg_speed):
     """ Park Transformation Essentials """
     # now we are ready to calculate torque using dq-currents
     CTRL.KA = (CTRL.Ld - CTRL.Lq) * CTRL.idq[0] + CTRL.KE # 有功磁链计算
-    CTRL.Tem = 1.5 * CTRL.npp * CTRL.idq[1]*CTRL.KA       # 电磁转矩计算
+    CTRL.Tem =     1.5 * CTRL.npp * CTRL.idq[1] * CTRL.KA # 电磁转矩计算
 
     """ Speed Estimation """
     if CTRL.index_separate_speed_estimation == 0:
         #TODO simulate the encoder
-        CTRL.omega_elec = ACM.omega_elec
+        CTRL.omega_r_elec = ACM.omega_r_elec
     elif CTRL.index_separate_speed_estimation == 1:
         RK4_ObserverSolver_CJH_Style(DYNAMICS_SpeedObserver, CTRL.xS, CTRL.CL_TS, CTRL)
         while CTRL.xS[0]> np.pi: CTRL.xS[0] -= 2*np.pi
@@ -446,7 +453,7 @@ def DSP(ACM, CTRL, reg_speed):
 
         """ Speed Observer Outputs """
         CTRL.vartheta_d = CTRL.xS[0]
-        CTRL.omega_elec = CTRL.xS[1]
+        CTRL.omega_r_elec = CTRL.xS[1]
         if CTRL.use_disturbance_feedforward_rejection == 0:
             CTRL.total_disrubance_feedforward = 0.0
         if CTRL.use_disturbance_feedforward_rejection == 1:
@@ -497,12 +504,14 @@ def ACMSimPyIncremental(
         # Generate output variables for easy access
         # ACM.x[0] = ACM.x[0] - ACM.x[0]//(2*np.pi)*(2*np.pi)
         ACM.theta_d_mech = ACM.x[0]
-        ACM.omega_mech   = ACM.x[1]
+        ACM.omega_r_mech = ACM.x[1]
         ACM.KA           = ACM.x[2]
         ACM.iD           = ACM.x[3]
         ACM.iQ           = ACM.x[4]
-        ACM.omega_elec   = ACM.omega_mech * ACM.npp
         ACM.theta_d      = ACM.theta_d_mech * ACM.npp
+        ACM.omega_r_elec = ACM.omega_r_mech * ACM.npp
+        ACM.omega_syn    = ACM.omega_r_elec + ACM.omega_slip
+
         # Inverse Park transformation
         # ACM.cosT = np.cos(ACM.theta_d)
         # ACM.sinT = np.sin(ACM.theta_d)
@@ -544,7 +553,7 @@ def ACMSimPyIncremental(
 
             """ Watch @ CL_TS """
             watch_data[ 0][watch_index] = divmod(ACM.theta_d, 2*np.pi)[1]
-            watch_data[ 1][watch_index] = ACM.omega_mech / (2*np.pi) * 60 # omega_mech
+            watch_data[ 1][watch_index] = ACM.omega_r_mech / (2*np.pi) * 60 # omega_r_mech
             watch_data[ 2][watch_index] = ACM.KA
             watch_data[ 3][watch_index] = ACM.iD
             watch_data[ 4][watch_index] = ACM.iQ
@@ -554,12 +563,12 @@ def ACMSimPyIncremental(
             watch_data[ 8][watch_index] = CTRL.idq[0]
             watch_data[ 9][watch_index] = CTRL.idq[1]
             watch_data[10][watch_index] = divmod(CTRL.theta_d, 2*np.pi)[1]
-            watch_data[11][watch_index] = CTRL.omega_elec / (2*np.pi*ACM.npp) * 60
+            watch_data[11][watch_index] = CTRL.omega_r_elec / (2*np.pi*ACM.npp) * 60
             watch_data[12][watch_index] = CTRL.cmd_rpm
             watch_data[13][watch_index] = CTRL.cmd_idq[0]
             watch_data[14][watch_index] = CTRL.cmd_idq[1]
             watch_data[15][watch_index] = CTRL.xS[0] # theta_d
-            watch_data[16][watch_index] = CTRL.xS[1] / (2*np.pi*ACM.npp) * 60 # omega_elec
+            watch_data[16][watch_index] = CTRL.xS[1] / (2*np.pi*ACM.npp) * 60 # omega_r_elec
             watch_data[17][watch_index] = CTRL.xS[2] # TL
             watch_data[18][watch_index] = CTRL.xS[3] # pT
             watch_data[19][watch_index] = CTRL.KA
@@ -591,7 +600,7 @@ def ACMSimPyWrapper(numba__scope_dict, *arg, **kwarg):
     # TODO: need to make this globally shared between the simulation and the GUI.
     Watch_Mapping = [
         '[rad]=ACM.theta_d',
-        '[rad/s]=ACM.omega_mech',
+        '[rad/s]=ACM.omega_r_mech',
         '[Wb]=ACM.KA',
         '[A]=ACM.iD',
         '[A]=ACM.iQ',
@@ -601,12 +610,12 @@ def ACMSimPyWrapper(numba__scope_dict, *arg, **kwarg):
         '[A]=CTRL.idq[0]',
         '[A]=CTRL.idq[1]',
         '[rpm]=CTRL.theta_d',
-        '[rpm]=CTRL.omega_mech',
+        '[rpm]=CTRL.omega_r_mech',
         '[rpm]=CTRL.cmd_rpm',
         '[A]=CTRL.cmd_idq[0]',
         '[A]=CTRL.cmd_idq[1]',
         '[rad]=CTRL.xS[0]',  # theta_d
-        '[rpm]=CTRL.xS[1]',  # omega_elec
+        '[rpm]=CTRL.xS[1]',  # omega_r_elec
         '[Nm]=CTRL.xS[2]',   # -TL
         '[Nm/s]=CTRL.xS[3]', # DL
         '[Wb]=CTRL.KA',
@@ -658,7 +667,8 @@ if __name__ == '__main__':
                 init_Ld = 5e-3,
                 init_Lq = 6e-3,
                 init_KE = 0.095,
-                init_Rreq = -1.0,
+                # init_Rreq = -1.0, # PMSM
+                init_Rreq = 1.0, # IM
                 init_Js = 0.0006168)
     ACM       = The_AC_Machine(CTRL)
     reg_id    = None # The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
@@ -677,7 +687,7 @@ if __name__ == '__main__':
 
     from collections import OrderedDict as OD
     numba__scope_dict = OD([
-        (r'Speed [rpm]',                  ( 'CTRL.cmd_rpm', 'CTRL.omega_elec', 'CTRL.xS[1]'     ,) ),
+        (r'Speed [rpm]',                  ( 'CTRL.cmd_rpm', 'CTRL.omega_r_elec', 'CTRL.xS[1]'     ,) ),
         (r'Position [rad]',               ( 'ACM.theta_d', 'CTRL.theta_d', 'CTRL.xS[0]'            ,) ),
         (r'Position mech [rad]',          ( 'ACM.x[0]'                                       ,) ),
         (r'$q$-axis current [A]',         ( 'ACM.x[4]', 'CTRL.cmd_idq[1]'     ,) ),

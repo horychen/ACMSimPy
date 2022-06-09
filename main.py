@@ -52,43 +52,32 @@ class MainWindow(QMainWindow):
                 self.STRING_SCOPE_DICT = f.read()
         else:
             self.STRING_SCOPE_DICT = r"""numba__scope_dict = OD([
-(r'Speed [rpm]',      ( 'CTRL.cmd_rpm', 'ACM.omega_mech', 'CTRL.omega_mech',)),
-(r'Position [rad]',   ( 'ACM.theta_d', 'CTRL.theta_d'                      ,)),
-(r'$dq$ current [A]', ( 'ACM.iQ', 'CTRL.idq[1]', 'ACM.iD', 'CTRL.idq[0]'   ,)),
-(r'Torque [Nm]',      ( 'ACM.Tem', 'CTRL.Tem'                              ,)),
+(r'Speed [rpm]',      ( 'CTRL.cmd_rpm', 'ACM.omega_r_mech', 'CTRL.omega_r_mech',)),
+(r'Position [rad]',   ( 'ACM.theta_d', 'CTRL.theta_d'                          ,)),
+(r'$dq$ current [A]', ( 'ACM.iQ', 'CTRL.idq[1]', 'ACM.iD', 'CTRL.idq[0]'       ,)),
+(r'Torque [Nm]',      ( 'ACM.Tem', 'CTRL.Tem'                                  ,)),
 ])"""
 
+        # LOAD USER INPUT for PARALLEL (IF ANY)
+        if os.path.exists('user_input_parallel.txt'):
+            with open('user_input_parallel.txt', 'r') as f:
+                self.STRING_SCOPE_DICT_PARALLEL = f.read()
+        else:
+            self.STRING_SCOPE_DICT_PARALLEL = r"""numba__scope_dict = OD([
+(r'Speed [rpm]',      ( 'ACM.omega_r_mech',)),
+(r'Position [rad]',   ( 'ACM.theta_d'     ,)),
+(r'$d$-axis current [A]', ( 'ACM.iD'      ,)),
+(r'$q$-axis current [A]', ( 'ACM.iQ'      ,)),
+(r'Torque [Nm]',      ( 'ACM.Tem'         ,)),])"""
+
+        # LOAD 
         self.STRING_WATCH_MAPPING = r"""Watch_Mapping = [
-'[rad]=ACM.theta_d', # ACM.x[0] = thete_d_mech
-'[rad/s]=ACM.omega_mech', # omega_mech
-'[Wb]=ACM.KA',
-'[A]=ACM.iD',
-'[A]=ACM.iQ',
-'[Nm]=ACM.Tem',
-'[A]=CTRL.iab[0]',
-'[A]=CTRL.iab[1]',
-'[A]=CTRL.idq[0]',
-'[A]=CTRL.idq[1]',
-'[rpm]=CTRL.theta_d', # d-axis position
-'[rpm]=CTRL.omega_mech',
-'[rpm]=CTRL.cmd_rpm',
-'[A]=CTRL.cmd_idq[0]',
-'[A]=CTRL.cmd_idq[1]',
-'[rad]=CTRL.xS[0]',  # theta_d
-'[rpm]=CTRL.xS[1]',  # omega_elec
-'[Nm]=CTRL.xS[2]',   # -TL
-'[Nm/s]=CTRL.xS[3]', # DL
-'[Wb]=CTRL.KA',
-'[Wb]=CTRL.KE',
-'[Wb]=CTRL.xT[0]', # stator flux[0]
-'[Wb]=CTRL.xT[1]', # stator flux[1]
-'[V]=CTRL.xT[2]', # I term
-'[V]=CTRL.xT[3]', # I term
-'[Wb]=CTRL.active_flux[0]', # active flux[0]
-'[Wb]=CTRL.active_flux[1]', # active flux[1]
+'[rad]=ACM.theta_d', 
+...
 '[Nm]=CTRL.Tem',
 ]"""
 
+        # LOAD 
         self.STRING_CODES = r"""list_extra_execution_code = [
                                                             "reg_speed.Kp = 1.0*0.0380362",
                                                             "reg_speed.Kp = 2.0*0.0380362",

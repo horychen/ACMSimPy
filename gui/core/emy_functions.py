@@ -115,13 +115,6 @@ class THE_CONSOLE:
 # FUNCTIONS
 class EmyFunctions(object):
 
-        # CONSOLE.anim = animation.FuncAnimation(mainWindowObject.ui.MplWidget_ACMPlot.canvas.figure, ACMアニメ4Py, 
-        #                                 interval=200, cache_frame_data=False) # cache_frame_data=False is good for large artists when plotting
-        #                                 #, blit=True) # blit=True means only re-draw the parts that have changed. 
-        #                                 # https://matplotlib.org/stable/tutorials/advanced/blitting.html
-        #                                 # https://stackoverflow.com/questions/14421924/matplotlib-animate-does-not-update-tick-labels
-        #                                 # https://jakevdp.github.io/blog/2012/08/18/matplotlib-animation-tutorial/
-
     def prepare_canvas_on_page_3(mainWindowObject):
 
         """ Read scope dict from GUI """
@@ -218,7 +211,6 @@ class EmyFunctions(object):
         mainWindowObject.numba__line_dict = numba__line_dict
         mainWindowObject.first_ax = first_ax
 
-
     # Run real time simulation with ACMSymPy
     ''' Python-Numba-based Simulation '''
     # @Slot()
@@ -230,7 +222,19 @@ class EmyFunctions(object):
         CONSOLE = mainWindowObject.CONSOLE
 
         """ Simulation Globals """
-        CTRL      = mainWindowObject.CTRL      = acmsimpy.The_Motor_Controller(CONSOLE.CL_TS, 5*CONSOLE.CL_TS)
+        CTRL = mainWindowObject.CTRL = acmsimpy.The_Motor_Controller(CONSOLE.CL_TS, 5*CONSOLE.CL_TS,
+                init_npp = 4,
+                init_IN = 3,
+                init_R = 1.1,
+                # init_Ld = 5e-3, # PMSM
+                # init_Lq = 6e-3, # PMSM
+                # init_KE = 0.095, # PMSM
+                # init_Rreq = -1.0, # PMSM
+                init_Ld = 440e-3, # IM
+                init_Lq = 25e-3, # IM
+                init_KE = 0.0, # IM
+                init_Rreq = 1.0, # IM
+                init_Js = 0.0006168)
         ACM       = mainWindowObject.ACM       = acmsimpy.The_AC_Machine(CTRL)
         reg_id    = mainWindowObject.reg_id    = None
         reg_iq    = mainWindowObject.reg_iq    = None
@@ -308,7 +312,19 @@ class EmyFunctions(object):
         CONSOLE = mainWindowObject.CONSOLE # Note this is the shared CONSOLE object
 
         """ Simulation Globals """
-        mainWindowObject.CTRL      = CTRL      = acmsimpy.The_Motor_Controller(CONSOLE.CL_TS, 5*CONSOLE.CL_TS)
+        mainWindowObject.CTRL      = CTRL      = acmsimpy.The_Motor_Controller(CONSOLE.CL_TS, 5*CONSOLE.CL_TS,
+                init_npp = 4,
+                init_IN = 3,
+                init_R = 1.1,
+                # init_Ld = 5e-3, # PMSM
+                # init_Lq = 6e-3, # PMSM
+                # init_KE = 0.095, # PMSM
+                # init_Rreq = -1.0, # PMSM
+                init_Ld = 440e-3, # IM
+                init_Lq = 25e-3, # IM
+                init_KE = 0.0, # IM
+                init_Rreq = 1.0, # IM
+                init_Js = 0.0006168)
         mainWindowObject.ACM       = ACM       = acmsimpy.The_AC_Machine(CTRL)
         mainWindowObject.reg_id    = reg_id    = None
         mainWindowObject.reg_iq    = reg_iq    = None
@@ -404,22 +420,15 @@ class EmyFunctions(object):
 
         """ Read scope dict from GUI """
         try:
-            # the_cmd = mainWindowObject.plainTextEdit_NumbaScopeDict.toPlainText()
-
-            the_cmd = """numba__scope_dict = OD([
-                        (r'Speed [rpm]',      ( 'ACM.omega_mech',)),
-                        (r'Position [rad]',   ( 'ACM.theta_d'   ,)),
-                        (r'$dq$ current [A]', ( 'ACM.iQ'        ,)),
-                        (r'Torque [Nm]',      ( 'ACM.Tem'       ,)),
-                        ])"""
-            # with open('user_input_parallel.txt', 'w') as f:
-            #     f.write(the_cmd)
+            the_cmd = mainWindowObject.ui.plainTextEdit_NumbaScopeDict_Parallel.toPlainText()
+            with open('user_input_parallel.txt', 'w') as f:
+                f.write(the_cmd)
             numba__scope_dict = eval(the_cmd[the_cmd.find('OD'):])
         except Exception as err:
             print('-------------------')
             print('Decypher for NumbaScopeDict has failed. Will use the default dict.')
-            numba__scope_dict = numba__scope_dict = OD([
-                        (r'Speed [rpm]',      ( 'ACM.omega_mech',)),
+            numba__scope_dict = OD([
+                        (r'Speed [rpm]',      ( 'ACM.omega_r_mech',)),
                         (r'Position [rad]',   ( 'ACM.theta_d'   ,)),
                         (r'$dq$ current [A]', ( 'ACM.iQ'        ,)),
                         (r'Torque [Nm]',      ( 'ACM.Tem'       ,)),])

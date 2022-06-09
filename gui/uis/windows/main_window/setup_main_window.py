@@ -345,6 +345,21 @@ class SetupMainWindow:
         self.ui.plainTextEdit_Codes.setMinimumHeight(300)
         self.ui.left_column.menus.main_pages_layout.addWidget(self.ui.plainTextEdit_Codes)
 
+        # Scope Dict (User input) for parallel simulation
+        self.ui.plainTextEdit_NumbaScopeDict_Parallel = PyTextEdit(
+            text = self.STRING_SCOPE_DICT_PARALLEL,
+            place_holder_text = "Input only one signal per subplot!",
+            radius = 8,
+            border_size = 2,
+            color = self.themes["app_color"]["text_foreground"],
+            selection_color = self.themes["app_color"]["white"],
+            bg_color = self.themes["app_color"]["dark_one"],
+            bg_color_active = self.themes["app_color"]["dark_three"],
+            context_color = self.themes["app_color"]["context_color"]
+        )
+        self.ui.plainTextEdit_NumbaScopeDict_Parallel.setMinimumHeight(300)
+        self.ui.left_column.menus.main_pages_layout.addWidget(self.ui.plainTextEdit_NumbaScopeDict_Parallel)
+
         # PAGE 2
         if True:
             # CIRCULAR PROGRESS 1

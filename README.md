@@ -1,5 +1,7 @@
 ![acmsimpy logo](https://github.com/horychen/ACMSimPy/blob/gui/gui/images/svg_images/logo_home_acmsimpy.svg?raw=true)
 
+> I would appreciate it if anyone is willing to redesign the logo for this repo.
+
 # Motor Control Simulation Visualized by PyOneDark Qt Modern GUI
 
 ## installation
@@ -12,7 +14,3 @@
 
 ## Examples (incoming)
 
-> I would appreciate it if anyone is willing to redesign the logo for me.
-
-Jiahao
-8 June 2022
