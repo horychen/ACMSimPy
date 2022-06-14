@@ -2,6 +2,7 @@
 from numba.experimental import jitclass
 from numba import njit, int32, float64
 from pylab import np, plt
+import re
 plt.style.use('ggplot')
 
 ############################################# CLASS DEFINITION 
@@ -585,69 +586,89 @@ def ACMSimPyIncremental(
     return control_times, watch_data
 
 
+
+# TODO: need to make this globally shared between the simulation and the GUI.
+_Watch_Mapping = [
+    '[rad]=ACM.theta_d',
+    '[rad/s]=ACM.omega_r_mech',
+    '[Wb]=ACM.KA',
+    '[A]=ACM.iD',
+    '[A]=ACM.iQ',
+    '[Nm]=ACM.Tem',
+    '[A]=CTRL.iab[0]',
+    '[A]=CTRL.iab[1]',
+    '[A]=CTRL.idq[0]',
+    '[A]=CTRL.idq[1]',
+    '[rad]=CTRL.theta_d',
+    '[rpm]=CTRL.omega_r_mech',
+    '[rpm]=CTRL.cmd_rpm',
+    '[A]=CTRL.cmd_idq[0]',
+    '[A]=CTRL.cmd_idq[1]',
+    '[rad]=CTRL.xS[0]',  # theta_d
+    '[rpm]=CTRL.xS[1]',  # omega_r_elec
+    '[Nm]=CTRL.xS[2]',   # -TL
+    '[Nm/s]=CTRL.xS[3]', # DL
+    '[Wb]=CTRL.KA',
+    '[Wb]=CTRL.KE',
+    '[Wb]=CTRL.xT[0]', # stator flux[0]
+    '[Wb]=CTRL.xT[1]', # stator flux[1]
+    '[V]=CTRL.xT[2]', # I term
+    '[V]=CTRL.xT[3]', # I term
+    '[Wb]=CTRL.active_flux[0]', # active flux[0]
+    '[Wb]=CTRL.active_flux[1]', # active flux[1]
+    '[Nm]=CTRL.Tem',
+]
+Watch_Mapping = [el[el.find('=')+1:] for el in _Watch_Mapping]
+
 ############################################# Wrapper level 2
 def ACMSimPyWrapper(numba__scope_dict, *arg, **kwarg):
 
     # Do Numerical Integrations (that do not care about numba__scope_dict at all and return watch_data whatsoever)
     control_times, watch_data = ACMSimPyIncremental(*arg, **kwarg)
-
-
-
-
-
-
-
-    # TODO: need to make this globally shared between the simulation and the GUI.
-    Watch_Mapping = [
-        '[rad]=ACM.theta_d',
-        '[rad/s]=ACM.omega_r_mech',
-        '[Wb]=ACM.KA',
-        '[A]=ACM.iD',
-        '[A]=ACM.iQ',
-        '[Nm]=ACM.Tem',
-        '[A]=CTRL.iab[0]',
-        '[A]=CTRL.iab[1]',
-        '[A]=CTRL.idq[0]',
-        '[A]=CTRL.idq[1]',
-        '[rpm]=CTRL.theta_d',
-        '[rpm]=CTRL.omega_r_mech',
-        '[rpm]=CTRL.cmd_rpm',
-        '[A]=CTRL.cmd_idq[0]',
-        '[A]=CTRL.cmd_idq[1]',
-        '[rad]=CTRL.xS[0]',  # theta_d
-        '[rpm]=CTRL.xS[1]',  # omega_r_elec
-        '[Nm]=CTRL.xS[2]',   # -TL
-        '[Nm/s]=CTRL.xS[3]', # DL
-        '[Wb]=CTRL.KA',
-        '[Wb]=CTRL.KE',
-        '[Wb]=CTRL.xT[0]', # stator flux[0]
-        '[Wb]=CTRL.xT[1]', # stator flux[1]
-        '[V]=CTRL.xT[2]', # I term
-        '[V]=CTRL.xT[3]', # I term
-        '[Wb]=CTRL.active_flux[0]', # active flux[0]
-        '[Wb]=CTRL.active_flux[1]', # active flux[1]
-        '[Nm]=CTRL.Tem',
-    ]
+    watch_data_as_dict = dict(zip(Watch_Mapping, watch_data))
+    # print(watch_data_as_dict.keys())
 
     # Post-processing
     numba__waveforms_dict = dict()
-    for key, values in numba__scope_dict.items():
-        # key = '$\alpha\beta$ current [A]'
-        # values = ('CTRL.iab', 'CTRL.idq[1]'),
-        waveforms = []
-        for val in values:
-            # val = 'CTRL.iab'
-            for index, mapping in enumerate(Watch_Mapping):
-                if val in mapping:
-                    # CTRL.iab in '[A]=CTRL.iab[0]'
-                    # CTRL.iab in '[A]=CTRL.iab[1]'
-                    waveforms.append(watch_data[index])
+    if True:
+        # option 1 (with exec)
+        for key, expressions in numba__scope_dict.items():
+            # key = r'Error Speed [rpm]',
+            # expressions = ('CTRL.cmd_rpm-ACM.omega_r_mech', 'CTRL.idq[1]'),
+            waveforms = []
+            for expression in expressions:
+                # expression = 'CTRL.cmd_rpm-ACM.omega_r_mech'
+                translated_expression = ''
+                for word in expression.split():
+                    if 'CTRL' in word or 'ACM' in word or 'reg_' in word:
+                        translated_expression += f'watch_data_as_dict["{word}"]'
+                    else:
+                        translated_expression += word
+                # print(translated_expression)
+                waveforms.append(eval(translated_expression))
+            numba__waveforms_dict[key] = waveforms
+        # for key, val in numba__waveforms_dict.items():
+        #     print(key, len(val), len(val[0]))
+        # quit()
+    else:
+        # option 2 (without using exec)
+        for key, values in numba__scope_dict.items():
+            # key = '$\alpha\beta$ current [A]'
+            # values = ('CTRL.iab', 'CTRL.idq[1]'),
+            waveforms = []
+            for val in values:
+                # val = 'CTRL.iab'
+                for index, mapping in enumerate(Watch_Mapping):
+                    # 'CTRL.iab' in '[A]=CTRL.iab[0]'
+                    # 'CTRL.iab' in '[A]=CTRL.iab[1]'
+                    if val in mapping:
+                        waveforms.append(watch_data[index])
+                        # print('\t', key, val, 'in', mapping)
+                        if len(val) == 1:
+                            raise Exception('Invalid numba__scope_dict, make sure it is a dict of tuples of strings.')
 
-                    # print('\t', key, val, 'in', mapping)
-                    if len(val) == 1:
-                        raise Exception('Invalid numba__scope_dict, make sure it is a dict of tuples of strings.')
-
-        numba__waveforms_dict[key] = waveforms
+            numba__waveforms_dict[key] = waveforms
+    # quit()
     return control_times, numba__waveforms_dict
 
 
@@ -667,15 +688,15 @@ if __name__ == '__main__':
                 init_Ld = 5e-3,
                 init_Lq = 6e-3,
                 init_KE = 0.095,
-                # init_Rreq = -1.0, # PMSM
-                init_Rreq = 1.0, # IM
+                init_Rreq = -1.0, # PMSM
+                # init_Rreq = 1.0, # IM
                 init_Js = 0.0006168)
     ACM       = The_AC_Machine(CTRL)
     reg_id    = None # The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
     reg_iq    = None # The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
     reg_speed = The_PI_Regulator(1.0*0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
-    reg_speed = The_PI_Regulator(10 *0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
-    reg_speed = The_PI_Regulator(0.1*0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
+    # reg_speed = The_PI_Regulator(10 *0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
+    # reg_speed = The_PI_Regulator(0.1*0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
 
     # Global arrays
     global_cmd_speed, global_ACM_speed, global__OB_speed = None, None, None
@@ -687,13 +708,14 @@ if __name__ == '__main__':
 
     from collections import OrderedDict as OD
     numba__scope_dict = OD([
-        (r'Speed [rpm]',                  ( 'CTRL.cmd_rpm', 'CTRL.omega_r_elec', 'CTRL.xS[1]'     ,) ),
-        (r'Position [rad]',               ( 'ACM.theta_d', 'CTRL.theta_d', 'CTRL.xS[0]'            ,) ),
-        (r'Position mech [rad]',          ( 'ACM.x[0]'                                       ,) ),
-        (r'$q$-axis current [A]',         ( 'ACM.x[4]', 'CTRL.cmd_idq[1]'     ,) ),
-        (r'$d$-axis current [A]',         ( 'ACM.x[3]', 'CTRL.cmd_idq[0]'     ,) ),
-        (r'K_{\rm Active} [A]',           ( 'ACM.x[2]', 'CTRL.KA'             ,) ),
-        (r'Load torque [Nm]',             ( 'CTRL.xS[2]'                         ,) ),
+        (r'Speed [rpm]',                  ( 'CTRL.cmd_rpm', 'CTRL.omega_r_mech', 'CTRL.xS[1]'   ,) ),
+        (r'Speed Error [rpm]',            ( 'CTRL.cmd_rpm-CTRL.omega_r_mech'                  ,) ),
+        (r'Position [rad]',               ( 'ACM.theta_d', 'CTRL.theta_d', 'CTRL.xS[0]'         ,) ),
+        (r'Position mech [rad]',          ( 'ACM.theta_d'                                          ,) ),
+        (r'$q$-axis current [A]',         ( 'ACM.iQ', 'CTRL.cmd_idq[1]'                       ,) ),
+        (r'$d$-axis current [A]',         ( 'ACM.iD', 'CTRL.cmd_idq[0]'                       ,) ),
+        (r'K_{\rm Active} [A]',           ( 'ACM.KA', 'CTRL.KA'                               ,) ),
+        (r'Load torque [Nm]',             ( 'CTRL.xS[2]'                                        ,) ),
     ])
 
     # simulate to generate 10 sec of data
@@ -762,5 +784,5 @@ if __name__ == '__main__':
 
     print(CTRL.ell1, CTRL.ell2, CTRL.ell3, CTRL.ell4)
 
-    # plt.show()
+    plt.show()
 

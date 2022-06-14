@@ -20,6 +20,7 @@ from gui.widgets.py_table_widget.py_table_widget import PyTableWidget
 from . functions_main_window import *
 import sys
 import os
+import simulation.tutorials as acmsimpy
 
 # IMPORT QT CORE
 # ///////////////////////////////////////////////////////////////
@@ -316,7 +317,7 @@ class SetupMainWindow:
 
         # Scope Dict (Reference)
         self.plainTextEdit_NumbaScopeDict_2 = PyTextEdit(
-            text = self.STRING_WATCH_MAPPING,
+            text = '_Watch_Mapping = ' + '\n'.join(str(acmsimpy._Watch_Mapping).split()),
             # place_holder_text = STRING_WATCH_MAPPING,
             radius = 8,
             border_size = 2,

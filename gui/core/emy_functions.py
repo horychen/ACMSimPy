@@ -123,15 +123,33 @@ class EmyFunctions(object):
             with open('user_input.txt', 'w') as f:
                 f.write(the_cmd)
             numba__scope_dict = eval(the_cmd[the_cmd.find('OD'):])
+
+            # Add white space between operators and variable names
+            # print('BEFORE', numba__scope_dict)
+            for key, expressions in numba__scope_dict.items():
+                corrected_expressions = []
+                for ind, expression in enumerate(expressions):
+                    index = expression.find('+')
+                    if index != -1: expression = expression[:index] + ' + ' + expression[index+1:]
+                    index = expression.find('-')
+                    if index != -1: expression = expression[:index] + ' - ' + expression[index+1:]
+                    index = expression.find('*')
+                    if index != -1: expression = expression[:index] + ' * ' + expression[index+1:]
+                    index = expression.find('/')
+                    if index != -1: expression = expression[:index] + ' / ' + expression[index+1:]
+                    corrected_expressions.append(expression)
+                numba__scope_dict[key] = corrected_expressions
+            # print('AFTER', numba__scope_dict)
+
         except Exception as err:
             print('-------------------')
             print('Decypher for NumbaScopeDict has failed. Will use the default dict.')
             numba__scope_dict = OD([
-                (r'Speed [rpm]',                  ( 'CTRL.omega_elec'           ,)  ),
-                (r'Position [rad]',               ( 'ACM.x[3]'                  ,)  ),
-                (r'$q$-axis current [A]',         ( 'ACM.x[1]', 'CTRL.idq[1]'   ,)  ),
-                (r'$d$-axis current [A]',         ( 'ACM.x[0]', 'CTRL.idq[0]'   ,)  ),
-                (r'$\alpha\beta$ current [A]',    ( 'CTRL.iab[0]', 'CTRL.iab[1]',)  ),
+                (r'Speed [rpm]',                  ( 'CTRL.omega_r_mech'             ,)  ),
+                (r'Position [rad]',               ( 'CTRL.theta_d'                  ,)  ),
+                (r'$q$-axis current [A]',         ( 'ACM.iQ', 'CTRL.idq[1]'         ,)  ),
+                (r'$d$-axis current [A]',         ( 'ACM.iD', 'CTRL.idq[0]'         ,)  ),
+                # (r'$\alpha\beta$ current [A]',    ( 'CTRL.iab[0]', 'CTRL.iab[1]',)  ),
             ])
             print('err:', err)
             traceback.print_exc()
@@ -225,20 +243,24 @@ class EmyFunctions(object):
         CTRL = mainWindowObject.CTRL = acmsimpy.The_Motor_Controller(CONSOLE.CL_TS, 5*CONSOLE.CL_TS,
                 init_npp = 4,
                 init_IN = 3,
-                init_R = 1.1,
-                # init_Ld = 5e-3, # PMSM
-                # init_Lq = 6e-3, # PMSM
-                # init_KE = 0.095, # PMSM
-                # init_Rreq = -1.0, # PMSM
-                init_Ld = 440e-3, # IM
-                init_Lq = 25e-3, # IM
-                init_KE = 0.0, # IM
-                init_Rreq = 1.0, # IM
-                init_Js = 0.0006168)
+                init_R = 1.0,
+                init_Ld = 5e-3, # PMSM
+                init_Lq = 6e-3, # PMSM
+                init_KE =  1.0, # PMSM
+                init_Rreq = -1.0, # PMSM
+                # init_Ld = 440e-3, # IM
+                # init_Lq = 25e-3, # IM
+                # init_KE = 0.0, # IM
+                # init_Rreq = 1.0, # IM
+                init_Js = 1.0 #0.0006168)
+        )
         ACM       = mainWindowObject.ACM       = acmsimpy.The_AC_Machine(CTRL)
         reg_id    = mainWindowObject.reg_id    = None
         reg_iq    = mainWindowObject.reg_iq    = None
-        reg_speed = mainWindowObject.reg_speed = acmsimpy.The_PI_Regulator(0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
+        POLE = 10
+        KP = 2 * POLE
+        KI = 1 * POLE**2 / KP
+        reg_speed = mainWindowObject.reg_speed = acmsimpy.The_PI_Regulator(KP, KP*KI*CTRL.VL_TS, 100*1.414*ACM.IN)
 
         """ Simulation Globals Access from Console """
         if mainWindowObject.console_window is not None:
@@ -282,7 +304,9 @@ class EmyFunctions(object):
                     ymax = local_ymax if local_ymax > ymax else ymax
                 # 完事了只对一个ax做一次
                 if ymin != ymax:
-                    line.ax.set_ylim([ymin, ymax]) # this .ax is manually assigned when line object is created.
+                    min_scale = 1.05 if ymin<0 else 0.95
+                    max_scale = 1.05 if ymax>0 else 0.95
+                    line.ax.set_ylim([ymin*min_scale, ymax*max_scale]) # this .ax is manually assigned when line object is created.
 
             # time_text.set_text('time = %.1f' % end_time)
 
@@ -344,6 +368,7 @@ class EmyFunctions(object):
 
         """ Visualization of Realtime Simulation """
         print('\tJIT compile with numba...')
+        print(acmsimpy._Watch_Mapping)
         ii = 0
         while ii<1000:
             ii += 1
@@ -423,7 +448,7 @@ class EmyFunctions(object):
 
         """ Read scope dict from GUI """
         try:
-            the_cmd = mainWindowObject.ui.plainTextEdit_NumbaScopeDict_Parallel.toPlainText()
+            the_cmd = mainWindowObject.plainTextEdit_NumbaScopeDict_Parallel.toPlainText()
             with open('user_input_parallel.txt', 'w') as f:
                 f.write(the_cmd)
             numba__scope_dict = eval(the_cmd[the_cmd.find('OD'):])

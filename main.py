@@ -53,6 +53,7 @@ class MainWindow(QMainWindow):
         else:
             self.STRING_SCOPE_DICT = r"""numba__scope_dict = OD([
 (r'Speed [rpm]',      ( 'CTRL.cmd_rpm', 'ACM.omega_r_mech', 'CTRL.omega_r_mech',)),
+(r'Speed Error [rpm]',( 'CTRL.cmd_rpm - ACM.omega_r_mech'                      ,)),
 (r'Position [rad]',   ( 'ACM.theta_d', 'CTRL.theta_d'                          ,)),
 (r'$dq$ current [A]', ( 'ACM.iQ', 'CTRL.idq[1]', 'ACM.iD', 'CTRL.idq[0]'       ,)),
 (r'Torque [Nm]',      ( 'ACM.Tem', 'CTRL.Tem'                                  ,)),
