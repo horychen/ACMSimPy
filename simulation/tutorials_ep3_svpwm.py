@@ -712,7 +712,7 @@ def ACMSimPyWrapper(numba__scope_dict, *arg, **kwarg):
                         translated_expression += f'watch_data_as_dict["{word}"]'
                     else:
                         translated_expression += word
-                # print(translated_expression)
+                # print('DEBUG', translated_expression)
                 waveforms.append(eval(translated_expression))
             numba__waveforms_dict[key] = waveforms
         # for key, val in numba__waveforms_dict.items():
@@ -774,43 +774,24 @@ if __name__ == '__main__':
     global________x5 = None
     global_ACM_theta_d, global_CTRL_theta_d, global_OB_theta_d = None, None, None
     global_TL = None
+    global_cmd_iD = None
+    global_iD     = None
+    global_cmd_iQ = None
+    global_iQ     = None
 
     from collections import OrderedDict as OD
     numba__scope_dict = OD([
         (r'Speed [rpm]',                  ( 'CTRL.cmd_rpm', 'CTRL.omega_r_mech', 'CTRL.xS[1]'   ,) ),
         (r'Speed Error [rpm]',            ( 'CTRL.cmd_rpm - CTRL.omega_r_mech'                  ,) ),
         (r'Position [rad]',               ( 'ACM.theta_d', 'CTRL.theta_d', 'CTRL.xS[0]'         ,) ),
-        (r'Position mech [rad]',          ( 'ACM.theta_d'                                          ,) ),
-        (r'$q$-axis current [A]',         ( 'ACM.iQ', 'CTRL.cmd_idq[1]'                       ,) ),
-        (r'$d$-axis current [A]',         ( 'ACM.iD', 'CTRL.cmd_idq[0]'                       ,) ),
-        (r'K_{\rm Active} [A]',           ( 'ACM.KA', 'CTRL.KA'                               ,) ),
+        (r'Position mech [rad]',          ( 'ACM.theta_d'                                       ,) ),
+        (r'$q$-axis current [A]',         ( 'ACM.iQ', 'CTRL.cmd_idq[1]'                         ,) ),
+        (r'$d$-axis current [A]',         ( 'ACM.iD', 'CTRL.cmd_idq[0]'                         ,) ),
+        (r'K_{\rm Active} [A]',           ( 'ACM.KA', 'CTRL.KA'                                 ,) ),
         (r'Load torque [Nm]',             ( 'CTRL.xS[2]'                                        ,) ),
+        (r'CTRL.iD [A]',                  ( 'CTRL.cmd_idq[0]', 'CTRL.idq[0]'                    ,) ),
+        (r'CTRL.iQ [A]',                  ( 'CTRL.cmd_idq[1]', 'CTRL.idq[1]'                    ,) ),
     ])
-
-    # def controller_commands(t):
-    #     """ Console @ CL_TS """
-    #     if t <= 1.0:
-    #         CTRL.cmd_rpm = 50
-    #     elif t <= 1.5:
-    #         ACM.TLoad = 2
-    #     elif t <= 2.0:
-    #         CTRL.cmd_rpm = 200
-    #     elif t <= 3.0:
-    #         CTRL.cmd_rpm = -200
-    #     elif t <= 4.0:
-    #         CTRL.cmd_rpm = 0
-    #     elif t <= 4.5:
-    #         CTRL.cmd_rpm = 2000
-    #     elif t <= 5:
-    #         CTRL.cmd_idq[0] = 2
-    #     elif t <= 5.5:
-    #         ACM.TLoad = 0.0
-    #     elif t <= 6: 
-    #         CTRL.CMD_SPEED_SINE_RPM = 500
-    #     # else: # don't implement else clause to receive commands from IPython console
-
-    #     if CTRL.CMD_SPEED_SINE_RPM!=0:
-    #         CTRL.cmd_rpm = CTRL.CMD_SPEED_SINE_RPM * np.sin(2*np.pi*CTRL.CMD_SPEED_SINE_HZ*t)
 
     # simulate to generate 10 sec of data
     for ii in range(0, 8):
@@ -831,20 +812,26 @@ if __name__ == '__main__':
         ACM_id, cmd_id               = numba__waveforms_dict[r'$d$-axis current [A]']
         ACM_theta_d, CTRL_theta_d, OB_theta_d = numba__waveforms_dict[r'Position [rad]']
         TL,                          = numba__waveforms_dict[r'Load torque [Nm]']
+        cmd_iD, iD                   = numba__waveforms_dict[r'CTRL.iD [A]']
+        cmd_iQ, iQ                   = numba__waveforms_dict[r'CTRL.iQ [A]']
 
         def save_to_global(_global, _local):
-            return _local if _global is None else np.append(_global, _local)    
+            return _local if _global is None else np.append(_global, _local)
         global_cmd_speed = save_to_global(global_cmd_speed, cmd_rpm)
         global_ACM_speed = save_to_global(global_ACM_speed, ACM_speed)
         global__OB_speed = save_to_global(global__OB_speed,  OB_speed)
         global________x5 = save_to_global(global________x5,        x5)
-        global___KA = save_to_global(global___KA,   KA)
+        global___KA      = save_to_global(global___KA,   KA)
         global____ACM_id = save_to_global(global____ACM_id,   ACM_id)
         global___CTRL_id = save_to_global(global___CTRL_id,   cmd_id)
         global_ACM_theta_d  = save_to_global(global_ACM_theta_d, ACM_theta_d)
         global_CTRL_theta_d = save_to_global(global_CTRL_theta_d, CTRL_theta_d)
-        global_OB_theta_d = save_to_global(global_OB_theta_d, OB_theta_d)
-        global_TL        = save_to_global(global_TL, TL)
+        global_OB_theta_d   = save_to_global(global_OB_theta_d, OB_theta_d)
+        global_TL           = save_to_global(global_TL, TL)
+        global_cmd_iD       = save_to_global(global_cmd_iD, cmd_iD)
+        global_iD           = save_to_global(global_iD, iD)
+        global_cmd_iQ       = save_to_global(global_cmd_iQ, cmd_iQ)
+        global_iQ           = save_to_global(global_iQ, iQ)
 
         print(ii, 'KA =', ACM.KA, CTRL.KA, 'Wb', CTRL.cmd_rpm, 'rpm')
 
@@ -873,13 +860,18 @@ if __name__ == '__main__':
     plt.figure(figsize=(15,4))
     plt.plot(global_ACM_theta_d); plt.plot( global_CTRL_theta_d); plt.plot( global_OB_theta_d )
 
-    plt.figure(figsize=(15,4))
-    plt.plot( np.sin(global_ACM_theta_d - global_OB_theta_d) )
+    # plt.figure(figsize=(15,4))
+    # plt.plot( np.sin(global_ACM_theta_d - global_OB_theta_d) )
 
     # plt.figure(figsize=(15,4))
     # plt.plot( global_TL )
 
-    print(CTRL.ell1, CTRL.ell2, CTRL.ell3, CTRL.ell4)
+    plt.figure(figsize=(15,4))
+    plt.plot( global_cmd_iD); plt.plot( global_iD)
+    plt.figure(figsize=(15,4))
+    plt.plot( global_cmd_iQ); plt.plot( global_iQ)
+
+    # print(CTRL.ell1, CTRL.ell2, CTRL.ell3, CTRL.ell4)
 
     plt.show()
 
