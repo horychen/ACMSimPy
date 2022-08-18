@@ -19,8 +19,8 @@ plt.style.use('ggplot')
             ('omega_r_elec', float64),
             ('omega_syn', float64),
             ('uab', float64[:]),
-            ('uab_prev', float64[:]),
-            ('uab_curr', float64[:]),
+            # ('uab_prev', float64[:]),
+            # ('uab_curr', float64[:]),
             ('iab', float64[:]),
             ('iab_prev', float64[:]),
             ('iab_curr', float64[:]),
@@ -99,8 +99,8 @@ class The_Motor_Controller:
         self.omega_r_elec = 0.0
         self.omega_syn = 0.0
         self.uab      = np.zeros(2, dtype=np.float64)
-        self.uab_prev = np.zeros(2, dtype=np.float64)
-        self.uab_curr = np.zeros(2, dtype=np.float64)
+        # self.uab_prev = np.zeros(2, dtype=np.float64)
+        # self.uab_curr = np.zeros(2, dtype=np.float64)
         self.iab      = np.zeros(2, dtype=np.float64)
         self.iab_prev = np.zeros(2, dtype=np.float64)
         self.iab_curr = np.zeros(2, dtype=np.float64)
@@ -205,6 +205,9 @@ class The_Motor_Controller:
         ('iQ', float64),
         ('iAlfa', float64),
         ('iBeta', float64),
+        ('ia', float64),
+        ('ib', float64),
+        ('ic', float64),
         ('Tem', float64),
         ('cosT', float64),
         ('sinT', float64),
@@ -244,6 +247,9 @@ class The_AC_Machine:
         self.iQ = 0.0
         self.iAlfa = 0.0
         self.iBeta = 0.0
+        self.ia = 0.0
+        self.ib = 0.0
+        self.ic = 0.0
         self.Tem = 0.0
         self.cosT = 1.0
         self.sinT = 0.0
@@ -540,6 +546,235 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq):
     CTRL.cmd_uab[0] = CTRL.cmd_udq[0] * CTRL.cosT + CTRL.cmd_udq[1] *-CTRL.sinT
     CTRL.cmd_uab[1] = CTRL.cmd_udq[0] * CTRL.sinT + CTRL.cmd_udq[1] * CTRL.cosT
 
+############################################# Inverter and PWM
+@jitclass(
+    spec=[
+        ('Ualfa', float64),
+        ('Ubeta', float64),
+        ('Unot', float64),
+        ('Ta', float64),
+        ('Tb', float64),
+        ('Tc', float64),
+        ('SYSTEM_MAX_PWM_DUTY_LIMATATION', float64),
+        ('SYSTEM_MIN_PWM_DUTY_LIMATATION', float64),
+        # Those variables are only needed in simulation
+        ('bool_interupt_event', float64),
+        ('bool_counting_down', float64),
+        ('bool_RisingEdgeDelay_is_active', float64[:]),
+        ('bool_FallingEdgeDelay_is_active', float64[:]),
+        ('carrier_counter', float64),
+        ('deadtime_counter', float64[:]),
+        ('S1', float64),
+        ('S2', float64),
+        ('S3', float64),
+        ('S4', float64),
+        ('S5', float64),
+        ('S6', float64),
+        ('EPwm1Regs_CMPA_bit_CMPA', float64),
+        ('EPwm2Regs_CMPA_bit_CMPA', float64),
+        ('EPwm3Regs_CMPA_bit_CMPA', float64),
+        ('phase_U_gate_signal', float64),
+        ('phase_V_gate_signal', float64),
+        ('phase_W_gate_signal', float64),
+        ('voltage_potential_at_terminal', float64[:]),
+        ('line_to_line_voltage_AC', float64),
+        ('line_to_line_voltage_BC', float64),
+    ])
+class SVgen_Object:
+    def __init__(self, CPU_TICK_PER_SAMPLING_PERIOD):
+        self.Ualfa = 0.0
+        self.Ubeta = 0.0
+        self.Unot = 0.0
+        self.Ta = 0.5
+        self.Tb = 0.5
+        self.Tc = 0.5
+        self.SYSTEM_MAX_PWM_DUTY_LIMATATION = 0.96
+        self.SYSTEM_MIN_PWM_DUTY_LIMATATION = 0.04
+
+        # Those variables are only needed in simulation
+        self.bool_interupt_event = False
+        self.bool_counting_down = False
+        self.bool_RisingEdgeDelay_is_active  = np.zeros(3, dtype=np.float64)
+        self.bool_FallingEdgeDelay_is_active = np.zeros(3, dtype=np.float64)
+        self.carrier_counter = 0
+        self.deadtime_counter = np.zeros(3, dtype=np.float64)
+        self.S1, self.S2, self.S3, self.S4, self.S5, self.S6 = 0,0,0,0,0,0
+        self.EPwm1Regs_CMPA_bit_CMPA = 0.5 * (0.5*CPU_TICK_PER_SAMPLING_PERIOD) # half of up/down counting maximum
+        self.EPwm2Regs_CMPA_bit_CMPA = 0.5 * (0.5*CPU_TICK_PER_SAMPLING_PERIOD) # half of up/down counting maximum
+        self.EPwm3Regs_CMPA_bit_CMPA = 0.5 * (0.5*CPU_TICK_PER_SAMPLING_PERIOD) # half of up/down counting maximum
+        self.phase_U_gate_signal = 0
+        self.phase_V_gate_signal = 0
+        self.phase_W_gate_signal = 0
+        self.voltage_potential_at_terminal = np.zeros(3, dtype=np.float64)
+        self.line_to_line_voltage_AC = 0.0
+        self.line_to_line_voltage_BC = 0.0
+
+@njit(nogil=True)
+def SVGEN_DQ(v, one_over_Vdc, Unot=0.0):
+
+    # Normalization (which converts [Volt] into [s])
+    Talfa = v.Ualfa * one_over_Vdc # v.Ualfa is in sense of amplitude invariant Clarke transformation
+    Tbeta  = v.Ubeta * one_over_Vdc # v.Ubeta is in sense of amplitude invariant Clarke transformation
+    Tz     = v.Unot  * one_over_Vdc # duration of the added zero sequence voltage
+
+    # Inverse clarke transformation??
+    A = Tbeta # 0 degree line pointing at 0 degree
+    C =  1.7320508*Talfa - Tbeta # C =  sin( 60/180*np.pi)*Talfa - sin(30/180*np.pi)*Tbeta
+    B = -1.7320508*Talfa - Tbeta # B = -sin( 60/180*np.pi)*Talfa - sin(30/180*np.pi)*Tbeta
+
+    # 60 degree Sector determination
+    Sector = 0 
+    if (A > 0): Sector = 1
+    if (C > 0): Sector = Sector+2
+    if (B > 0): Sector = Sector+4
+
+    # X,Y,Z calculations (Note an additional factor of 1.7320508 is introduced to be equivalent to normalizing Ualfa and Ubeta to a base value of Vdc/sqrt(3))
+    XXX =               Tbeta*1.7320508
+    YYY =  1.5*Talfa + Tbeta*0.8660254
+    ZZZ = -1.5*Talfa + Tbeta*0.8660254
+
+    if Sector == 0: # Sector 0: this is special case for (Ualfa,Ubeta) = (0,0)*/
+        v.Ta = 0.5
+        v.Tb = 0.5
+        v.Tc = 0.5
+    if Sector == 1: #Sector 1: t1=Z and t2=Y (abc ---> Tb,Ta,Tc)*/
+        t1 = ZZZ
+        t2 = YYY
+        v.Tb=(1-t1-t2)*0.5 + Tz*0.5
+        v.Ta = v.Tb+t1              # taon = tbon+t1        */
+        v.Tc = v.Ta+t2              # tcon = taon+t2        */
+    elif Sector == 2:     # Sector 2: t1=Y and t2=-X (abc ---> Ta,Tc,Tb)*/
+        t1 = YYY
+        t2 = -XXX
+        v.Ta=(1-t1-t2)*0.5 + Tz*0.5
+        v.Tc = v.Ta+t1              #  tcon = taon+t1       */
+        v.Tb = v.Tc+t2              #  tbon = tcon+t2       */
+    elif Sector == 3:     # Sector 3: t1=-Z and t2=X (abc ---> Ta,Tb,Tc)*/
+        t1 = -ZZZ
+        t2 = XXX
+        v.Ta=(1-t1-t2)*0.5 + Tz*0.5
+        v.Tb = v.Ta+t1              #   tbon = taon+t1      */
+        v.Tc = v.Tb+t2              #   tcon = tbon+t2      */
+    elif Sector == 4:     # Sector 4: t1=-X and t2=Z (abc ---> Tc,Tb,Ta)*/
+        t1 = -XXX
+        t2 = ZZZ
+        v.Tc=(1-t1-t2)*0.5 + Tz*0.5
+        v.Tb = v.Tc+t1              #   tbon = tcon+t1      */
+        v.Ta = v.Tb+t2              #   taon = tbon+t2      */
+    elif Sector ==  5:    # Sector 5: t1=X and t2=-Y (abc ---> Tb,Tc,Ta)*/
+        t1 = XXX
+        t2 = -YYY                   #   tbon = (1-t1-t2)*0.5    */
+        v.Tb=(1-t1-t2)*0.5 + Tz*0.5
+        v.Tc = v.Tb+t1              #   taon = tcon+t2      */
+        v.Ta = v.Tc+t2
+    elif Sector == 6:     # Sector 6: t1=-Y and t2=-Z (abc ---> Tc,Ta,Tb)*/
+        t1 = -YYY
+        t2 = -ZZZ
+        v.Tc=(1-t1-t2)*0.5 + Tz*0.5
+        v.Ta = v.Tc+t1              #   taon = tcon+t1      */
+        v.Tb = v.Ta+t2              #   tbon = taon+t2      */
+
+    # 高低有效逻辑翻转
+    v.Ta = 1-v.Ta
+    v.Tb = 1-v.Tb
+    v.Tc = 1-v.Tc
+
+    # 考虑到输出功率时母线电压会跌落，不要用满占空比。
+    if (v.Ta>v.SYSTEM_MAX_PWM_DUTY_LIMATATION): v.Ta=v.SYSTEM_MAX_PWM_DUTY_LIMATATION
+    if (v.Tb>v.SYSTEM_MAX_PWM_DUTY_LIMATATION): v.Tb=v.SYSTEM_MAX_PWM_DUTY_LIMATATION
+    if (v.Tc>v.SYSTEM_MAX_PWM_DUTY_LIMATATION): v.Tc=v.SYSTEM_MAX_PWM_DUTY_LIMATATION
+    if (v.Ta<v.SYSTEM_MIN_PWM_DUTY_LIMATATION): v.Ta=v.SYSTEM_MIN_PWM_DUTY_LIMATATION
+    if (v.Tb<v.SYSTEM_MIN_PWM_DUTY_LIMATATION): v.Tb=v.SYSTEM_MIN_PWM_DUTY_LIMATATION
+    if (v.Tc<v.SYSTEM_MIN_PWM_DUTY_LIMATATION): v.Tc=v.SYSTEM_MIN_PWM_DUTY_LIMATATION
+
+    return v
+
+@njit(nogil=True)
+def gate_signal_generator(ii, v, CPU_TICK_PER_SAMPLING_PERIOD = 10000, DEAD_TIME_AS_COUNT = 200):
+    # 波谷中断
+    # if ii % CPU_TICK_PER_SAMPLING_PERIOD == 0:
+    if v.bool_interupt_event:
+        v.bool_interupt_event = False # this clause is one-time-execution code
+        v.bool_counting_down = False # counting up first
+        v.carrier_counter = 0 # reset main counter
+
+        # dead time
+        v.deadtime_counter[0] = 0
+        v.deadtime_counter[1] = 0
+        v.deadtime_counter[2] = 0
+        v.bool_RisingEdgeDelay_is_active[0] = False
+        v.bool_RisingEdgeDelay_is_active[1] = False
+        v.bool_RisingEdgeDelay_is_active[2] = False
+        v.bool_FallingEdgeDelay_is_active[0] = False
+        v.bool_FallingEdgeDelay_is_active[1] = False
+        v.bool_FallingEdgeDelay_is_active[2] = False
+
+    # 波峰中断
+    # if ii % CPU_TICK_PER_SAMPLING_PERIOD == CPU_TICK_PER_SAMPLING_PERIOD * 0.5:
+    if v.carrier_counter == CPU_TICK_PER_SAMPLING_PERIOD * 0.5:
+        v.bool_counting_down = True
+
+        # dead time
+        v.deadtime_counter[0] = 0
+        v.deadtime_counter[1] = 0
+        v.deadtime_counter[2] = 0
+        v.bool_RisingEdgeDelay_is_active[0] = False
+        v.bool_RisingEdgeDelay_is_active[1] = False
+        v.bool_RisingEdgeDelay_is_active[2] = False
+        v.bool_FallingEdgeDelay_is_active[0] = False
+        v.bool_FallingEdgeDelay_is_active[1] = False
+        v.bool_FallingEdgeDelay_is_active[2] = False
+
+    # 计数
+    if v.bool_counting_down:
+        v.carrier_counter -= 1
+    else:
+        v.carrier_counter += 1
+
+    # 理想门极信号
+    v.phase_U_gate_signal = True if v.carrier_counter >= v.EPwm1Regs_CMPA_bit_CMPA else False
+    v.phase_V_gate_signal = True if v.carrier_counter >= v.EPwm2Regs_CMPA_bit_CMPA else False
+    v.phase_W_gate_signal = True if v.carrier_counter >= v.EPwm3Regs_CMPA_bit_CMPA else False
+
+    # Insert dead time based on Active Hgih Complementary (AHC)
+    if v.bool_counting_down == False:
+
+        if v.carrier_counter >= v.EPwm1Regs_CMPA_bit_CMPA:
+            v.deadtime_counter[0] += 1
+            v.bool_RisingEdgeDelay_is_active[0] = True if v.deadtime_counter[0] <= DEAD_TIME_AS_COUNT else False
+
+        if v.carrier_counter >= v.EPwm2Regs_CMPA_bit_CMPA:
+            v.deadtime_counter[1] += 1
+            v.bool_RisingEdgeDelay_is_active[1] = True if v.deadtime_counter[1] <= DEAD_TIME_AS_COUNT else False
+
+        if v.carrier_counter >= v.EPwm3Regs_CMPA_bit_CMPA:
+            v.deadtime_counter[2] += 1
+            v.bool_RisingEdgeDelay_is_active[2] = True if v.deadtime_counter[2] <= DEAD_TIME_AS_COUNT else False
+
+    elif v.bool_counting_down == True:
+
+        if v.carrier_counter < v.EPwm1Regs_CMPA_bit_CMPA:
+            v.deadtime_counter[0] += 1
+            v.bool_FallingEdgeDelay_is_active[0] = True if v.deadtime_counter[0] <= DEAD_TIME_AS_COUNT else False
+
+        if v.carrier_counter < v.EPwm2Regs_CMPA_bit_CMPA:
+            v.deadtime_counter[1] += 1
+            v.bool_FallingEdgeDelay_is_active[1] = True if v.deadtime_counter[1] <= DEAD_TIME_AS_COUNT else False
+
+        if v.carrier_counter < v.EPwm3Regs_CMPA_bit_CMPA:
+            v.deadtime_counter[2] += 1
+            v.bool_FallingEdgeDelay_is_active[2] = True if v.deadtime_counter[2] <= DEAD_TIME_AS_COUNT else False
+
+    # 应用死区时间，获得实际门极信号
+    v.S1, v.S2, v.S3 = v.phase_U_gate_signal, v.phase_V_gate_signal, v.phase_W_gate_signal
+    v.S4, v.S5, v.S6 = not v.S1, not v.S2, not v.S3
+    if v.bool_RisingEdgeDelay_is_active[0]:   v.S1 = False
+    if v.bool_FallingEdgeDelay_is_active[0]:  v.S4 = False
+    if v.bool_RisingEdgeDelay_is_active[1]:   v.S2 = False
+    if v.bool_FallingEdgeDelay_is_active[1]:  v.S5 = False
+    if v.bool_RisingEdgeDelay_is_active[2]:   v.S3 = False
+    if v.bool_FallingEdgeDelay_is_active[2]:  v.S6 = False
+
 ############################################# Wrapper level 1
 """ MAIN for Real-time simulation """
 @njit(nogil=True)
@@ -551,14 +786,22 @@ def ACMSimPyIncremental(
         reg_iq=None,
         reg_speed=None,
     ):
-    MACHINE_TS = CTRL.CL_TS * 0.1
+    Vdc = 100 # Vdc is assumed measured and known
+    one_over_Vdc = 1/Vdc
+    CPU_TICK_PER_SAMPLING_PERIOD = 1000
+    MACHINE_TS = CTRL.CL_TS / CPU_TICK_PER_SAMPLING_PERIOD
     down_sampling_ceiling = int(CTRL.CL_TS / MACHINE_TS)
-    print('\tdown sample:', down_sampling_ceiling)
+    print('Vdc, CPU_TICK_PER_SAMPLING_PERIOD, down_sampling_ceiling', Vdc, CPU_TICK_PER_SAMPLING_PERIOD, down_sampling_ceiling)
+
+    # for simulating SVPWM
+    svgen1 = SVgen_Object(CPU_TICK_PER_SAMPLING_PERIOD)
 
     # watch variabels
     machine_times  = np.arange(t0, t0+TIME, MACHINE_TS)
+    watch_data = np.zeros( (40, len(machine_times)) )
+
     control_times  = np.arange(t0, t0+TIME, CTRL.CL_TS)
-    watch_data = np.zeros( (30, len(control_times)) )
+    # watch_data = np.zeros( (40, len(control_times)) )
 
     # Main loop
     # print('\tt0 =', t0)
@@ -644,7 +887,109 @@ def ACMSimPyIncremental(
             # if CTRL.CMD_SPEED_SINE_RPM!=0:
             #     CTRL.cmd_rpm = CTRL.CMD_SPEED_SINE_RPM * np.sin(2*np.pi*CTRL.CMD_SPEED_SINE_HZ*t)
 
-            """ Watch @ CL_TS """
+            # DEBUG
+            # CTRL.cmd_uab[0] = 10*np.cos(5*2*np.pi*CTRL.timebase)
+            # CTRL.cmd_uab[1] = 10*np.sin(5*2*np.pi*CTRL.timebase)
+
+            # """ Watch @ CL_TS """
+            # watch_data[ 0][watch_index] = divmod(ACM.theta_d, 2*np.pi)[1]
+            # watch_data[ 1][watch_index] = ACM.omega_r_mech / (2*np.pi) * 60 # omega_r_mech
+            # watch_data[ 2][watch_index] = ACM.KA
+            # watch_data[ 3][watch_index] = ACM.iD
+            # watch_data[ 4][watch_index] = ACM.iQ
+            # watch_data[ 5][watch_index] = ACM.Tem
+            # watch_data[ 6][watch_index] =   CTRL.iab[0]
+            # watch_data[ 7][watch_index] =   CTRL.iab[1]
+            # watch_data[ 8][watch_index] = CTRL.idq[0]
+            # watch_data[ 9][watch_index] = CTRL.idq[1]
+            # watch_data[10][watch_index] = divmod(CTRL.theta_d, 2*np.pi)[1]
+            # watch_data[11][watch_index] = CTRL.omega_r_elec / (2*np.pi*ACM.npp) * 60
+            # watch_data[12][watch_index] = CTRL.cmd_rpm
+            # watch_data[13][watch_index] = CTRL.cmd_idq[0]
+            # watch_data[14][watch_index] = CTRL.cmd_idq[1]
+            # watch_data[15][watch_index] = CTRL.xS[0] # theta_d
+            # watch_data[16][watch_index] = CTRL.xS[1] / (2*np.pi*ACM.npp) * 60 # omega_r_elec
+            # watch_data[17][watch_index] = CTRL.xS[2] # TL
+            # watch_data[18][watch_index] = CTRL.xS[3] # pT
+            # watch_data[19][watch_index] = CTRL.KA
+            # watch_data[20][watch_index] = CTRL.KE
+            # watch_data[21][watch_index] = CTRL.xT[0] # stator flux[0]
+            # watch_data[22][watch_index] = CTRL.xT[1] # stator flux[1]
+            # watch_data[23][watch_index] = CTRL.xT[2] # I term
+            # watch_data[24][watch_index] = CTRL.xT[3] # I term
+            # watch_data[25][watch_index] = 0.0 # CTRL.active_flux[0] # active flux[0]
+            # watch_data[26][watch_index] = 0.0 # CTRL.active_flux[1] # active flux[1]
+            # watch_data[27][watch_index] = CTRL.Tem
+            # watch_data[28][watch_index] = CTRL.cmd_uab[0]
+            # watch_data[29][watch_index] = CTRL.cmd_uab[1]
+            # watch_data[30][watch_index] = svgen1.S1
+            # watch_data[31][watch_index] = svgen1.EPwm1Regs_CMPA_bit_CMPA
+            # watch_data[32][watch_index] = svgen1.Ta
+            # watch_data[33][watch_index] = svgen1.S4
+            # watch_data[34][watch_index] = svgen1.EPwm2Regs_CMPA_bit_CMPA
+            # watch_data[35][watch_index] = svgen1.carrier_counter
+            # watch_index += 1
+
+            # SVPWM for voltage source inverter
+            svgen1.Ualfa = CTRL.cmd_uab[0]
+            svgen1.Ubeta = CTRL.cmd_uab[1]
+            SVGEN_DQ(svgen1, one_over_Vdc)
+            # 高低有效逻辑翻转（仿真里得马上反回来，否则输出就反相了）
+            svgen1.Ta = 1-svgen1.Ta
+            svgen1.Tb = 1-svgen1.Tb
+            svgen1.Tc = 1-svgen1.Tc
+            svgen1.EPwm1Regs_CMPA_bit_CMPA = (int)(svgen1.Ta*CPU_TICK_PER_SAMPLING_PERIOD*0.5) # 0.5 for up and down counting # 50000000*CTRL.CL_TS)
+            svgen1.EPwm2Regs_CMPA_bit_CMPA = (int)(svgen1.Tb*CPU_TICK_PER_SAMPLING_PERIOD*0.5) # 0.5 for up and down counting # 50000000*CTRL.CL_TS)
+            svgen1.EPwm3Regs_CMPA_bit_CMPA = (int)(svgen1.Tc*CPU_TICK_PER_SAMPLING_PERIOD*0.5) # 0.5 for up and down counting # 50000000*CTRL.CL_TS)
+
+            svgen1.bool_interupt_event = True
+
+        """ Voltage Source Inverter (in alpha-beta frame) """
+        if True: # implementing SVPWM
+
+            # Amplitude invariant Clarke transformation
+            ACM.ia = ACM.iAlfa
+            ACM.ib = ACM.iAlfa*-0.5 + ACM.iBeta*0.8660254
+            ACM.ic = ACM.iAlfa*-0.5 + ACM.iBeta*-0.8660254
+
+            # Get S1 -- S6
+            gate_signal_generator(ii, svgen1, CPU_TICK_PER_SAMPLING_PERIOD=CPU_TICK_PER_SAMPLING_PERIOD, DEAD_TIME_AS_COUNT=200*1e-4*CPU_TICK_PER_SAMPLING_PERIOD)
+
+            # 端电势
+            # inverter connects motor terminals to dc bus capacitor depending on gate signals and phase current (during dead zone)
+            if svgen1.S1 == True:
+                svgen1.voltage_potential_at_terminal[0] = Vdc
+            elif svgen1.S4 == True:
+                svgen1.voltage_potential_at_terminal[0] = 0
+            else:
+                svgen1.voltage_potential_at_terminal[0] = Vdc if ACM.ia < 0 else 0
+
+            if svgen1.S2 == True:
+                svgen1.voltage_potential_at_terminal[1] = Vdc
+            elif svgen1.S5 == True:
+                svgen1.voltage_potential_at_terminal[1] = 0
+            else:
+                svgen1.voltage_potential_at_terminal[1] = Vdc if ACM.ib < 0 else 0
+
+            if svgen1.S3 == True:
+                svgen1.voltage_potential_at_terminal[2] = Vdc
+            elif svgen1.S6 == True:
+                svgen1.voltage_potential_at_terminal[2] = 0
+            else:
+                svgen1.voltage_potential_at_terminal[2] = Vdc if ACM.ic < 0 else 0
+
+            # 线电压 AC 和 BC
+            svgen1.line_to_line_voltage_AC = svgen1.voltage_potential_at_terminal[0] - svgen1.voltage_potential_at_terminal[2]
+            svgen1.line_to_line_voltage_BC = svgen1.voltage_potential_at_terminal[1] - svgen1.voltage_potential_at_terminal[2]
+
+            # 线电压 做 Amplitude invariant Clarke transformation 获得 alpha-beta 电压
+            ACM.uab[0] = svgen1.line_to_line_voltage_AC*0.6666667 - (svgen1.line_to_line_voltage_BC + 0)*0.3333333
+            ACM.uab[1] = 0.577350269 * (svgen1.line_to_line_voltage_BC - 0)
+            # Park transformation
+            ACM.udq[0] = ACM.uab[0] *  ACM.cosT + ACM.uab[1] * ACM.sinT
+            ACM.udq[1] = ACM.uab[0] * -ACM.sinT + ACM.uab[1] * ACM.cosT
+
+            """ Watch @ MACHINE_TS """
             watch_data[ 0][watch_index] = divmod(ACM.theta_d, 2*np.pi)[1]
             watch_data[ 1][watch_index] = ACM.omega_r_mech / (2*np.pi) * 60 # omega_r_mech
             watch_data[ 2][watch_index] = ACM.KA
@@ -673,12 +1018,20 @@ def ACMSimPyIncremental(
             watch_data[25][watch_index] = 0.0 # CTRL.active_flux[0] # active flux[0]
             watch_data[26][watch_index] = 0.0 # CTRL.active_flux[1] # active flux[1]
             watch_data[27][watch_index] = CTRL.Tem
+            watch_data[28][watch_index] = CTRL.cmd_uab[0]
+            watch_data[29][watch_index] = CTRL.cmd_uab[1]
+            watch_data[30][watch_index] = ACM.uab[0]
+            watch_data[31][watch_index] = svgen1.EPwm1Regs_CMPA_bit_CMPA
+            watch_data[32][watch_index] = svgen1.line_to_line_voltage_AC
+            watch_data[33][watch_index] = ACM.uab[1]
+            watch_data[34][watch_index] = svgen1.EPwm2Regs_CMPA_bit_CMPA
+            watch_data[35][watch_index] = svgen1.line_to_line_voltage_BC
             watch_index += 1
 
-        """ Voltage Source Inverter (in alpha-beta frame) """
-        # Park transformation
-        ACM.udq[0] = CTRL.cmd_uab[0] *  ACM.cosT + CTRL.cmd_uab[1] * ACM.sinT
-        ACM.udq[1] = CTRL.cmd_uab[0] * -ACM.sinT + CTRL.cmd_uab[1] * ACM.cosT
+        else:
+            # Park transformation (no SVPWM, the discrepancy between CTRL.cosT and ACM.cosT will be simulated, i.e., the zero-hold feature of the inverter)
+            ACM.udq[0] = CTRL.cmd_uab[0] *  ACM.cosT + CTRL.cmd_uab[1] * ACM.sinT
+            ACM.udq[1] = CTRL.cmd_uab[0] * -ACM.sinT + CTRL.cmd_uab[1] * ACM.cosT
 
     return control_times, watch_data
 
@@ -714,6 +1067,14 @@ _Watch_Mapping = [
     '[Wb]=CTRL.active_flux[0]', # active flux[0]
     '[Wb]=CTRL.active_flux[1]', # active flux[1]
     '[Nm]=CTRL.Tem',
+    '[V]=CTRL.uab[0]', 
+    '[V]=CTRL.uab[1]', 
+    '[1]=svgen1.S1', 
+    '[1]=svgen1.S2', 
+    '[1]=svgen1.S3', 
+    '[1]=svgen1.S4', 
+    '[1]=svgen1.S5', 
+    '[1]=svgen1.S6', 
 ]
 Watch_Mapping = [el[el.find('=')+1:] for el in _Watch_Mapping]
 
@@ -737,11 +1098,11 @@ def ACMSimPyWrapper(numba__scope_dict, *arg, **kwarg):
                 # expression = 'CTRL.cmd_rpm-ACM.omega_r_mech'
                 translated_expression = ''
                 for word in expression.split():
-                    if 'CTRL' in word or 'ACM' in word or 'reg_' in word:
+                    if 'CTRL' in word or 'ACM' in word or 'reg_' in word or 'svgen1' in word: # 这里逻辑有点怪，每增加一个新的结构体（比如svgen1）都要在修改这一行？
                         translated_expression += f'watch_data_as_dict["{word}"]'
                     else:
                         translated_expression += word
-                # print('DEBUG', translated_expression)
+                print('DEBUG', translated_expression)
                 waveforms.append(eval(translated_expression))
             numba__waveforms_dict[key] = waveforms
         # for key, val in numba__waveforms_dict.items():
@@ -807,6 +1168,14 @@ if __name__ == '__main__':
     global_iD     = None
     global_cmd_iQ = None
     global_iQ     = None
+    global_ualfa = None
+    global_ubeta = None
+    global_S1    = None
+    global_S2    = None
+    global_S3    = None
+    global_S4    = None
+    global_S5    = None
+    global_S6    = None
 
     from collections import OrderedDict as OD
     numba__scope_dict = OD([
@@ -820,10 +1189,12 @@ if __name__ == '__main__':
         (r'Load torque [Nm]',             ( 'CTRL.xS[2]'                                        ,) ),
         (r'CTRL.iD [A]',                  ( 'CTRL.cmd_idq[0]', 'CTRL.idq[0]'                    ,) ),
         (r'CTRL.iQ [A]',                  ( 'CTRL.cmd_idq[1]', 'CTRL.idq[1]'                    ,) ),
+        (r'CTRL.uab [V]',                 ( 'CTRL.uab[0]', 'CTRL.uab[1]'                        ,) ),
+        (r'S [1]',                        ( 'svgen1.S1', 'svgen1.S2', 'svgen1.S3', 'svgen1.S4', 'svgen1.S5', 'svgen1.S6' ,) ),
     ])
 
     # simulate to generate 10 sec of data
-    for ii in range(0, 8):
+    for ii in range(0, 2):
 
         # controller_commands(t=ii*TIME_SLICE)
 
@@ -843,7 +1214,8 @@ if __name__ == '__main__':
         TL,                          = numba__waveforms_dict[r'Load torque [Nm]']
         cmd_iD, iD                   = numba__waveforms_dict[r'CTRL.iD [A]']
         cmd_iQ, iQ                   = numba__waveforms_dict[r'CTRL.iQ [A]']
-
+        ualfa, ubeta                 = numba__waveforms_dict[r'CTRL.uab [V]']
+        S1, S2, S3, S4, S5, S6       = numba__waveforms_dict[r'S [1]']
         def save_to_global(_global, _local):
             return _local if _global is None else np.append(_global, _local)
         global_cmd_speed = save_to_global(global_cmd_speed, cmd_rpm)
@@ -861,8 +1233,16 @@ if __name__ == '__main__':
         global_iD           = save_to_global(global_iD, iD)
         global_cmd_iQ       = save_to_global(global_cmd_iQ, cmd_iQ)
         global_iQ           = save_to_global(global_iQ, iQ)
+        global_ualfa        = save_to_global(global_ualfa, ualfa)
+        global_ubeta        = save_to_global(global_ubeta, ubeta)
+        global_S1           = save_to_global(global_S1, S1)
+        global_S2           = save_to_global(global_S2, S2)
+        global_S3           = save_to_global(global_S3, S3)
+        global_S4           = save_to_global(global_S4, S4)
+        global_S5           = save_to_global(global_S5, S5)
+        global_S6           = save_to_global(global_S6, S6)
 
-        print(ii, 'KA =', ACM.KA, CTRL.KA, 'Wb', CTRL.cmd_rpm, 'rpm')
+        print(ii, f'{ACM.KA=} [Wb]', f'{CTRL.KA=} [Wb]', CTRL.cmd_rpm, '[rpm]')
 
         # for k,v in numba__waveforms_dict.items():
         #     print(k, np.shape(v))
@@ -874,19 +1254,19 @@ if __name__ == '__main__':
         # print()
         # break
 
-    plt.figure(figsize=(15,4))
+    plt.figure(1, figsize=(15,4))
     plt.plot(global_cmd_speed); plt.plot(global_ACM_speed); plt.plot(global__OB_speed)
 
-    plt.figure(figsize=(15,4)); #plt.ylim([-1e-1, 1e-1])
+    plt.figure(2, figsize=(15,4)); #plt.ylim([-1e-1, 1e-1])
     plt.plot( (global_cmd_speed - global_ACM_speed) ) # [2000:5000]
 
-    plt.figure(figsize=(15,4))
+    plt.figure(3, figsize=(15,4))
     plt.plot( global________x5 ); plt.plot( global___KA )
 
-    plt.figure(figsize=(15,4))
+    plt.figure(4, figsize=(15,4))
     plt.plot( global____ACM_id ); plt.plot( global___CTRL_id )
 
-    plt.figure(figsize=(15,4))
+    plt.figure(5, figsize=(15,4))
     plt.plot(global_ACM_theta_d); plt.plot( global_CTRL_theta_d); plt.plot( global_OB_theta_d )
 
     # plt.figure(figsize=(15,4))
@@ -895,10 +1275,20 @@ if __name__ == '__main__':
     # plt.figure(figsize=(15,4))
     # plt.plot( global_TL )
 
-    plt.figure(figsize=(15,4))
+    plt.figure(10, figsize=(15,4))
     plt.plot( global_cmd_iD); plt.plot( global_iD)
-    plt.figure(figsize=(15,4))
+    plt.figure(11, figsize=(15,4))
     plt.plot( global_cmd_iQ); plt.plot( global_iQ)
+
+    plt.figure(21, figsize=(15,4))
+    plt.plot(global_ualfa); plt.plot(global_ubeta)
+    plt.figure(22, figsize=(15,4))
+    plt.plot(global_S1); plt.plot(global_S4)
+    plt.figure(23, figsize=(15,4))
+    plt.plot(global_S2); plt.plot(global_S5)
+    plt.figure(24, figsize=(15,4))
+    plt.plot(global_S3); plt.plot(global_S6)
+
 
     # print(CTRL.ell1, CTRL.ell2, CTRL.ell3, CTRL.ell4)
 
