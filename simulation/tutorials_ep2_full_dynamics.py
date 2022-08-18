@@ -24,8 +24,9 @@ plt.style.use('ggplot')
             ('Tem', float64),
             # commands
             ('cmd_idq', float64[:]),
+            ('cmd_udq', float64[:]),
+            ('cmd_uab', float64[:]),
             ('cmd_rpm', float64),
-            ('cmd_iQ', float64),
             ('index_separate_speed_estimation', int32),
             ('use_disturbance_feedforward_rejection', int32),
             # commands (sweep freuqency)
@@ -95,8 +96,9 @@ class The_Motor_Controller:
         self.Tem = 0.0
         # commands 
         self.cmd_idq = np.zeros(2, dtype=np.float64)
+        self.cmd_udq = np.zeros(2, dtype=np.float64)
+        self.cmd_uab = np.zeros(2, dtype=np.float64)
         self.cmd_rpm = 0.0
-        self.cmd_iQ = 0.0
         self.index_separate_speed_estimation = 0
         self.use_disturbance_feedforward_rejection = 0
         # sweep frequency
@@ -172,9 +174,8 @@ class The_Motor_Controller:
         ('NS',    int32),
         ('x',   float64[:]),
         # inputs
-        ('iD', float64),
-        ('iQ', float64),
-        ('Tem', float64),
+        ('uab',   float64[:]),
+        ('udq',   float64[:]),
         ('TLoad', float64),
         # output
         ('omega_slip', float64),
@@ -184,6 +185,9 @@ class The_Motor_Controller:
         ('theta_d', float64),
         ('theta_d_mech', float64),
         ('KA', float64),
+        ('iD', float64),
+        ('iQ', float64),
+        ('Tem', float64),
         ('cosT', float64),
         ('sinT', float64),
     ])
@@ -207,9 +211,8 @@ class The_AC_Machine:
         self.x = np.zeros(self.NS, dtype=np.float64)
         self.x[2] = CTRL.KA
         # inputs
-        self.iD = 0.0
-        self.iQ = 0.0
-        self.Tem = 0.0
+        self.uab = np.zeros(2, dtype=np.float64)
+        self.udq = np.zeros(2, dtype=np.float64)
         self.TLoad = 0
         # output
         self.omega_slip = 0.0
@@ -219,6 +222,9 @@ class The_AC_Machine:
         self.theta_d = 0.0
         self.theta_d_mech = 0.0
         self.KA = CTRL.KA
+        self.iD = 0.0
+        self.iQ = 0.0
+        self.Tem = 0.0
         self.cosT = 1.0
         self.sinT = 0.0
 
@@ -309,33 +315,37 @@ def RK4_ObserverSolver_CJH_Style(THE_DYNAMICS, x, hs, CTRL):
 def DYNAMICS_MACHINE(t, x, ACM, CLARKE_TRANS_TORQUE_GAIN=1.5):
     fx = np.zeros(ACM.NS)
 
-    # 电磁子系统 (KA, iD, iQ as x[2], x[3], x[4])
-    iD = ACM.iD # x[3]
-    iQ = ACM.iQ # x[4]
-    if ACM.Rreq>0:
-        KA = x[2]
-        if KA>0:
-            ACM.omega_slip = ACM.Rreq * iQ / KA
-        else:
-            ACM.omega_slip = 0.0
-    else:
-        KA = (ACM.Ld - ACM.Lq) * iD + ACM.KE # x[2]
-        ACM.omega_slip = 0.0
-    omega_r_mech = x[1]
+    # omega_d_mech = x[0]
+    # omega_r_mech = x[1]
+    KA    = x[2]
+    iD    = x[3]
+    iQ    = x[4]
+    # ACM.theta_d = x[0]*ACM.npp
+    # ACM.omega_r = x[1]*ACM.npp
+    ACM.omega_slip = ACM.Rreq * iQ / KA
+    ACM.omega_syn  = x[1]*ACM.npp + ACM.omega_slip
 
+    # 电磁子系统 (KA, iD, iQ as x[2], x[3], x[4])
     if ACM.Rreq > 0:
         # s KA
-        fx[2] = ACM.Rreq*iD - ACM.Rreq*KA / (ACM.Ld - ACM.Lq) # Apply Park Transorm to (31b)
-        fx[3] = 0.0 # Current source excitation
+        fx[2] = ACM.Rreq*iD - ACM.Rreq / (ACM.Ld - ACM.Lq) * KA # [Apply Park Transorm to (31b)]
+        # s iD
+        fx[3] = (ACM.udq[0] - ACM.R*iD + ACM.omega_syn*ACM.Lq*iQ - fx[2]) / ACM.Lq # (6a)
     else: 
+            # note fx[3] * ACM.Lq = ACM.udq[0] - ACM.R*iD + omega*ACM.Lq*iQ - fx[2]
+            #  =>  fx[3] * ACM.Lq = ACM.udq[0] - ACM.R*iD + omega*ACM.Lq*iQ - (ACM.Ld - ACM.Lq) * fx[3] - 0.0
+            #  =>  fx[3] * ACM.Ld = ACM.udq[0] - ACM.R*iD + omega*ACM.Lq*iQ
+            #  =>  s iD
+        # s iD
+        fx[3] = (ACM.udq[0] - ACM.R*iD + ACM.omega_syn*ACM.Lq*iQ) / ACM.Ld
         # s KA
-        fx[3] = 0.0 # Current source excitation
         fx[2] = (ACM.Ld - ACM.Lq) * fx[3] + 0.0
-    fx[4] = 0.0 # Current source excitation
+    # s iQ
+    fx[4] = (ACM.udq[1] - ACM.R*iQ - ACM.omega_syn*ACM.Lq*iD - ACM.omega_syn*ACM.KA) / ACM.Lq
 
-    # 机械子系统 (theta_d_mech, omega_r_mech as x[0], x[1])
+    # 机械子系统 (theta_d_mech, omega_mech as x[0], x[1])
     ACM.Tem = CLARKE_TRANS_TORQUE_GAIN * ACM.npp * KA * iQ # 电磁转矩计算
-    fx[0] = omega_r_mech + ACM.omega_slip / ACM.npp # mech. angular rotor position (accumulated)
+    fx[0] = x[1] + ACM.omega_slip / ACM.npp # mech. angular rotor position (accumulated)
     fx[1] = (ACM.Tem - ACM.TLoad) / ACM.Js  # mech. angular rotor speed
 
     return fx
@@ -401,18 +411,39 @@ def incremental_pi(reg):
     reg.OutPrev = reg.Out
 
 @njit(nogil=True)
-def FOC(CTRL, reg_speed):
+def FOC(CTRL, reg_speed, reg_id, reg_iq):
     reg_speed.Ref = CTRL.cmd_rpm / 60 * 2*np.pi * CTRL.npp # [elec.rad]
     reg_speed.Fbk = CTRL.omega_r_elec # [elec.rad]
     CTRL.velocity_loop_counter += 1
     if CTRL.velocity_loop_counter >= CTRL.velocity_loop_ceiling:
         CTRL.velocity_loop_counter = 0
         incremental_pi(reg_speed)
+
+    # dq-frame current commands
     CTRL.cmd_idq[1] = reg_speed.Out
+    CTRL.cmd_idq[0] = 0.0
     if CTRL.Rreq>0: # IM
-        CTRL.cmd_idq[0] = 0.9 / (CTRL.Ld - CTRL.Lq)
+        CTRL.cmd_idq[0] = 0.9 / (CTRL.Ld - CTRL.Lq) # [Wb] / [H]
+
+    # d-axis
+    reg_id.Ref = CTRL.cmd_idq[0]
+    reg_id.Fbk = CTRL.idq[0]
+    incremental_pi(reg_id)
+    CTRL.cmd_udq[0] = reg_id.Out
+
+        # if HUMAN.use_disturbance_feedforward_rejection == 0:
+        #     CTRL.cmd_idq[1] = reg_speed.Out
+        # else:
+        #     CTRL.cmd_idq[1] = HUMAN.KP*(reg_speed.Ref-reg_speed.Fbk) + OB.total_disrubance_feedforward
+
+    # q-axis
+    reg_iq.Ref = CTRL.cmd_idq[1]
+    reg_iq.Fbk = CTRL.idq[1]
+    incremental_pi(reg_iq)
+    CTRL.cmd_udq[1] = reg_iq.Out
+
     # return CTRL.cmd_udq
-    pass
+
 
 ############################################# DSP SECTION
 
@@ -441,7 +472,7 @@ def angle_diff(a,b):
 
 """ DSP """
 @njit(nogil=True)
-def DSP(ACM, CTRL, reg_speed):
+def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq):
     CTRL.timebase += CTRL.CL_TS
 
     """ Measurement """
@@ -479,8 +510,8 @@ def DSP(ACM, CTRL, reg_speed):
 
     """ (Optional) Do Park transformation again using the position estimate from the speed observer """
 
-    """ Speed Controller """
-    FOC(CTRL, reg_speed)
+    """ Speed and Current Controller (two cascaded closed loops) """
+    FOC(CTRL, reg_speed, reg_id, reg_iq)
 
 ############################################# Wrapper level 1
 """ MAIN for Real-time simulation """
@@ -546,39 +577,41 @@ def ACMSimPyIncremental(
                 if (CTRL.CMD_SPEED_SINE_HZ > CTRL.CMD_SPEED_SINE_HZ_CEILING):
                     # stop
                     CTRL.cmd_rpm = 0.0
-                    CTRL.cmd_iQ = 0.0
+                    CTRL.cmd_idq[1] = 0.0
                 else:
-                    # closed-cloop sweep
+                    # speed control - closed-cloop sweep
                     CTRL.cmd_rpm = CTRL.CMD_SPEED_SINE_RPM * np.sin(2*np.pi*CTRL.CMD_SPEED_SINE_HZ*(CTRL.timebase - CTRL.CMD_SPEED_SINE_LAST_END_TIME))
 
-                    # open-loop sweep
-                    CTRL.cmd_iQ = CTRL.CMD_CURRENT_SINE_AMPERE * np.sin(2*np.pi*CTRL.CMD_SPEED_SINE_HZ*(CTRL.timebase - CTRL.CMD_SPEED_SINE_LAST_END_TIME))
+                    # speed control - open-loop sweep
+                    CTRL.cmd_idq[1] = CTRL.CMD_CURRENT_SINE_AMPERE * np.sin(2*np.pi*CTRL.CMD_SPEED_SINE_HZ*(CTRL.timebase - CTRL.CMD_SPEED_SINE_LAST_END_TIME))
 
             """ DSP @ CL_TS """
             DSP(ACM=ACM,
                 CTRL=CTRL,
-                reg_speed=reg_speed)
+                reg_speed=reg_speed,
+                reg_id=reg_id,
+                reg_iq=reg_iq)
 
-            # """ Console @ CL_TS """
-            # if t < 1.0:
-            #     CTRL.cmd_rpm = 50
-            # elif t < 1.5:
-            #     ACM.TLoad = 2
-            # elif t < 2.0:
-            #     CTRL.cmd_rpm = 200
-            # elif t < 3.0:
-            #     CTRL.cmd_rpm = -200
-            # elif t < 4.0:
-            #     CTRL.cmd_rpm = 0
-            # elif t < 4.5:
-            #     CTRL.cmd_rpm = 2000
-            # elif t < 5:
-            #     CTRL.cmd_idq[0] = 2
-            # elif t < 5.5:
-            #     ACM.TLoad = 0.0
-            # elif t < 6: 
-            #     CTRL.CMD_SPEED_SINE_RPM = 500
-            # # else: # don't implement else to receive commands from IPython console
+            """ Console @ CL_TS """
+            if t < 1.0:
+                CTRL.cmd_rpm = 50
+            elif t < 1.5:
+                ACM.TLoad = 2
+            elif t < 2.0:
+                CTRL.cmd_rpm = 200
+            elif t < 3.0:
+                CTRL.cmd_rpm = -200
+            elif t < 4.0:
+                CTRL.cmd_rpm = 0
+            elif t < 4.5:
+                CTRL.cmd_rpm = 2000
+            elif t < 5:
+                CTRL.cmd_idq[0] = 2
+            elif t < 5.5:
+                ACM.TLoad = 0.0
+            elif t < 6: 
+                CTRL.CMD_SPEED_SINE_RPM = 500
+            # else: # don't implement else to receive commands from IPython console
 
             # if CTRL.CMD_SPEED_SINE_RPM!=0:
             #     CTRL.cmd_rpm = CTRL.CMD_SPEED_SINE_RPM * np.sin(2*np.pi*CTRL.CMD_SPEED_SINE_HZ*t)
@@ -614,9 +647,9 @@ def ACMSimPyIncremental(
             watch_data[27][watch_index] = CTRL.Tem
             watch_index += 1
 
-            """ Current Source Inverter """
-            ACM.iD = ACM.x[3] = CTRL.cmd_idq[0]
-            ACM.iQ = ACM.x[4] = CTRL.cmd_idq[1]
+            """ Voltage Source Inverter (in dq-frame) """
+            ACM.udq[0] = CTRL.cmd_udq[0] # + current denpendent distorted voltage
+            ACM.udq[1] = CTRL.cmd_udq[1] # + current denpendent distorted voltage
 
     return control_times, watch_data
 
@@ -713,7 +746,7 @@ if __name__ == '__main__':
 
     # Basic settings
     CL_TS      = 1e-4 # [sec]
-    TIME_SLICE = 1.0  # [sec]
+    TIME_SLICE = 0.5  # [sec]
 
     # init
     CTRL = The_Motor_Controller(CL_TS, 5*CL_TS,
@@ -726,10 +759,10 @@ if __name__ == '__main__':
                 init_Rreq = -1.0, # PMSM
                 # init_Rreq = 1.0, # IM
                 init_Js = 0.0006168)
-    CTRL.bool_overwrite_speed_commands = True
+    CTRL.bool_overwrite_speed_commands = False
     ACM       = The_AC_Machine(CTRL)
-    reg_id    = None # The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
-    reg_iq    = None # The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
+    reg_id    = The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
+    reg_iq    = The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
     reg_speed = The_PI_Regulator(1.0*0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
     # reg_speed = The_PI_Regulator(10 *0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
     # reg_speed = The_PI_Regulator(0.1*0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
@@ -754,35 +787,35 @@ if __name__ == '__main__':
         (r'Load torque [Nm]',             ( 'CTRL.xS[2]'                                        ,) ),
     ])
 
-    def controller_commands(t):
-        """ Console @ CL_TS """
-        if t < 1.0:
-            CTRL.cmd_rpm = 50
-        elif t < 1.5:
-            ACM.TLoad = 2
-        elif t < 2.0:
-            CTRL.cmd_rpm = 200
-        elif t < 3.0:
-            CTRL.cmd_rpm = -200
-        elif t < 4.0:
-            CTRL.cmd_rpm = 0
-        elif t < 4.5:
-            CTRL.cmd_rpm = 2000
-        elif t < 5:
-            CTRL.cmd_idq[0] = 2
-        elif t < 5.5:
-            ACM.TLoad = 0.0
-        elif t < 6: 
-            CTRL.CMD_SPEED_SINE_RPM = 500
-        # else: # don't implement else to receive commands from IPython console
+    # def controller_commands(t):
+    #     """ Console @ CL_TS """
+    #     if t <= 1.0:
+    #         CTRL.cmd_rpm = 50
+    #     elif t <= 1.5:
+    #         ACM.TLoad = 2
+    #     elif t <= 2.0:
+    #         CTRL.cmd_rpm = 200
+    #     elif t <= 3.0:
+    #         CTRL.cmd_rpm = -200
+    #     elif t <= 4.0:
+    #         CTRL.cmd_rpm = 0
+    #     elif t <= 4.5:
+    #         CTRL.cmd_rpm = 2000
+    #     elif t <= 5:
+    #         CTRL.cmd_idq[0] = 2
+    #     elif t <= 5.5:
+    #         ACM.TLoad = 0.0
+    #     elif t <= 6: 
+    #         CTRL.CMD_SPEED_SINE_RPM = 500
+    #     # else: # don't implement else clause to receive commands from IPython console
 
-        if CTRL.CMD_SPEED_SINE_RPM!=0:
-            CTRL.cmd_rpm = CTRL.CMD_SPEED_SINE_RPM * np.sin(2*np.pi*CTRL.CMD_SPEED_SINE_HZ*t)
+    #     if CTRL.CMD_SPEED_SINE_RPM!=0:
+    #         CTRL.cmd_rpm = CTRL.CMD_SPEED_SINE_RPM * np.sin(2*np.pi*CTRL.CMD_SPEED_SINE_HZ*t)
 
     # simulate to generate 10 sec of data
     for ii in range(0, 8):
 
-        controller_commands(t=ii*TIME_SLICE)
+        # controller_commands(t=ii*TIME_SLICE)
 
         """perform animation step"""
         control_times, numba__waveforms_dict = \
@@ -813,7 +846,7 @@ if __name__ == '__main__':
         global_OB_theta_d = save_to_global(global_OB_theta_d, OB_theta_d)
         global_TL        = save_to_global(global_TL, TL)
 
-        print(ii, 'KA =', ACM.KA, CTRL.KA, 'Wb')
+        print(ii, 'KA =', ACM.KA, CTRL.KA, 'Wb', CTRL.cmd_rpm, 'rpm')
 
         # for k,v in numba__waveforms_dict.items():
         #     print(k, np.shape(v))
@@ -849,4 +882,5 @@ if __name__ == '__main__':
     print(CTRL.ell1, CTRL.ell2, CTRL.ell3, CTRL.ell4)
 
     plt.show()
+
 

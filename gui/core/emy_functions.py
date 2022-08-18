@@ -10,8 +10,8 @@ import traceback
 import pandas as pd
 
 # from gui.core.json_settings import Settings
-# from simulation.tutorials import acmsimpy
-import simulation.tutorials as acmsimpy
+import simulation.tutorials as acmsimpy2
+import simulation.tutorials_ep2_full_dynamics as acmsimpy
 
 # 后端
 # use cairo only for acmsimpy | use cairo for acmsimc will slow down plotting
@@ -162,6 +162,9 @@ class EmyFunctions(object):
         CONSOLE = THE_CONSOLE(numba__scope_dict=numba__scope_dict)
         mainWindowObject.console_push_variable({f'CONSOLE':CONSOLE})
 
+        d = dict(locals(), **globals())
+        exec(mainWindowObject.console_window.plainTextEdit_ControllerCommands.toPlainText(), d, d)
+        CONSOLE.controller_commands = d['controller_commands']
 
         # print('numba__scope_dict =', numba__scope_dict)
         number_of_subplot = len(numba__scope_dict)
@@ -255,8 +258,13 @@ class EmyFunctions(object):
                 init_Js = 1.0 #0.0006168)
         )
         ACM       = mainWindowObject.ACM       = acmsimpy.The_AC_Machine(CTRL)
-        reg_id    = mainWindowObject.reg_id    = None
-        reg_iq    = mainWindowObject.reg_iq    = None
+        POLE = 200
+        KP = 2 * POLE
+        KI = 1 * POLE**2 / KP
+        # reg_id    = mainWindowObject.reg_id    = acmsimpy.The_PI_Regulator(KP, KP*KI*CTRL.CL_TS, 400) #(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
+        # reg_iq    = mainWindowObject.reg_iq    = acmsimpy.The_PI_Regulator(KP, KP*KI*CTRL.CL_TS, 400) #(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
+        reg_id    = mainWindowObject.reg_id    = acmsimpy.The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
+        reg_iq    = mainWindowObject.reg_iq    = acmsimpy.The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
         POLE = 10
         KP = 2 * POLE
         KI = 1 * POLE**2 / KP
@@ -279,6 +287,8 @@ class EmyFunctions(object):
 
             # start time for the present slice of simulation
             t0 = ii*CONSOLE.TIME_SLICE
+
+            CONSOLE.controller_commands(t0, ACM=ACM, CTRL=CTRL, reg_id=reg_id, reg_iq=reg_iq, reg_speed=reg_speed)
 
             # Run one slice of simulation
             control_times, numba__waveforms_dict, = acmsimpy.ACMSimPyWrapper(
@@ -350,8 +360,8 @@ class EmyFunctions(object):
                 init_Rreq = 1.0, # IM
                 init_Js = 0.0006168)
         mainWindowObject.ACM       = ACM       = acmsimpy.The_AC_Machine(CTRL)
-        mainWindowObject.reg_id    = reg_id    = None
-        mainWindowObject.reg_iq    = reg_iq    = None
+        mainWindowObject.reg_id    = reg_id    = acmsimpy.The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 400)
+        mainWindowObject.reg_iq    = reg_iq    = acmsimpy.The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 400)
         mainWindowObject.reg_speed = reg_speed = acmsimpy.The_PI_Regulator(0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
 
         """ Execute extra codes for each thread here"""
