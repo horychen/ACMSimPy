@@ -18,10 +18,18 @@ plt.style.use('ggplot')
             ('theta_d', float64),
             ('omega_r_elec', float64),
             ('omega_syn', float64),
+            ('uab', float64[:]),
+            ('uab_prev', float64[:]),
+            ('uab_curr', float64[:]),
+            ('iab', float64[:]),
+            ('iab_prev', float64[:]),
+            ('iab_curr', float64[:]),
             # states
             ('timebase', float64),
             ('KA', float64),
             ('Tem', float64),
+            ('cosT', float64),
+            ('sinT', float64),
             # commands
             ('cmd_idq', float64[:]),
             ('cmd_udq', float64[:]),
@@ -90,10 +98,18 @@ class The_Motor_Controller:
         self.theta_d = 0.0
         self.omega_r_elec = 0.0
         self.omega_syn = 0.0
+        self.uab      = np.zeros(2, dtype=np.float64)
+        self.uab_prev = np.zeros(2, dtype=np.float64)
+        self.uab_curr = np.zeros(2, dtype=np.float64)
+        self.iab      = np.zeros(2, dtype=np.float64)
+        self.iab_prev = np.zeros(2, dtype=np.float64)
+        self.iab_curr = np.zeros(2, dtype=np.float64)
         # states
         self.timebase = 0.0
         self.KA = init_KE
         self.Tem = 0.0
+        self.cosT = 1.0
+        self.sinT = 0.0
         # commands 
         self.cmd_idq = np.zeros(2, dtype=np.float64)
         self.cmd_udq = np.zeros(2, dtype=np.float64)
@@ -187,6 +203,8 @@ class The_Motor_Controller:
         ('KA', float64),
         ('iD', float64),
         ('iQ', float64),
+        ('iAlfa', float64),
+        ('iBeta', float64),
         ('Tem', float64),
         ('cosT', float64),
         ('sinT', float64),
@@ -224,6 +242,8 @@ class The_AC_Machine:
         self.KA = CTRL.KA
         self.iD = 0.0
         self.iQ = 0.0
+        self.iAlfa = 0.0
+        self.iBeta = 0.0
         self.Tem = 0.0
         self.cosT = 1.0
         self.sinT = 0.0
@@ -277,19 +297,17 @@ def RK4_ObserverSolver_CJH_Style(THE_DYNAMICS, x, hs, CTRL):
     k1, k2, k3, k4 = np.zeros(NS), np.zeros(NS), np.zeros(NS), np.zeros(NS) # incrementals at 4 stages
     xk, fx = np.zeros(NS), np.zeros(NS) # state x for stage 2/3/4, state derivative
 
-    # CTRL.uab[0] = CTRL.uab_prev[0]
-    # CTRL.uab[1] = CTRL.uab_prev[1]
-    # CTRL.iab[0] = CTRL.iab_prev[0]
-    # CTRL.iab[1] = CTRL.iab_prev[1]
+    CTRL.uab[0] = CTRL.cmd_uab[0]
+    CTRL.uab[1] = CTRL.cmd_uab[1]
+    CTRL.iab[0] = CTRL.iab_prev[0]
+    CTRL.iab[1] = CTRL.iab_prev[1]
     fx = THE_DYNAMICS(x, CTRL)
     for i in range(0, NS):
         k1[i] = fx[i] * hs
         xk[i] = x[i] + k1[i]*0.5
 
-    # CTRL.iab[0] = 0.5*(CTRL.iab_prev[0]+CTRL.iab_curr[0])
-    # CTRL.iab[1] = 0.5*(CTRL.iab_prev[1]+CTRL.iab_curr[1])
-    # CTRL.uab[0] = 0.5*(CTRL.uab_prev[0]+CTRL.uab_curr[0])
-    # CTRL.uab[1] = 0.5*(CTRL.uab_prev[1]+CTRL.uab_curr[1])
+    CTRL.iab[0] = 0.5*(CTRL.iab_prev[0]+CTRL.iab_curr[0])
+    CTRL.iab[1] = 0.5*(CTRL.iab_prev[1]+CTRL.iab_curr[1])
     fx = THE_DYNAMICS(xk, CTRL)
     for i in range(0, NS):
         k2[i] = fx[i] * hs
@@ -300,10 +318,8 @@ def RK4_ObserverSolver_CJH_Style(THE_DYNAMICS, x, hs, CTRL):
         k3[i] = fx[i] * hs
         xk[i] = x[i] + k3[i]
 
-    # CTRL.iab[0] = CTRL.iab_curr[0]
-    # CTRL.iab[1] = CTRL.iab_curr[1]
-    # CTRL.uab[0] = CTRL.uab_curr[0]
-    # CTRL.uab[1] = CTRL.uab_curr[1]
+    CTRL.iab[0] = CTRL.iab_curr[0]
+    CTRL.iab[1] = CTRL.iab_curr[1]
     fx = THE_DYNAMICS(xk, CTRL)
     for i in range(0, NS):
         k4[i] = fx[i] * hs
@@ -476,11 +492,18 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq):
     CTRL.timebase += CTRL.CL_TS
 
     """ Measurement """
-    CTRL.idq[0] = ACM.iD
-    CTRL.idq[1] = ACM.iQ
+    CTRL.iab[0] = ACM.iAlfa
+    CTRL.iab[1] = ACM.iBeta
     CTRL.theta_d = ACM.theta_d
 
     """ Park Transformation Essentials """
+    # do this once per control interrupt
+    CTRL.cosT = np.cos(CTRL.theta_d)
+    CTRL.sinT = np.sin(CTRL.theta_d)
+    # Park transformation
+    CTRL.idq[0] = CTRL.iab[0] * CTRL.cosT + CTRL.iab[1] * CTRL.sinT
+    CTRL.idq[1] = CTRL.iab[0] *-CTRL.sinT + CTRL.iab[1] * CTRL.cosT
+
     # now we are ready to calculate torque using dq-currents
     CTRL.KA = (CTRL.Ld - CTRL.Lq) * CTRL.idq[0] + CTRL.KE # 有功磁链计算
     CTRL.Tem =     1.5 * CTRL.npp * CTRL.idq[1] * CTRL.KA # 电磁转矩计算
@@ -493,10 +516,10 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq):
         RK4_ObserverSolver_CJH_Style(DYNAMICS_SpeedObserver, CTRL.xS, CTRL.CL_TS, CTRL)
         while CTRL.xS[0]> np.pi: CTRL.xS[0] -= 2*np.pi
         while CTRL.xS[0]<-np.pi: CTRL.xS[0] += 2*np.pi
-        # CTRL.iab_prev[0] = CTRL.iab_curr[0]
-        # CTRL.iab_prev[1] = CTRL.iab_curr[1]
-        # # CTRL.uab_prev[0] = CTRL.uab_curr[0] # This is needed only if voltage is measured, e.g., by eCAP.
-        # # CTRL.uab_prev[1] = CTRL.uab_curr[1] # This is needed only if voltage is measured, e.g., by eCAP.
+        CTRL.iab_prev[0] = CTRL.iab_curr[0]
+        CTRL.iab_prev[1] = CTRL.iab_curr[1]
+        # CTRL.uab_prev[0] = CTRL.uab_curr[0] # This is needed only if voltage is measured, e.g., by eCAP. Remember to update the code below marked by [$].
+        # CTRL.uab_prev[1] = CTRL.uab_curr[1] # This is needed only if voltage is measured, e.g., by eCAP. Remember to update the code below marked by [$].
 
         """ Speed Observer Outputs """
         CTRL.vartheta_d = CTRL.xS[0]
@@ -513,6 +536,10 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq):
     """ Speed and Current Controller (two cascaded closed loops) """
     FOC(CTRL, reg_speed, reg_id, reg_iq)
 
+    # [$] Inverse Park transformation: get voltage commands in alpha-beta frame as SVPWM input
+    CTRL.cmd_uab[0] = CTRL.cmd_udq[0] * CTRL.cosT + CTRL.cmd_udq[1] *-CTRL.sinT
+    CTRL.cmd_uab[1] = CTRL.cmd_udq[0] * CTRL.sinT + CTRL.cmd_udq[1] * CTRL.cosT
+
 ############################################# Wrapper level 1
 """ MAIN for Real-time simulation """
 @njit(nogil=True)
@@ -524,8 +551,9 @@ def ACMSimPyIncremental(
         reg_iq=None,
         reg_speed=None,
     ):
-    MACHINE_TS = CTRL.CL_TS
-    down_sampling_ceiling = int(CTRL.CL_TS / MACHINE_TS) #print('\tdown sample:', down_sampling_ceiling)
+    MACHINE_TS = CTRL.CL_TS * 0.1
+    down_sampling_ceiling = int(CTRL.CL_TS / MACHINE_TS)
+    print('\tdown sample:', down_sampling_ceiling)
 
     # watch variabels
     machine_times  = np.arange(t0, t0+TIME, MACHINE_TS)
@@ -556,10 +584,10 @@ def ACMSimPyIncremental(
         ACM.omega_syn    = ACM.omega_r_elec + ACM.omega_slip
 
         # Inverse Park transformation
-        # ACM.cosT = np.cos(ACM.theta_d)
-        # ACM.sinT = np.sin(ACM.theta_d)
-        # ACM.iab[0] = ACM.x[0] * ACM.cosT + ACM.x[1] *-ACM.sinT
-        # ACM.iab[1] = ACM.x[0] * ACM.sinT + ACM.x[1] * ACM.cosT
+        ACM.cosT = np.cos(ACM.theta_d)
+        ACM.sinT = np.sin(ACM.theta_d)
+        ACM.iAlfa = ACM.iD * ACM.cosT + ACM.iQ *-ACM.sinT # as motor controller input
+        ACM.iBeta = ACM.iD * ACM.sinT + ACM.iQ * ACM.cosT # as motor controller input
 
         jj += 1
         if jj >= down_sampling_ceiling:
@@ -623,8 +651,8 @@ def ACMSimPyIncremental(
             watch_data[ 3][watch_index] = ACM.iD
             watch_data[ 4][watch_index] = ACM.iQ
             watch_data[ 5][watch_index] = ACM.Tem
-            watch_data[ 6][watch_index] = 0.0 # CTRL.iab[0]
-            watch_data[ 7][watch_index] = 0.0 # CTRL.iab[1]
+            watch_data[ 6][watch_index] =   CTRL.iab[0]
+            watch_data[ 7][watch_index] =   CTRL.iab[1]
             watch_data[ 8][watch_index] = CTRL.idq[0]
             watch_data[ 9][watch_index] = CTRL.idq[1]
             watch_data[10][watch_index] = divmod(CTRL.theta_d, 2*np.pi)[1]
@@ -647,9 +675,10 @@ def ACMSimPyIncremental(
             watch_data[27][watch_index] = CTRL.Tem
             watch_index += 1
 
-            """ Voltage Source Inverter (in dq-frame) """
-            ACM.udq[0] = CTRL.cmd_udq[0] # + current denpendent distorted voltage
-            ACM.udq[1] = CTRL.cmd_udq[1] # + current denpendent distorted voltage
+        """ Voltage Source Inverter (in alpha-beta frame) """
+        # Park transformation
+        ACM.udq[0] = CTRL.cmd_uab[0] *  ACM.cosT + CTRL.cmd_uab[1] * ACM.sinT
+        ACM.udq[1] = CTRL.cmd_uab[0] * -ACM.sinT + CTRL.cmd_uab[1] * ACM.cosT
 
     return control_times, watch_data
 
@@ -876,3 +905,5 @@ if __name__ == '__main__':
     plt.show()
 
 
+
+# %%
