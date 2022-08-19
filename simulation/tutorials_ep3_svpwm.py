@@ -807,8 +807,8 @@ def ACMSimPyIncremental(
     ):
     Vdc = 150 # Vdc is assumed measured and known
     one_over_Vdc = 1/Vdc
-    CPU_TICK_PER_SAMPLING_PERIOD = 500
-    # CPU_TICK_PER_SAMPLING_PERIOD = 1
+    CPU_TICK_PER_SAMPLING_PERIOD = 100
+    # CPU_TICK_PER_SAMPLING_PERIOD = 1 # cannot be 1? BUG!!!
     DEAD_TIME_AS_COUNT = int(200*0.5e-4*CPU_TICK_PER_SAMPLING_PERIOD) * 0
     MACHINE_TS = CTRL.CL_TS / CPU_TICK_PER_SAMPLING_PERIOD
     down_sampling_ceiling = int(CTRL.CL_TS / MACHINE_TS)
@@ -1047,6 +1047,7 @@ def ACMSimPyIncremental(
         watch_data[25][watch_index] = 0.0 # CTRL.active_flux[0] # active flux[0]
         watch_data[26][watch_index] = 0.0 # CTRL.active_flux[1] # active flux[1]
         watch_data[27][watch_index] = CTRL.Tem
+
         watch_data[28][watch_index] = ACM.udq[0] # -svgen1.line_to_line_voltage_AC # ACM.uab[0] # CTRL.cmd_uab[0]
         watch_data[29][watch_index] = ACM.udq[1] # svgen1.line_to_line_voltage_BC # svgen1.carrier_counter # CTRL.cmd_uab[1]
 
@@ -1165,33 +1166,37 @@ if __name__ == '__main__':
 
     # init
     CTRL = The_Motor_Controller(CL_TS, 5*CL_TS,
-        init_npp = 4,
-        init_IN = 3,
-        init_R = 1.1,
-        init_Ld = 5e-3,
-        init_Lq = 6e-3,
-        init_KE = 0.095,
-        init_Rreq = -1, # note division by 0 is equal to infinity
-        init_Js = 0.0006168)
-                # init_npp = 21,
-                # init_IN = 72/1.414,
-                # init_R = 0.075,
-                # init_Ld = 220e-6,
-                # init_Lq = 250e-6,
-                # init_KE = 0.08756, # 150 / 1.732 / (450/60*6.28*21)
-                # init_Rreq = -1.0, # PMSM
-                # # init_Rreq = 1.0, # IM
-                # init_Js = 0.2)
+                init_npp = 4,
+                init_IN = 3,
+                init_R = 1.1,
+                init_Ld = 5e-3,
+                init_Lq = 6e-3,
+                init_KE = 0.095,
+                init_Rreq = -1, # note division by 0 is equal to infinity
+                init_Js = 0.0006168)
+            # init_npp = 21,
+            # init_IN = 72/1.414,
+            # init_R = 0.1222,
+            # init_Ld = 502e-6,
+            # init_Lq = 571e-6,
+            # init_KE = 0.188492, # 150 / 1.732 / (450/60*6.28*21)
+            # init_Rreq = -1.0, # PMSM
+            # # init_Rreq = 1.0, # IM
+            # init_Js = 0.203)
     CTRL.bool_overwrite_speed_commands = False
     ACM       = The_AC_Machine(CTRL)
+
     reg_id    = The_PI_Regulator(1*6.39955, 1*6.39955*237.845*CTRL.CL_TS, 150/1.732)
     reg_iq    = The_PI_Regulator(1*6.39955, 1*6.39955*237.845*CTRL.CL_TS, 150/1.732)
     # reg_speed = The_PI_Regulator(1.0*0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
     # reg_speed = The_PI_Regulator(0.1*0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
     # reg_speed = The_PI_Regulator(10 *0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
     # reg_speed = The_PI_Regulator(100 *0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
-
     reg_speed = The_PI_Regulator(0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
+
+    # reg_id    = The_PI_Regulator(2.39421e-05, 2.39421e-05*214011*CTRL.CL_TS, 150/1.732)
+    # reg_iq    = The_PI_Regulator(2.39421e-05, 2.39421e-05*214011*CTRL.CL_TS, 150/1.732)
+    # reg_speed = The_PI_Regulator(1.05024e-06, 1.05024e-06*0.99243*CTRL.VL_TS, 1*1.414*ACM.IN)
 
     # Global arrays
     global_cmd_speed, global_ACM_speed, global__OB_speed = None, None, None
