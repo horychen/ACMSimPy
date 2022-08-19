@@ -85,7 +85,7 @@ class The_Motor_Controller:
         init_Ld = 5e-3,
         init_Lq = 6e-3,
         init_KE = 0.095,
-        init_Rreq = None, # note division by 0 is equal to infinity
+        init_Rreq = -1, # note division by 0 is equal to infinity
         init_Js = 0.0006168,
     ):
         ''' CONTROL '''
@@ -565,12 +565,12 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq):
         ('bool_FallingEdgeDelay_is_active', float64[:]),
         ('carrier_counter', float64),
         ('deadtime_counter', float64[:]),
-        ('S1', float64),
-        ('S2', float64),
-        ('S3', float64),
-        ('S4', float64),
-        ('S5', float64),
-        ('S6', float64),
+        ('S1', int32),
+        ('S2', int32),
+        ('S3', int32),
+        ('S4', int32),
+        ('S5', int32),
+        ('S6', int32),
         ('EPwm1Regs_CMPA_bit_CMPA', float64),
         ('EPwm2Regs_CMPA_bit_CMPA', float64),
         ('EPwm3Regs_CMPA_bit_CMPA', float64),
@@ -580,6 +580,7 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq):
         ('voltage_potential_at_terminal', float64[:]),
         ('line_to_line_voltage_AC', float64),
         ('line_to_line_voltage_BC', float64),
+        ('line_to_line_voltage_AB', float64),
     ])
 class SVgen_Object:
     def __init__(self, CPU_TICK_PER_SAMPLING_PERIOD):
@@ -609,14 +610,15 @@ class SVgen_Object:
         self.voltage_potential_at_terminal = np.zeros(3, dtype=np.float64)
         self.line_to_line_voltage_AC = 0.0
         self.line_to_line_voltage_BC = 0.0
+        self.line_to_line_voltage_AB = 0.0
 
 @njit(nogil=True)
-def SVGEN_DQ(v, one_over_Vdc, Unot=0.0):
+def SVGEN_DQ(v, one_over_Vdc):
 
     # Normalization (which converts [Volt] into [s])
     Talfa = v.Ualfa * one_over_Vdc # v.Ualfa is in sense of amplitude invariant Clarke transformation
-    Tbeta  = v.Ubeta * one_over_Vdc # v.Ubeta is in sense of amplitude invariant Clarke transformation
-    Tz     = v.Unot  * one_over_Vdc # duration of the added zero sequence voltage
+    Tbeta = v.Ubeta * one_over_Vdc # v.Ubeta is in sense of amplitude invariant Clarke transformation
+    Tz    = v.Unot  * one_over_Vdc # duration of the added zero sequence voltage
 
     # Inverse clarke transformation??
     A = Tbeta # 0 degree line pointing at 0 degree
@@ -630,7 +632,7 @@ def SVGEN_DQ(v, one_over_Vdc, Unot=0.0):
     if (B > 0): Sector = Sector+4
 
     # X,Y,Z calculations (Note an additional factor of 1.7320508 is introduced to be equivalent to normalizing Ualfa and Ubeta to a base value of Vdc/sqrt(3))
-    XXX =               Tbeta*1.7320508
+    XXX =              Tbeta*1.7320508
     YYY =  1.5*Talfa + Tbeta*0.8660254
     ZZZ = -1.5*Talfa + Tbeta*0.8660254
 
@@ -692,8 +694,7 @@ def SVGEN_DQ(v, one_over_Vdc, Unot=0.0):
 
 @njit(nogil=True)
 def gate_signal_generator(ii, v, CPU_TICK_PER_SAMPLING_PERIOD, DEAD_TIME_AS_COUNT):
-    # 波谷中断
-    # if ii % CPU_TICK_PER_SAMPLING_PERIOD == 0:
+    # 波谷中断 # if ii % CPU_TICK_PER_SAMPLING_PERIOD == 0:
     if v.bool_interupt_event:
         v.bool_interupt_event = False # this clause is one-time-execution code
         v.bool_counting_down = False # counting up first
@@ -710,8 +711,7 @@ def gate_signal_generator(ii, v, CPU_TICK_PER_SAMPLING_PERIOD, DEAD_TIME_AS_COUN
         v.bool_FallingEdgeDelay_is_active[1] = False
         v.bool_FallingEdgeDelay_is_active[2] = False
 
-    # 波峰中断
-    # if ii % CPU_TICK_PER_SAMPLING_PERIOD == CPU_TICK_PER_SAMPLING_PERIOD * 0.5:
+    # 波峰中断 # if ii % CPU_TICK_PER_SAMPLING_PERIOD == CPU_TICK_PER_SAMPLING_PERIOD * 0.5:
     if v.carrier_counter == CPU_TICK_PER_SAMPLING_PERIOD * 0.5:
         v.bool_counting_down = True
 
@@ -733,48 +733,66 @@ def gate_signal_generator(ii, v, CPU_TICK_PER_SAMPLING_PERIOD, DEAD_TIME_AS_COUN
         v.carrier_counter += 1
 
     # 理想门极信号
-    v.phase_U_gate_signal = True if v.carrier_counter >= v.EPwm1Regs_CMPA_bit_CMPA else False
-    v.phase_V_gate_signal = True if v.carrier_counter >= v.EPwm2Regs_CMPA_bit_CMPA else False
-    v.phase_W_gate_signal = True if v.carrier_counter >= v.EPwm3Regs_CMPA_bit_CMPA else False
+    v.S1 = v.phase_U_gate_signal = True if v.carrier_counter >= v.EPwm1Regs_CMPA_bit_CMPA else False
+    v.S2 = v.phase_V_gate_signal = True if v.carrier_counter >= v.EPwm2Regs_CMPA_bit_CMPA else False
+    v.S3 = v.phase_W_gate_signal = True if v.carrier_counter >= v.EPwm3Regs_CMPA_bit_CMPA else False
 
+    v.S4, v.S5, v.S6 = not v.S1, not v.S2, not v.S3
+
+    # 应用死区时间，获得实际门极信号
     # Insert dead time based on Active Hgih Complementary (AHC)
     if v.bool_counting_down == False:
 
         if v.carrier_counter >= v.EPwm1Regs_CMPA_bit_CMPA:
             v.deadtime_counter[0] += 1
-            v.bool_RisingEdgeDelay_is_active[0] = True if v.deadtime_counter[0] <= DEAD_TIME_AS_COUNT else False
-
+            if v.deadtime_counter[0] <= DEAD_TIME_AS_COUNT:
+                v.bool_RisingEdgeDelay_is_active[0] = True
+                v.S1 = False
+            else:
+                pass # False
         if v.carrier_counter >= v.EPwm2Regs_CMPA_bit_CMPA:
             v.deadtime_counter[1] += 1
-            v.bool_RisingEdgeDelay_is_active[1] = True if v.deadtime_counter[1] <= DEAD_TIME_AS_COUNT else False
-
+            if v.deadtime_counter[1] <= DEAD_TIME_AS_COUNT:
+                v.bool_RisingEdgeDelay_is_active[1] = True
+                v.S2 = False
+            else:
+                pass # False
         if v.carrier_counter >= v.EPwm3Regs_CMPA_bit_CMPA:
             v.deadtime_counter[2] += 1
-            v.bool_RisingEdgeDelay_is_active[2] = True if v.deadtime_counter[2] <= DEAD_TIME_AS_COUNT else False
-
+            if v.deadtime_counter[2] <= DEAD_TIME_AS_COUNT:
+                v.bool_RisingEdgeDelay_is_active[2] = True
+                v.S3 = False
+            else:
+                pass # False
     elif v.bool_counting_down == True:
 
         if v.carrier_counter < v.EPwm1Regs_CMPA_bit_CMPA:
             v.deadtime_counter[0] += 1
-            v.bool_FallingEdgeDelay_is_active[0] = True if v.deadtime_counter[0] <= DEAD_TIME_AS_COUNT else False
-
+            if v.deadtime_counter[0] < DEAD_TIME_AS_COUNT:
+                v.bool_FallingEdgeDelay_is_active[0] = True
+                v.S4 = False
+            else:
+                pass # False
         if v.carrier_counter < v.EPwm2Regs_CMPA_bit_CMPA:
             v.deadtime_counter[1] += 1
-            v.bool_FallingEdgeDelay_is_active[1] = True if v.deadtime_counter[1] <= DEAD_TIME_AS_COUNT else False
-
+            if v.deadtime_counter[1] < DEAD_TIME_AS_COUNT:
+                v.bool_FallingEdgeDelay_is_active[1] = True
+                v.S5 = False
+            else:
+                pass # False
         if v.carrier_counter < v.EPwm3Regs_CMPA_bit_CMPA:
             v.deadtime_counter[2] += 1
-            v.bool_FallingEdgeDelay_is_active[2] = True if v.deadtime_counter[2] <= DEAD_TIME_AS_COUNT else False
-
-    # 应用死区时间，获得实际门极信号
-    v.S1, v.S2, v.S3 = v.phase_U_gate_signal, v.phase_V_gate_signal, v.phase_W_gate_signal
-    v.S4, v.S5, v.S6 = not v.S1, not v.S2, not v.S3
-    if v.bool_RisingEdgeDelay_is_active[0]:   v.S1 = False
-    if v.bool_FallingEdgeDelay_is_active[0]:  v.S4 = False
-    if v.bool_RisingEdgeDelay_is_active[1]:   v.S2 = False
-    if v.bool_FallingEdgeDelay_is_active[1]:  v.S5 = False
-    if v.bool_RisingEdgeDelay_is_active[2]:   v.S3 = False
-    if v.bool_FallingEdgeDelay_is_active[2]:  v.S6 = False
+            if v.deadtime_counter[2] < DEAD_TIME_AS_COUNT:
+                v.bool_FallingEdgeDelay_is_active[2] = True
+                v.S6 = False
+            else:
+                pass # False
+    # if v.bool_RisingEdgeDelay_is_active[0]:   v.S1 = False # AHC: upper leg implements RED
+    # if v.bool_RisingEdgeDelay_is_active[1]:   v.S2 = False # AHC: upper leg implements RED
+    # if v.bool_RisingEdgeDelay_is_active[2]:   v.S3 = False # AHC: upper leg implements RED
+    # if v.bool_FallingEdgeDelay_is_active[0]:  v.S4 = False # AHC: lower leg implements FED
+    # if v.bool_FallingEdgeDelay_is_active[1]:  v.S5 = False # AHC: lower leg implements FED
+    # if v.bool_FallingEdgeDelay_is_active[2]:  v.S6 = False # AHC: lower leg implements FED
 
 ############################################# Wrapper level 1
 """ MAIN for Real-time simulation """
@@ -787,10 +805,11 @@ def ACMSimPyIncremental(
         reg_iq=None,
         reg_speed=None,
     ):
-    Vdc = 400 # Vdc is assumed measured and known
+    Vdc = 150 # Vdc is assumed measured and known
     one_over_Vdc = 1/Vdc
-    CPU_TICK_PER_SAMPLING_PERIOD = 2000
-    DEAD_TIME_AS_COUNT = int(200*0.5e-4*CPU_TICK_PER_SAMPLING_PERIOD)
+    CPU_TICK_PER_SAMPLING_PERIOD = 500
+    # CPU_TICK_PER_SAMPLING_PERIOD = 1
+    DEAD_TIME_AS_COUNT = int(200*0.5e-4*CPU_TICK_PER_SAMPLING_PERIOD) * 0
     MACHINE_TS = CTRL.CL_TS / CPU_TICK_PER_SAMPLING_PERIOD
     down_sampling_ceiling = int(CTRL.CL_TS / MACHINE_TS)
     print('Vdc, CPU_TICK_PER_SAMPLING_PERIOD, down_sampling_ceiling', Vdc, CPU_TICK_PER_SAMPLING_PERIOD, down_sampling_ceiling)
@@ -799,7 +818,7 @@ def ACMSimPyIncremental(
     svgen1 = SVgen_Object(CPU_TICK_PER_SAMPLING_PERIOD)
 
     # watch variabels
-    machine_times  = np.arange(t0, t0+TIME, MACHINE_TS)
+    machine_times = np.arange(t0, t0+TIME, MACHINE_TS)
     watch_data = np.zeros( (40, len(machine_times)) )
 
     control_times  = np.arange(t0, t0+TIME, CTRL.CL_TS)
@@ -870,7 +889,7 @@ def ACMSimPyIncremental(
             if t < 1.0:
                 CTRL.cmd_rpm = 50
             elif t < 1.5:
-                ACM.TLoad = 2
+                ACM.TLoad = 2 * 0
             elif t < 2.0:
                 CTRL.cmd_rpm = 200
             elif t < 3.0:
@@ -984,6 +1003,7 @@ def ACMSimPyIncremental(
             # 线电压 AC 和 BC
             svgen1.line_to_line_voltage_AC = svgen1.voltage_potential_at_terminal[0] - svgen1.voltage_potential_at_terminal[2]
             svgen1.line_to_line_voltage_BC = svgen1.voltage_potential_at_terminal[1] - svgen1.voltage_potential_at_terminal[2]
+            svgen1.line_to_line_voltage_AB = svgen1.voltage_potential_at_terminal[0] - svgen1.voltage_potential_at_terminal[1]
 
             # 线电压 做 Amplitude invariant Clarke transformation 获得 alpha-beta 电压
             ACM.uab[0] = svgen1.line_to_line_voltage_AC*0.6666667 - (svgen1.line_to_line_voltage_BC + 0)*0.3333333
@@ -1027,14 +1047,15 @@ def ACMSimPyIncremental(
         watch_data[25][watch_index] = 0.0 # CTRL.active_flux[0] # active flux[0]
         watch_data[26][watch_index] = 0.0 # CTRL.active_flux[1] # active flux[1]
         watch_data[27][watch_index] = CTRL.Tem
-        watch_data[28][watch_index] = CTRL.cmd_uab[0]
-        watch_data[29][watch_index] = CTRL.cmd_uab[1]
-        watch_data[30][watch_index] = ACM.uab[0]
-        watch_data[31][watch_index] = svgen1.EPwm1Regs_CMPA_bit_CMPA
-        watch_data[32][watch_index] = svgen1.line_to_line_voltage_AC
-        watch_data[33][watch_index] = ACM.uab[1]
-        watch_data[34][watch_index] = svgen1.EPwm2Regs_CMPA_bit_CMPA
-        watch_data[35][watch_index] = svgen1.line_to_line_voltage_BC
+        watch_data[28][watch_index] = ACM.udq[0] # -svgen1.line_to_line_voltage_AC # ACM.uab[0] # CTRL.cmd_uab[0]
+        watch_data[29][watch_index] = ACM.udq[1] # svgen1.line_to_line_voltage_BC # svgen1.carrier_counter # CTRL.cmd_uab[1]
+
+        watch_data[30][watch_index] = 30+svgen1.voltage_potential_at_terminal[0] # -svgen1.line_to_line_voltage_AC # ACM.uab[0]
+        watch_data[31][watch_index] = svgen1.voltage_potential_at_terminal[1] # svgen1.line_to_line_voltage_BC # ACM.uab[1]
+        watch_data[32][watch_index] = -30+svgen1.voltage_potential_at_terminal[2] # svgen1.line_to_line_voltage_AB # svgen1.line_to_line_voltage_BC
+        watch_data[33][watch_index] = 0.0 # svgen1.voltage_potential_at_terminal[0] # svgen1.deadtime_counter[0] # svgen1.voltage_potential_at_terminal[0]
+        watch_data[34][watch_index] = ACM.uab[0] # svgen1.deadtime_counter[1] # svgen1.voltage_potential_at_terminal[1]
+        watch_data[35][watch_index] = ACM.uab[1] # svgen1.deadtime_counter[2] # svgen1.voltage_potential_at_terminal[2]
         watch_index += 1
 
     return control_times, watch_data
@@ -1143,26 +1164,34 @@ if __name__ == '__main__':
     TIME_SLICE = 0.5  # [sec]
 
     # init
-    CTRL = The_Motor_Controller(CL_TS, 2*CL_TS,
-                init_npp = 4,
-                init_IN = 3,
-                init_R = 1.1,
-                init_Ld = 5e-3,
-                init_Lq = 6e-3,
-                init_KE = 0.095,
-                init_Rreq = -1.0, # PMSM
-                # init_Rreq = 1.0, # IM
-                init_Js = 0.0006168)
+    CTRL = The_Motor_Controller(CL_TS, 5*CL_TS,
+        init_npp = 4,
+        init_IN = 3,
+        init_R = 1.1,
+        init_Ld = 5e-3,
+        init_Lq = 6e-3,
+        init_KE = 0.095,
+        init_Rreq = -1, # note division by 0 is equal to infinity
+        init_Js = 0.0006168)
+                # init_npp = 21,
+                # init_IN = 72/1.414,
+                # init_R = 0.075,
+                # init_Ld = 220e-6,
+                # init_Lq = 250e-6,
+                # init_KE = 0.08756, # 150 / 1.732 / (450/60*6.28*21)
+                # init_Rreq = -1.0, # PMSM
+                # # init_Rreq = 1.0, # IM
+                # init_Js = 0.2)
     CTRL.bool_overwrite_speed_commands = False
     ACM       = The_AC_Machine(CTRL)
-    reg_id    = The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 400)
-    reg_iq    = The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 400)
+    reg_id    = The_PI_Regulator(1*6.39955, 1*6.39955*237.845*CTRL.CL_TS, 150/1.732)
+    reg_iq    = The_PI_Regulator(1*6.39955, 1*6.39955*237.845*CTRL.CL_TS, 150/1.732)
     # reg_speed = The_PI_Regulator(1.0*0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
     # reg_speed = The_PI_Regulator(0.1*0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
     # reg_speed = The_PI_Regulator(10 *0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
     # reg_speed = The_PI_Regulator(100 *0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
 
-    reg_speed = The_PI_Regulator(10*0.0380362, 10*0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
+    reg_speed = The_PI_Regulator(0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
 
     # Global arrays
     global_cmd_speed, global_ACM_speed, global__OB_speed = None, None, None
@@ -1201,7 +1230,7 @@ if __name__ == '__main__':
     ])
 
     # simulate to generate 10 sec of data
-    for ii in range(0, 2):
+    for ii in range(0, 4):
 
         # controller_commands(t=ii*TIME_SLICE)
 
@@ -1288,19 +1317,20 @@ if __name__ == '__main__':
     plt.plot( global_cmd_iQ); plt.plot( global_iQ)
 
     plt.figure(21, figsize=(15,4))
-    plt.plot(global_ualfa); plt.plot(global_ubeta)
-    plt.figure(22, figsize=(15,4))
-    plt.plot(global_S1); plt.plot(global_S4)
-    plt.figure(23, figsize=(15,4))
-    plt.plot(global_S2); plt.plot(global_S5)
+    plt.plot(global_ualfa, '--'); plt.plot(global_ubeta, '-.')
+    # plt.figure(22, figsize=(15,4))
+    # plt.plot(global_S1); plt.plot(global_S2)
+    # plt.figure(23, figsize=(15,4))
+    # plt.plot(global_S3);
     plt.figure(24, figsize=(15,4))
-    plt.plot(global_S3); plt.plot(global_S6)
+    plt.plot(global_S1)
+    plt.plot(global_S2)
+    plt.plot(global_S3)
+    plt.figure(27, figsize=(15,4))
+    plt.plot(global_S4); plt.plot(global_S5); plt.plot(global_S6)
 
 
     # print(CTRL.ell1, CTRL.ell2, CTRL.ell3, CTRL.ell4)
 
     plt.show()
 
-
-
-# %%
