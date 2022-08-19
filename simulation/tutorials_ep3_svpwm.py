@@ -92,8 +92,9 @@ class The_Motor_Controller:
         # constants
         self.CL_TS = CL_TS
         self.VL_TS = VL_TS
-        self.velocity_loop_counter = 0 # 4
-        self.velocity_loop_ceiling = 5
+        self.velocity_loop_ceiling = VL_TS / CL_TS
+        self.velocity_loop_counter = self.velocity_loop_ceiling - 1
+        print('CTRL.velocity_loop_ceiling =', self.velocity_loop_ceiling)
         # feedback / input
         self.theta_d = 0.0
         self.omega_r_elec = 0.0
@@ -110,7 +111,7 @@ class The_Motor_Controller:
         self.Tem = 0.0
         self.cosT = 1.0
         self.sinT = 0.0
-        # commands 
+        # commands
         self.cmd_idq = np.zeros(2, dtype=np.float64)
         self.cmd_udq = np.zeros(2, dtype=np.float64)
         self.cmd_uab = np.zeros(2, dtype=np.float64)
@@ -690,7 +691,7 @@ def SVGEN_DQ(v, one_over_Vdc, Unot=0.0):
     return v
 
 @njit(nogil=True)
-def gate_signal_generator(ii, v, CPU_TICK_PER_SAMPLING_PERIOD = 10000, DEAD_TIME_AS_COUNT = 200):
+def gate_signal_generator(ii, v, CPU_TICK_PER_SAMPLING_PERIOD, DEAD_TIME_AS_COUNT):
     # 波谷中断
     # if ii % CPU_TICK_PER_SAMPLING_PERIOD == 0:
     if v.bool_interupt_event:
@@ -786,9 +787,10 @@ def ACMSimPyIncremental(
         reg_iq=None,
         reg_speed=None,
     ):
-    Vdc = 100 # Vdc is assumed measured and known
+    Vdc = 400 # Vdc is assumed measured and known
     one_over_Vdc = 1/Vdc
-    CPU_TICK_PER_SAMPLING_PERIOD = 1000
+    CPU_TICK_PER_SAMPLING_PERIOD = 2000
+    DEAD_TIME_AS_COUNT = int(200*0.5e-4*CPU_TICK_PER_SAMPLING_PERIOD)
     MACHINE_TS = CTRL.CL_TS / CPU_TICK_PER_SAMPLING_PERIOD
     down_sampling_ceiling = int(CTRL.CL_TS / MACHINE_TS)
     print('Vdc, CPU_TICK_PER_SAMPLING_PERIOD, down_sampling_ceiling', Vdc, CPU_TICK_PER_SAMPLING_PERIOD, down_sampling_ceiling)
@@ -857,6 +859,7 @@ def ACMSimPyIncremental(
                     CTRL.cmd_idq[1] = CTRL.CMD_CURRENT_SINE_AMPERE * np.sin(2*np.pi*CTRL.CMD_SPEED_SINE_HZ*(CTRL.timebase - CTRL.CMD_SPEED_SINE_LAST_END_TIME))
 
             """ DSP @ CL_TS """
+            # print(ii+1)
             DSP(ACM=ACM,
                 CTRL=CTRL,
                 reg_speed=reg_speed,
@@ -953,7 +956,7 @@ def ACMSimPyIncremental(
             ACM.ic = ACM.iAlfa*-0.5 + ACM.iBeta*-0.8660254
 
             # Get S1 -- S6
-            gate_signal_generator(ii, svgen1, CPU_TICK_PER_SAMPLING_PERIOD=CPU_TICK_PER_SAMPLING_PERIOD, DEAD_TIME_AS_COUNT=200*1e-4*CPU_TICK_PER_SAMPLING_PERIOD)
+            gate_signal_generator(ii, svgen1, CPU_TICK_PER_SAMPLING_PERIOD=CPU_TICK_PER_SAMPLING_PERIOD, DEAD_TIME_AS_COUNT=DEAD_TIME_AS_COUNT)
 
             # 端电势
             # inverter connects motor terminals to dc bus capacitor depending on gate signals and phase current (during dead zone)
@@ -985,53 +988,54 @@ def ACMSimPyIncremental(
             # 线电压 做 Amplitude invariant Clarke transformation 获得 alpha-beta 电压
             ACM.uab[0] = svgen1.line_to_line_voltage_AC*0.6666667 - (svgen1.line_to_line_voltage_BC + 0)*0.3333333
             ACM.uab[1] = 0.577350269 * (svgen1.line_to_line_voltage_BC - 0)
-            # Park transformation
-            ACM.udq[0] = ACM.uab[0] *  ACM.cosT + ACM.uab[1] * ACM.sinT
-            ACM.udq[1] = ACM.uab[0] * -ACM.sinT + ACM.uab[1] * ACM.cosT
-
-            """ Watch @ MACHINE_TS """
-            watch_data[ 0][watch_index] = divmod(ACM.theta_d, 2*np.pi)[1]
-            watch_data[ 1][watch_index] = ACM.omega_r_mech / (2*np.pi) * 60 # omega_r_mech
-            watch_data[ 2][watch_index] = ACM.KA
-            watch_data[ 3][watch_index] = ACM.iD
-            watch_data[ 4][watch_index] = ACM.iQ
-            watch_data[ 5][watch_index] = ACM.Tem
-            watch_data[ 6][watch_index] =   CTRL.iab[0]
-            watch_data[ 7][watch_index] =   CTRL.iab[1]
-            watch_data[ 8][watch_index] = CTRL.idq[0]
-            watch_data[ 9][watch_index] = CTRL.idq[1]
-            watch_data[10][watch_index] = divmod(CTRL.theta_d, 2*np.pi)[1]
-            watch_data[11][watch_index] = CTRL.omega_r_elec / (2*np.pi*ACM.npp) * 60
-            watch_data[12][watch_index] = CTRL.cmd_rpm
-            watch_data[13][watch_index] = CTRL.cmd_idq[0]
-            watch_data[14][watch_index] = CTRL.cmd_idq[1]
-            watch_data[15][watch_index] = CTRL.xS[0] # theta_d
-            watch_data[16][watch_index] = CTRL.xS[1] / (2*np.pi*ACM.npp) * 60 # omega_r_elec
-            watch_data[17][watch_index] = CTRL.xS[2] # TL
-            watch_data[18][watch_index] = CTRL.xS[3] # pT
-            watch_data[19][watch_index] = CTRL.KA
-            watch_data[20][watch_index] = CTRL.KE
-            watch_data[21][watch_index] = CTRL.xT[0] # stator flux[0]
-            watch_data[22][watch_index] = CTRL.xT[1] # stator flux[1]
-            watch_data[23][watch_index] = CTRL.xT[2] # I term
-            watch_data[24][watch_index] = CTRL.xT[3] # I term
-            watch_data[25][watch_index] = 0.0 # CTRL.active_flux[0] # active flux[0]
-            watch_data[26][watch_index] = 0.0 # CTRL.active_flux[1] # active flux[1]
-            watch_data[27][watch_index] = CTRL.Tem
-            watch_data[28][watch_index] = CTRL.cmd_uab[0]
-            watch_data[29][watch_index] = CTRL.cmd_uab[1]
-            watch_data[30][watch_index] = ACM.uab[0]
-            watch_data[31][watch_index] = svgen1.EPwm1Regs_CMPA_bit_CMPA
-            watch_data[32][watch_index] = svgen1.line_to_line_voltage_AC
-            watch_data[33][watch_index] = ACM.uab[1]
-            watch_data[34][watch_index] = svgen1.EPwm2Regs_CMPA_bit_CMPA
-            watch_data[35][watch_index] = svgen1.line_to_line_voltage_BC
-            watch_index += 1
 
         else:
-            # Park transformation (no SVPWM, the discrepancy between CTRL.cosT and ACM.cosT will be simulated, i.e., the zero-hold feature of the inverter)
-            ACM.udq[0] = CTRL.cmd_uab[0] *  ACM.cosT + CTRL.cmd_uab[1] * ACM.sinT
-            ACM.udq[1] = CTRL.cmd_uab[0] * -ACM.sinT + CTRL.cmd_uab[1] * ACM.cosT
+            # (no SVPWM, the discrepancy between CTRL.cosT and ACM.cosT will be simulated, i.e., the zero-hold feature of the inverter)
+            ACM.uab[0] = CTRL.cmd_uab[0]
+            ACM.uab[1] = CTRL.cmd_uab[1]
+
+        # Park transformation
+        ACM.udq[0] = ACM.uab[0] *  ACM.cosT + ACM.uab[1] * ACM.sinT
+        ACM.udq[1] = ACM.uab[0] * -ACM.sinT + ACM.uab[1] * ACM.cosT
+
+        """ Watch @ MACHINE_TS """
+        watch_data[ 0][watch_index] = divmod(ACM.theta_d, 2*np.pi)[1]
+        watch_data[ 1][watch_index] = ACM.omega_r_mech / (2*np.pi) * 60 # omega_r_mech
+        watch_data[ 2][watch_index] = ACM.KA
+        watch_data[ 3][watch_index] = ACM.iD
+        watch_data[ 4][watch_index] = ACM.iQ
+        watch_data[ 5][watch_index] = ACM.Tem
+        watch_data[ 6][watch_index] =   CTRL.iab[0]
+        watch_data[ 7][watch_index] =   CTRL.iab[1]
+        watch_data[ 8][watch_index] = CTRL.idq[0]
+        watch_data[ 9][watch_index] = CTRL.idq[1]
+        watch_data[10][watch_index] = divmod(CTRL.theta_d, 2*np.pi)[1]
+        watch_data[11][watch_index] = CTRL.omega_r_elec / (2*np.pi*ACM.npp) * 60
+        watch_data[12][watch_index] = CTRL.cmd_rpm
+        watch_data[13][watch_index] = CTRL.cmd_idq[0]
+        watch_data[14][watch_index] = CTRL.cmd_idq[1]
+        watch_data[15][watch_index] = CTRL.xS[0] # theta_d
+        watch_data[16][watch_index] = CTRL.xS[1] / (2*np.pi*ACM.npp) * 60 # omega_r_elec
+        watch_data[17][watch_index] = CTRL.xS[2] # TL
+        watch_data[18][watch_index] = CTRL.xS[3] # pT
+        watch_data[19][watch_index] = CTRL.KA
+        watch_data[20][watch_index] = CTRL.KE
+        watch_data[21][watch_index] = CTRL.xT[0] # stator flux[0]
+        watch_data[22][watch_index] = CTRL.xT[1] # stator flux[1]
+        watch_data[23][watch_index] = CTRL.xT[2] # I term
+        watch_data[24][watch_index] = CTRL.xT[3] # I term
+        watch_data[25][watch_index] = 0.0 # CTRL.active_flux[0] # active flux[0]
+        watch_data[26][watch_index] = 0.0 # CTRL.active_flux[1] # active flux[1]
+        watch_data[27][watch_index] = CTRL.Tem
+        watch_data[28][watch_index] = CTRL.cmd_uab[0]
+        watch_data[29][watch_index] = CTRL.cmd_uab[1]
+        watch_data[30][watch_index] = ACM.uab[0]
+        watch_data[31][watch_index] = svgen1.EPwm1Regs_CMPA_bit_CMPA
+        watch_data[32][watch_index] = svgen1.line_to_line_voltage_AC
+        watch_data[33][watch_index] = ACM.uab[1]
+        watch_data[34][watch_index] = svgen1.EPwm2Regs_CMPA_bit_CMPA
+        watch_data[35][watch_index] = svgen1.line_to_line_voltage_BC
+        watch_index += 1
 
     return control_times, watch_data
 
@@ -1102,7 +1106,7 @@ def ACMSimPyWrapper(numba__scope_dict, *arg, **kwarg):
                         translated_expression += f'watch_data_as_dict["{word}"]'
                     else:
                         translated_expression += word
-                print('DEBUG', translated_expression)
+                # print('DEBUG', translated_expression)
                 waveforms.append(eval(translated_expression))
             numba__waveforms_dict[key] = waveforms
         # for key, val in numba__waveforms_dict.items():
@@ -1139,7 +1143,7 @@ if __name__ == '__main__':
     TIME_SLICE = 0.5  # [sec]
 
     # init
-    CTRL = The_Motor_Controller(CL_TS, 5*CL_TS,
+    CTRL = The_Motor_Controller(CL_TS, 2*CL_TS,
                 init_npp = 4,
                 init_IN = 3,
                 init_R = 1.1,
@@ -1151,11 +1155,14 @@ if __name__ == '__main__':
                 init_Js = 0.0006168)
     CTRL.bool_overwrite_speed_commands = False
     ACM       = The_AC_Machine(CTRL)
-    reg_id    = The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
-    reg_iq    = The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
-    reg_speed = The_PI_Regulator(1.0*0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
-    # reg_speed = The_PI_Regulator(10 *0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
+    reg_id    = The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 400)
+    reg_iq    = The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 400)
+    # reg_speed = The_PI_Regulator(1.0*0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
     # reg_speed = The_PI_Regulator(0.1*0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
+    # reg_speed = The_PI_Regulator(10 *0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
+    # reg_speed = The_PI_Regulator(100 *0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
+
+    reg_speed = The_PI_Regulator(10*0.0380362, 10*0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
 
     # Global arrays
     global_cmd_speed, global_ACM_speed, global__OB_speed = None, None, None
