@@ -809,9 +809,9 @@ def ACMSimPyIncremental(
     ):
     Vdc = 150 # Vdc is assumed measured and known
     one_over_Vdc = 1/Vdc
-    CPU_TICK_PER_SAMPLING_PERIOD = 100
+    CPU_TICK_PER_SAMPLING_PERIOD = 1000
     # CPU_TICK_PER_SAMPLING_PERIOD = 1 # cannot be 1? BUG!!!
-    DEAD_TIME_AS_COUNT = int(200*0.5e-4*CPU_TICK_PER_SAMPLING_PERIOD) * 0
+    DEAD_TIME_AS_COUNT = int(200*0.5e-4*CPU_TICK_PER_SAMPLING_PERIOD)
     MACHINE_TS = CTRL.CL_TS / CPU_TICK_PER_SAMPLING_PERIOD
     down_sampling_ceiling = int(CTRL.CL_TS / MACHINE_TS)
     print('Vdc, CPU_TICK_PER_SAMPLING_PERIOD, down_sampling_ceiling', Vdc, CPU_TICK_PER_SAMPLING_PERIOD, down_sampling_ceiling)
@@ -1164,7 +1164,7 @@ if __name__ == '__main__':
 
     # Basic settings
     CL_TS      = 1e-4 # [sec]
-    TIME_SLICE = 0.5  # [sec]
+    TIME_SLICE = 0.2  # [sec]
 
     # init
     CTRL = The_Motor_Controller(CL_TS, 5*CL_TS,
@@ -1215,8 +1215,8 @@ if __name__ == '__main__':
     # # reg_speed = The_PI_Regulator(100 *0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
     # reg_speed = The_PI_Regulator(0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
 
-    reg_id    = The_PI_Regulator(0.737168, 0.737168*214.011*CTRL.CL_TS, 2*150) # 150/1.732
-    reg_iq    = The_PI_Regulator(0.737168, 0.737168*214.011*CTRL.CL_TS, 2*150) # 150/1.732
+    reg_id    = The_PI_Regulator(0.737168, 0.737168*214.011*CTRL.CL_TS, 150/1.732)
+    reg_iq    = The_PI_Regulator(0.737168, 0.737168*214.011*CTRL.CL_TS, 150/1.732)
     reg_speed = The_PI_Regulator(0.323363, 0.323363*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
 
     # Global arrays
