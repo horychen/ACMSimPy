@@ -354,6 +354,8 @@ def DYNAMICS_MACHINE(t, x, ACM, CLARKE_TRANS_TORQUE_GAIN=1.5):
         fx[2] = ACM.Rreq*iD - ACM.Rreq / (ACM.Ld - ACM.Lq) * KA # [Apply Park Transorm to (31b)]
         # s iD
         fx[3] = (ACM.udq[0] - ACM.R*iD + ACM.omega_syn*ACM.Lq*iQ - fx[2]) / ACM.Lq # (6a)
+    elif ACM.Rreq < 0:
+        raise Exception('ACM.Rreq is used to calculate slip so it must be zero for PMSM.')
     else: 
             # note fx[3] * ACM.Lq = ACM.udq[0] - ACM.R*iD + omega*ACM.Lq*iQ - fx[2]
             #  =>  fx[3] * ACM.Lq = ACM.udq[0] - ACM.R*iD + omega*ACM.Lq*iQ - (ACM.Ld - ACM.Lq) * fx[3] - 0.0
@@ -889,7 +891,7 @@ def ACMSimPyIncremental(
             if t < 1.0:
                 CTRL.cmd_rpm = 50
             elif t < 1.5:
-                ACM.TLoad = 2 * 0
+                ACM.TLoad = 2
             elif t < 2.0:
                 CTRL.cmd_rpm = 200
             elif t < 3.0:
@@ -1166,37 +1168,56 @@ if __name__ == '__main__':
 
     # init
     CTRL = The_Motor_Controller(CL_TS, 5*CL_TS,
-                init_npp = 4,
-                init_IN = 3,
-                init_R = 1.1,
-                init_Ld = 5e-3,
-                init_Lq = 6e-3,
-                init_KE = 0.095,
-                init_Rreq = -1, # note division by 0 is equal to infinity
-                init_Js = 0.0006168)
-            # init_npp = 21,
-            # init_IN = 72/1.414,
-            # init_R = 0.1222,
-            # init_Ld = 502e-6,
-            # init_Lq = 571e-6,
-            # init_KE = 0.188492, # 150 / 1.732 / (450/60*6.28*21)
-            # init_Rreq = -1.0, # PMSM
-            # # init_Rreq = 1.0, # IM
-            # init_Js = 0.203)
+                # init_npp = 4,
+                # init_IN = 3,
+                # init_R = 1.1,
+                # init_Ld = 5e-3,
+                # init_Lq = 6e-3,
+                # init_KE = 0.095,
+                # init_Rreq = 0.0, # note division by 0 is equal to infinity
+                # init_Js = 0.0006168)
+            init_npp = 21,
+            init_IN = 72/1.414,
+            init_R = 0.1222,
+            init_Ld = 0.000502,
+            init_Lq = 0.000571,
+            init_KE = 0.188492, # 150 / 1.732 / (450/60*6.28*21)
+            init_Rreq = 0.0, # -1.0, # PMSM
+            init_Js = 0.203)
+            # {'DOWN_SAMPLE': 1, 
+            # 'n_pp': 21, 
+            # 'IN': 72, 
+            # 'PW': 14000, 
+            # 'RPM': 470, 
+            # 'J_s': 0.20300000000000004, 
+            # 'Udc': 150, 
+            # 'Rs': 0.1222, 
+            # 'Ld': 0.0005020000000000001, 
+            # 'Lq': 0.000571, 
+            # 'KE': 0.188492, 
+            # 'Ls': 0.000571, 
+            # 'CL_TS': 0.0001, 
+            # 'VL_TS': 0.0005, 
+            # 'EndTime': 25, 
+            # 'JLoadRatio': 0.0, 
+            # 'Tload': 3, 
+            # 'ViscousCoeff': 0.0007, 
+            # 'data_file_name_prefix': 'SlessInv-OverEstimated-a2-NL'}
     CTRL.bool_overwrite_speed_commands = False
     ACM       = The_AC_Machine(CTRL)
 
-    reg_id    = The_PI_Regulator(1*6.39955, 1*6.39955*237.845*CTRL.CL_TS, 150/1.732)
-    reg_iq    = The_PI_Regulator(1*6.39955, 1*6.39955*237.845*CTRL.CL_TS, 150/1.732)
-    # reg_speed = The_PI_Regulator(1.0*0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
-    # reg_speed = The_PI_Regulator(0.1*0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
-    # reg_speed = The_PI_Regulator(10 *0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
-    # reg_speed = The_PI_Regulator(100 *0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
-    reg_speed = The_PI_Regulator(0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
+    # reg_id    = The_PI_Regulator(1*6.39955, 
+    # 1*6.39955*237.845*CTRL.CL_TS, 150/1.732)
+    # reg_iq    = The_PI_Regulator(1*6.39955, 1*6.39955*237.845*CTRL.CL_TS, 150/1.732)
+    # # reg_speed = The_PI_Regulator(1.0*0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
+    # # reg_speed = The_PI_Regulator(0.1*0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
+    # # reg_speed = The_PI_Regulator(10 *0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
+    # # reg_speed = The_PI_Regulator(100 *0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
+    # reg_speed = The_PI_Regulator(0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
 
-    # reg_id    = The_PI_Regulator(2.39421e-05, 2.39421e-05*214011*CTRL.CL_TS, 150/1.732)
-    # reg_iq    = The_PI_Regulator(2.39421e-05, 2.39421e-05*214011*CTRL.CL_TS, 150/1.732)
-    # reg_speed = The_PI_Regulator(1.05024e-06, 1.05024e-06*0.99243*CTRL.VL_TS, 1*1.414*ACM.IN)
+    reg_id    = The_PI_Regulator(0.737168, 0.737168*214.011*CTRL.CL_TS, 2*150) # 150/1.732
+    reg_iq    = The_PI_Regulator(0.737168, 0.737168*214.011*CTRL.CL_TS, 2*150) # 150/1.732
+    reg_speed = The_PI_Regulator(0.323363, 0.323363*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
 
     # Global arrays
     global_cmd_speed, global_ACM_speed, global__OB_speed = None, None, None
