@@ -809,7 +809,7 @@ def ACMSimPyIncremental(
     ):
     Vdc = 150 # Vdc is assumed measured and known
     one_over_Vdc = 1/Vdc
-    CPU_TICK_PER_SAMPLING_PERIOD = 1000
+    CPU_TICK_PER_SAMPLING_PERIOD = 100
     # CPU_TICK_PER_SAMPLING_PERIOD = 1 # cannot be 1? BUG!!!
     DEAD_TIME_AS_COUNT = int(200*0.5e-4*CPU_TICK_PER_SAMPLING_PERIOD)
     MACHINE_TS = CTRL.CL_TS / CPU_TICK_PER_SAMPLING_PERIOD

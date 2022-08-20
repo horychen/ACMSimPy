@@ -11,7 +11,8 @@ import pandas as pd
 
 # from gui.core.json_settings import Settings
 import simulation.tutorials as acmsimpy2
-import simulation.tutorials_ep2_full_dynamics as acmsimpy
+# import simulation.tutorials_ep2_full_dynamics as acmsimpy3 # note the slip error with Rreq=-1 exists here
+import simulation.tutorials_ep3_svpwm as acmsimpy
 
 # 后端
 # use cairo only for acmsimpy | use cairo for acmsimc will slow down plotting
@@ -162,6 +163,7 @@ class EmyFunctions(object):
         CONSOLE = THE_CONSOLE(numba__scope_dict=numba__scope_dict)
         mainWindowObject.console_push_variable({f'CONSOLE':CONSOLE})
 
+        # This dict d is assigned by the codes filled in the console window.
         d = dict(locals(), **globals())
         exec(mainWindowObject.console_window.plainTextEdit_ControllerCommands.toPlainText(), d, d)
         CONSOLE.controller_commands = d['controller_commands']
@@ -244,31 +246,48 @@ class EmyFunctions(object):
 
         """ Simulation Globals """
         CTRL = mainWindowObject.CTRL = acmsimpy.The_Motor_Controller(CONSOLE.CL_TS, 5*CONSOLE.CL_TS,
-                init_npp = 4,
-                init_IN = 3,
-                init_R = 1.0,
-                init_Ld = 5e-3, # PMSM
-                init_Lq = 6e-3, # PMSM
-                init_KE =  1.0, # PMSM
-                init_Rreq = -1.0, # PMSM
-                # init_Ld = 440e-3, # IM
-                # init_Lq = 25e-3, # IM
-                # init_KE = 0.0, # IM
-                # init_Rreq = 1.0, # IM
-                init_Js = 1.0 #0.0006168)
-        )
+                # init_npp = 4,
+                # init_IN = 3,
+                # init_R = 1.1,
+                # init_Ld = 5e-3,
+                # init_Lq = 6e-3,
+                # init_KE = 0.095,
+                # init_Rreq = 0.0, # note division by 0 is equal to infinity
+                # init_Js = 0.0006168)
+                init_npp = 21,
+                init_IN = 72/1.414,
+                init_R = 0.1222,
+                init_Ld = 0.000502,
+                init_Lq = 0.000571,
+                init_KE = 0.188492, # 150 / 1.732 / (450/60*6.28*21)
+                init_Rreq = 0.0, # -1.0, # PMSM
+                init_Js = 0.203)
+                # init_Ld = 5e-3, # PMSM
+                # init_Lq = 6e-3, # PMSM
+                # init_KE =  1.0, # PMSM
+                # init_Rreq = 0.0, # PMSM
+                # # init_Ld = 440e-3, # IM
+                # # init_Lq = 25e-3, # IM
+                # # init_KE = 0.0, # IM
+                # # init_Rreq = 1.0, # IM
+                # init_Js = 0.0006168)
         ACM       = mainWindowObject.ACM       = acmsimpy.The_AC_Machine(CTRL)
-        POLE = 200
-        KP = 2 * POLE
-        KI = 1 * POLE**2 / KP
-        # reg_id    = mainWindowObject.reg_id    = acmsimpy.The_PI_Regulator(KP, KP*KI*CTRL.CL_TS, 400) #(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
-        # reg_iq    = mainWindowObject.reg_iq    = acmsimpy.The_PI_Regulator(KP, KP*KI*CTRL.CL_TS, 400) #(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
-        reg_id    = mainWindowObject.reg_id    = acmsimpy.The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
-        reg_iq    = mainWindowObject.reg_iq    = acmsimpy.The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
-        POLE = 10
-        KP = 2 * POLE
-        KI = 1 * POLE**2 / KP
-        reg_speed = mainWindowObject.reg_speed = acmsimpy.The_PI_Regulator(KP, KP*KI*CTRL.VL_TS, 100*1.414*ACM.IN)
+
+        # POLE = 200
+        # KP = 2 * POLE
+        # KI = 1 * POLE**2 / KP
+        # # reg_id  = mainWindowObject.reg_id    = acmsimpy.The_PI_Regulator(KP, KP*KI*CTRL.CL_TS, 400) #(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
+        # # reg_iq  = mainWindowObject.reg_iq    = acmsimpy.The_PI_Regulator(KP, KP*KI*CTRL.CL_TS, 400) #(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
+        # reg_id    = mainWindowObject.reg_id    = acmsimpy.The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
+        # reg_iq    = mainWindowObject.reg_iq    = acmsimpy.The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
+        # POLE = 10
+        # KP = 2 * POLE
+        # KI = 1 * POLE**2 / KP
+        # reg_speed = mainWindowObject.reg_speed = acmsimpy.The_PI_Regulator(KP, KP*KI*CTRL.VL_TS, 100*1.414*ACM.IN)
+
+        reg_id    = mainWindowObject.reg_id    = acmsimpy.The_PI_Regulator(0.737168, 0.737168*214.011*CTRL.CL_TS, 150/1.732)
+        reg_iq    = mainWindowObject.reg_iq    = acmsimpy.The_PI_Regulator(0.737168, 0.737168*214.011*CTRL.CL_TS, 150/1.732)
+        reg_speed = mainWindowObject.reg_speed = acmsimpy.The_PI_Regulator(0.323363, 0.323363*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
 
         """ Simulation Globals Access from Console """
         if mainWindowObject.console_window is not None:
@@ -291,7 +310,7 @@ class EmyFunctions(object):
             CONSOLE.controller_commands(t0, ACM=ACM, CTRL=CTRL, reg_id=reg_id, reg_iq=reg_iq, reg_speed=reg_speed)
 
             # Run one slice of simulation
-            control_times, numba__waveforms_dict, = acmsimpy.ACMSimPyWrapper(
+            control_times, numba__waveforms_dict = acmsimpy.ACMSimPyWrapper(
                 CONSOLE.numba__scope_dict,
                 t0=t0, TIME=CONSOLE.TIME_SLICE,
                 ACM=ACM,
