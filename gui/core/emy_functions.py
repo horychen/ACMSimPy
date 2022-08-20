@@ -103,6 +103,7 @@ class THE_CONSOLE:
     reset : int = False
     _pause : int = False
     SAMPLING_RATE : float = 1e4
+    MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD : int = 100
     TIME_SLICE : float = 0.2
     NUMBER_OF_TIME_SLICE_TO_SHOW : int = 10
     bool_exit: int = False
@@ -111,7 +112,8 @@ class THE_CONSOLE:
     def __post_init__(self):
         # self.pause_time = 0.0
         self.CL_TS = 1 / self.SAMPLING_RATE
-        self.NUMBER_OF_SAMPLE_TO_SHOW = int(self.NUMBER_OF_TIME_SLICE_TO_SHOW * self.TIME_SLICE * self.SAMPLING_RATE)
+        # self.NUMBER_OF_SAMPLE_TO_SHOW = int(self.NUMBER_OF_TIME_SLICE_TO_SHOW * self.TIME_SLICE * self.SAMPLING_RATE) # old
+        self.NUMBER_OF_SAMPLE_TO_SHOW = int(self.NUMBER_OF_TIME_SLICE_TO_SHOW * self.TIME_SLICE * self.SAMPLING_RATE * self.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD) # new
 
 # FUNCTIONS
 class EmyFunctions(object):
@@ -189,6 +191,7 @@ class EmyFunctions(object):
                 # else:
                 #     # CONSOLE.anim.event_source.start()
                 #     CONSOLE.pause_time = 0.0
+            pass
         mainWindowObject.ui.MplWidget_ACMPlot.canvas.figure.canvas.mpl_connect('button_press_event', onClick)
         # mainWindowObject.ui.MplWidget_ACMPlot.canvas.draw_idle() # draw before animation # https://stackoverflow.com/questions/8955869/why-is-plotting-with-matplotlib-so-slow
 
@@ -271,7 +274,7 @@ class EmyFunctions(object):
                 # # init_KE = 0.0, # IM
                 # # init_Rreq = 1.0, # IM
                 # init_Js = 0.0006168)
-        ACM       = mainWindowObject.ACM       = acmsimpy.The_AC_Machine(CTRL)
+        ACM       = mainWindowObject.ACM       = acmsimpy.The_AC_Machine(CTRL, CONSOLE.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD)
 
         # POLE = 200
         # KP = 2 * POLE

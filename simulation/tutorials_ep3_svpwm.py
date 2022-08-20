@@ -212,9 +212,11 @@ class The_Motor_Controller:
         ('Tem', float64),
         ('cosT', float64),
         ('sinT', float64),
+        # simulation settings
+        ('MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD', int32),
     ])
 class The_AC_Machine:
-    def __init__(self, CTRL):
+    def __init__(self, CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=1):
         # name plate data
         self.npp = CTRL.npp
         self.npp_inv = 1.0/self.npp
@@ -254,6 +256,7 @@ class The_AC_Machine:
         self.Tem = 0.0
         self.cosT = 1.0
         self.sinT = 0.0
+        self.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD = MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD
 
 @jitclass(
     spec=[
@@ -807,24 +810,25 @@ def ACMSimPyIncremental(
         reg_iq=None,
         reg_speed=None,
     ):
+
+    # RK4 simulation and controller execution relative freuqencies
+    MACHINE_TS = CTRL.CL_TS / ACM.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD
+    controller_down_sampling_ceiling = int(CTRL.CL_TS / MACHINE_TS)
+
+    # SVPWM
+    CPU_TICK_PER_SAMPLING_PERIOD = ACM.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD
+    DEAD_TIME_AS_COUNT = int(200*0.5e-4*CPU_TICK_PER_SAMPLING_PERIOD) # 200 count for 0--5000--0 counting sequence
+    print('DEAD_TIME_AS_COUNT =', DEAD_TIME_AS_COUNT)
     Vdc = 150 # Vdc is assumed measured and known
     one_over_Vdc = 1/Vdc
-    CPU_TICK_PER_SAMPLING_PERIOD = 100
-    # CPU_TICK_PER_SAMPLING_PERIOD = 1 # cannot be 1? BUG!!!
-    DEAD_TIME_AS_COUNT = int(200*0.5e-4*CPU_TICK_PER_SAMPLING_PERIOD)
-    MACHINE_TS = CTRL.CL_TS / CPU_TICK_PER_SAMPLING_PERIOD
-    down_sampling_ceiling = int(CTRL.CL_TS / MACHINE_TS)
-    print('Vdc, CPU_TICK_PER_SAMPLING_PERIOD, down_sampling_ceiling', Vdc, CPU_TICK_PER_SAMPLING_PERIOD, down_sampling_ceiling)
-
-    # for simulating SVPWM
+    # print('Vdc, CPU_TICK_PER_SAMPLING_PERIOD, controller_down_sampling_ceiling', Vdc, CPU_TICK_PER_SAMPLING_PERIOD, controller_down_sampling_ceiling)
     svgen1 = SVgen_Object(CPU_TICK_PER_SAMPLING_PERIOD)
 
     # watch variabels
     machine_times = np.arange(t0, t0+TIME, MACHINE_TS)
-    watch_data = np.zeros( (40, len(machine_times)) )
-
-    control_times  = np.arange(t0, t0+TIME, CTRL.CL_TS)
-    # watch_data = np.zeros( (40, len(control_times)) )
+    control_times = np.arange(t0, t0+TIME, CTRL.CL_TS)
+    watch_data    = np.zeros( (40, len(machine_times)) ) # new
+    # watch_data = np.zeros( (40, len(control_times)) ) # old
 
     # Main loop
     # print('\tt0 =', t0)
@@ -856,7 +860,7 @@ def ACMSimPyIncremental(
         ACM.iBeta = ACM.iD * ACM.sinT + ACM.iQ * ACM.cosT # as motor controller input
 
         jj += 1
-        if jj >= down_sampling_ceiling:
+        if jj >= controller_down_sampling_ceiling:
             jj = 0
 
             if CTRL.bool_overwrite_speed_commands == True:
@@ -887,26 +891,26 @@ def ACMSimPyIncremental(
                 reg_id=reg_id,
                 reg_iq=reg_iq)
 
-            """ Console @ CL_TS """
-            if t < 1.0:
-                CTRL.cmd_rpm = 50
-            elif t < 1.5:
-                ACM.TLoad = 2
-            elif t < 2.0:
-                CTRL.cmd_rpm = 200
-            elif t < 3.0:
-                CTRL.cmd_rpm = -200
-            elif t < 4.0:
-                CTRL.cmd_rpm = 0
-            elif t < 4.5:
-                CTRL.cmd_rpm = 2000
-            elif t < 5:
-                CTRL.cmd_idq[0] = 2
-            elif t < 5.5:
-                ACM.TLoad = 0.0
-            elif t < 6: 
-                CTRL.CMD_SPEED_SINE_RPM = 500
-            # else: # don't implement else to receive commands from IPython console
+            # """ Console @ CL_TS """
+            # if t < 1.0:
+            #     CTRL.cmd_rpm = 50
+            # elif t < 1.5:
+            #     ACM.TLoad = 2
+            # elif t < 2.0:
+            #     CTRL.cmd_rpm = 200
+            # elif t < 3.0:
+            #     CTRL.cmd_rpm = -200
+            # elif t < 4.0:
+            #     CTRL.cmd_rpm = 0
+            # elif t < 4.5:
+            #     CTRL.cmd_rpm = 2000
+            # elif t < 5:
+            #     CTRL.cmd_idq[0] = 2
+            # elif t < 5.5:
+            #     ACM.TLoad = 0.0
+            # elif t < 6: 
+            #     CTRL.CMD_SPEED_SINE_RPM = 500
+            # # else: # don't implement else to receive commands from IPython console
 
             # if CTRL.CMD_SPEED_SINE_RPM!=0:
             #     CTRL.cmd_rpm = CTRL.CMD_SPEED_SINE_RPM * np.sin(2*np.pi*CTRL.CMD_SPEED_SINE_HZ*t)
@@ -969,7 +973,7 @@ def ACMSimPyIncremental(
             svgen1.bool_interupt_event = True
 
         """ Voltage Source Inverter (in alpha-beta frame) """
-        if True: # implementing SVPWM
+        if CPU_TICK_PER_SAMPLING_PERIOD >= 20: # implementing SVPWM
 
             # Amplitude invariant Clarke transformation
             ACM.ia = ACM.iAlfa
@@ -1204,7 +1208,7 @@ if __name__ == '__main__':
             # 'ViscousCoeff': 0.0007, 
             # 'data_file_name_prefix': 'SlessInv-OverEstimated-a2-NL'}
     CTRL.bool_overwrite_speed_commands = False
-    ACM       = The_AC_Machine(CTRL)
+    ACM       = The_AC_Machine(CTRL, CPU_TICK_PER_SAMPLING_PERIOD = 100)
 
     # reg_id    = The_PI_Regulator(1*6.39955, 
     # 1*6.39955*237.845*CTRL.CL_TS, 150/1.732)
