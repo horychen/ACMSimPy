@@ -1,4 +1,5 @@
 # %%
+############################################# PACKAGES
 import enum
 from numba.experimental import jitclass
 from numba import njit, int32, float64
@@ -19,6 +20,7 @@ plt.style.use('ggplot')
             ('theta_d', float64),
             ('omega_r_elec', float64),
             ('omega_syn', float64),
+            ('omega_slip', float64),
             ('uab', float64[:]),
             # ('uab_prev', float64[:]),
             # ('uab_curr', float64[:]),
@@ -38,6 +40,7 @@ plt.style.use('ggplot')
             ('cmd_rpm', float64),
             ('index_separate_speed_estimation', int32),
             ('use_disturbance_feedforward_rejection', int32),
+            ('bool_apply_decoupling_voltages_to_current_regulation', int32),
             # commands (sweep freuqency)
             ('bool_apply_sweeping_frequency_excitation', int32),
             ('bool_overwrite_speed_commands', int32),
@@ -101,6 +104,7 @@ class The_Motor_Controller:
         self.theta_d = 0.0
         self.omega_r_elec = 0.0
         self.omega_syn = 0.0
+        self.omega_slip = 0.0
         self.uab      = np.zeros(2, dtype=np.float64)
         # self.uab_prev = np.zeros(2, dtype=np.float64)
         # self.uab_curr = np.zeros(2, dtype=np.float64)
@@ -120,6 +124,7 @@ class The_Motor_Controller:
         self.cmd_rpm = 0.0
         self.index_separate_speed_estimation = 0
         self.use_disturbance_feedforward_rejection = 0
+        self.bool_apply_decoupling_voltages_to_current_regulation = False
         # sweep frequency
         self.bool_apply_sweeping_frequency_excitation = False
         self.bool_overwrite_speed_commands = False
@@ -286,6 +291,71 @@ class The_PI_Regulator:
         self.ErrPrev  = 0.0
         self.OutPrev  = 0.0
 
+@jitclass(
+    spec=[
+        ('Ualfa', float64),
+        ('Ubeta', float64),
+        ('Unot', float64),
+        ('Ta', float64),
+        ('Tb', float64),
+        ('Tc', float64),
+        ('SYSTEM_MAX_PWM_DUTY_LIMATATION', float64),
+        ('SYSTEM_MIN_PWM_DUTY_LIMATATION', float64),
+        # Those variables are only needed in simulation
+        ('bool_interupt_event', float64),
+        ('bool_counting_down', float64),
+        ('bool_RisingEdgeDelay_is_active', float64[:]),
+        ('bool_FallingEdgeDelay_is_active', float64[:]),
+        ('carrier_counter', float64),
+        ('deadtime_counter', float64[:]),
+        ('S1', int32),
+        ('S2', int32),
+        ('S3', int32),
+        ('S4', int32),
+        ('S5', int32),
+        ('S6', int32),
+        ('EPwm1Regs_CMPA_bit_CMPA', float64),
+        ('EPwm2Regs_CMPA_bit_CMPA', float64),
+        ('EPwm3Regs_CMPA_bit_CMPA', float64),
+        ('phase_U_gate_signal', float64),
+        ('phase_V_gate_signal', float64),
+        ('phase_W_gate_signal', float64),
+        ('voltage_potential_at_terminal', float64[:]),
+        ('line_to_line_voltage_AC', float64),
+        ('line_to_line_voltage_BC', float64),
+        ('line_to_line_voltage_AB', float64),
+    ])
+class SVgen_Object:
+    def __init__(self, CPU_TICK_PER_SAMPLING_PERIOD):
+        self.Ualfa = 0.0
+        self.Ubeta = 0.0
+        self.Unot = 0.0
+        self.Ta = 0.5
+        self.Tb = 0.5
+        self.Tc = 0.5
+        self.SYSTEM_MAX_PWM_DUTY_LIMATATION = 0.96
+        self.SYSTEM_MIN_PWM_DUTY_LIMATATION = 0.04
+
+        # Those variables are only needed in simulation
+        self.bool_interupt_event = False
+        self.bool_counting_down = False
+        self.bool_RisingEdgeDelay_is_active  = np.zeros(3, dtype=np.float64)
+        self.bool_FallingEdgeDelay_is_active = np.zeros(3, dtype=np.float64)
+        self.carrier_counter = 0
+        self.deadtime_counter = np.zeros(3, dtype=np.float64)
+        self.S1, self.S2, self.S3, self.S4, self.S5, self.S6 = 0,0,0,0,0,0
+        self.EPwm1Regs_CMPA_bit_CMPA = 0.5 * (0.5*CPU_TICK_PER_SAMPLING_PERIOD) # half of up/down counting maximum
+        self.EPwm2Regs_CMPA_bit_CMPA = 0.5 * (0.5*CPU_TICK_PER_SAMPLING_PERIOD) # half of up/down counting maximum
+        self.EPwm3Regs_CMPA_bit_CMPA = 0.5 * (0.5*CPU_TICK_PER_SAMPLING_PERIOD) # half of up/down counting maximum
+        self.phase_U_gate_signal = 0
+        self.phase_V_gate_signal = 0
+        self.phase_W_gate_signal = 0
+        self.voltage_potential_at_terminal = np.zeros(3, dtype=np.float64)
+        self.line_to_line_voltage_AC = 0.0
+        self.line_to_line_voltage_BC = 0.0
+        self.line_to_line_voltage_AB = 0.0
+
+############################################# OBSERVERS SECTION
 @njit(nogil=True)
 def DYNAMICS_SpeedObserver(x, CTRL):
     fx = np.zeros(6)
@@ -339,8 +409,22 @@ def RK4_ObserverSolver_CJH_Style(THE_DYNAMICS, x, hs, CTRL):
         k4[i] = fx[i] * hs
         x[i] = x[i] + (k1[i] + 2*(k2[i] + k3[i]) + k4[i]) * CTRL.one_over_six
 
-############################################# MACHINE SIMULATION SECTION
+@njit(nogil=True)
+def angle_diff(a,b):
+    # ''' a and b must be within [0, 2*np.pi]'''
+    _, a = divmod(a, 2*np.pi)
+    _, b = divmod(b, 2*np.pi)
+    d1 = a-b
+    if d1 > 0:
+        d2 = a - (b + 2*np.pi) # d2 is negative
+    else:
+        d2 = (2*np.pi + a) - b # d2 is positive
+    if np.abs(d1) < np.abs(d2):
+        return d1
+    else:
+        return d2
 
+############################################# MACHINE SIMULATION SECTION
 @njit(nogil=True)
 def DYNAMICS_MACHINE(t, x, ACM, CLARKE_TRANS_TORQUE_GAIN=1.5):
     fx = np.zeros(ACM.NS)
@@ -428,7 +512,6 @@ def RK4_MACHINE(t, ACM, hs): # 四阶龙格库塔法
             ACM.x[i] = ACM.x[i] + (k1[i] + 2*(k2[i] + k3[i]) + k4[i])/6.0
 
 ############################################# BASIC FOC SECTION
-
 @njit(nogil=True)
 def incremental_pi(reg):
     reg.Err = reg.Ref - reg.Fbk
@@ -453,9 +536,15 @@ def FOC(CTRL, reg_speed, reg_id, reg_iq):
 
     # dq-frame current commands
     CTRL.cmd_idq[1] = reg_speed.Out
-    CTRL.cmd_idq[0] = 0.0
+    # CTRL.cmd_idq[0] = 0.0 # for user specifying
+
+    # slip and syn frequencies
     if CTRL.Rreq>0: # IM
         CTRL.cmd_idq[0] = 0.9 / (CTRL.Ld - CTRL.Lq) # [Wb] / [H]
+        CTRL.omega_slip = CTRL.Rreq * CTRL.cmd_idq[1] / CTRL.KA # Use commands for calculation (base off Harnefors recommendations)
+    else:
+        CTRL.omega_slip = 0.0
+    CTRL.omega_syn = CTRL.omega_r_elec + CTRL.omega_slip
 
     # d-axis
     reg_id.Ref = CTRL.cmd_idq[0]
@@ -474,35 +563,14 @@ def FOC(CTRL, reg_speed, reg_id, reg_iq):
     incremental_pi(reg_iq)
     CTRL.cmd_udq[1] = reg_iq.Out
 
-    # return CTRL.cmd_udq
-
+    # Decoupling between two axes of current loop controller
+    if CTRL.bool_apply_decoupling_voltages_to_current_regulation:
+        decoupled_M_axis_voltage = -CTRL.omega_syn *             CTRL.Lq * CTRL.cmd_idq[1]
+        decoupled_T_axis_voltage =  CTRL.omega_syn * ( CTRL.KA + CTRL.Lq * CTRL.cmd_idq[0])
+        CTRL.cmd_udq[0] += decoupled_M_axis_voltage
+        CTRL.cmd_udq[1] += decoupled_T_axis_voltage
 
 ############################################# DSP SECTION
-
-@njit(nogil=True)
-def angle_diff(a,b):
-    # ''' a and b must be within [0, 2*np.pi]'''
-    _, a = divmod(a, 2*np.pi)
-    _, b = divmod(b, 2*np.pi)
-    d1 = a-b
-    if d1 > 0:
-        d2 = a - (b + 2*np.pi) # d2 is negative
-    else:
-        d2 = (2*np.pi + a) - b # d2 is positive
-    if np.abs(d1) < np.abs(d2):
-        return d1
-    else:
-        return d2
-
-# print(180/np.pi*angle_diff(7, -7))
-# print(180/np.pi*angle_diff(7, -6))
-# print(180/np.pi*angle_diff(725/180*np.pi, 190/180*np.pi))
-# print(180/np.pi*angle_diff(725/180*np.pi, 175/180*np.pi))
-# print(180/np.pi*angle_diff((720-25)/180*np.pi, 190/180*np.pi))
-# print(180/np.pi*angle_diff((720-25)/180*np.pi, 175/180*np.pi))
-# quit()
-
-""" DSP """
 @njit(nogil=True)
 def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq):
     CTRL.timebase += CTRL.CL_TS
@@ -557,70 +625,6 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq):
     CTRL.cmd_uab[1] = CTRL.cmd_udq[0] * CTRL.sinT + CTRL.cmd_udq[1] * CTRL.cosT
 
 ############################################# Inverter and PWM
-@jitclass(
-    spec=[
-        ('Ualfa', float64),
-        ('Ubeta', float64),
-        ('Unot', float64),
-        ('Ta', float64),
-        ('Tb', float64),
-        ('Tc', float64),
-        ('SYSTEM_MAX_PWM_DUTY_LIMATATION', float64),
-        ('SYSTEM_MIN_PWM_DUTY_LIMATATION', float64),
-        # Those variables are only needed in simulation
-        ('bool_interupt_event', float64),
-        ('bool_counting_down', float64),
-        ('bool_RisingEdgeDelay_is_active', float64[:]),
-        ('bool_FallingEdgeDelay_is_active', float64[:]),
-        ('carrier_counter', float64),
-        ('deadtime_counter', float64[:]),
-        ('S1', int32),
-        ('S2', int32),
-        ('S3', int32),
-        ('S4', int32),
-        ('S5', int32),
-        ('S6', int32),
-        ('EPwm1Regs_CMPA_bit_CMPA', float64),
-        ('EPwm2Regs_CMPA_bit_CMPA', float64),
-        ('EPwm3Regs_CMPA_bit_CMPA', float64),
-        ('phase_U_gate_signal', float64),
-        ('phase_V_gate_signal', float64),
-        ('phase_W_gate_signal', float64),
-        ('voltage_potential_at_terminal', float64[:]),
-        ('line_to_line_voltage_AC', float64),
-        ('line_to_line_voltage_BC', float64),
-        ('line_to_line_voltage_AB', float64),
-    ])
-class SVgen_Object:
-    def __init__(self, CPU_TICK_PER_SAMPLING_PERIOD):
-        self.Ualfa = 0.0
-        self.Ubeta = 0.0
-        self.Unot = 0.0
-        self.Ta = 0.5
-        self.Tb = 0.5
-        self.Tc = 0.5
-        self.SYSTEM_MAX_PWM_DUTY_LIMATATION = 0.96
-        self.SYSTEM_MIN_PWM_DUTY_LIMATATION = 0.04
-
-        # Those variables are only needed in simulation
-        self.bool_interupt_event = False
-        self.bool_counting_down = False
-        self.bool_RisingEdgeDelay_is_active  = np.zeros(3, dtype=np.float64)
-        self.bool_FallingEdgeDelay_is_active = np.zeros(3, dtype=np.float64)
-        self.carrier_counter = 0
-        self.deadtime_counter = np.zeros(3, dtype=np.float64)
-        self.S1, self.S2, self.S3, self.S4, self.S5, self.S6 = 0,0,0,0,0,0
-        self.EPwm1Regs_CMPA_bit_CMPA = 0.5 * (0.5*CPU_TICK_PER_SAMPLING_PERIOD) # half of up/down counting maximum
-        self.EPwm2Regs_CMPA_bit_CMPA = 0.5 * (0.5*CPU_TICK_PER_SAMPLING_PERIOD) # half of up/down counting maximum
-        self.EPwm3Regs_CMPA_bit_CMPA = 0.5 * (0.5*CPU_TICK_PER_SAMPLING_PERIOD) # half of up/down counting maximum
-        self.phase_U_gate_signal = 0
-        self.phase_V_gate_signal = 0
-        self.phase_W_gate_signal = 0
-        self.voltage_potential_at_terminal = np.zeros(3, dtype=np.float64)
-        self.line_to_line_voltage_AC = 0.0
-        self.line_to_line_voltage_BC = 0.0
-        self.line_to_line_voltage_AB = 0.0
-
 @njit(nogil=True)
 def SVGEN_DQ(v, one_over_Vdc):
 
@@ -755,21 +759,21 @@ def gate_signal_generator(ii, v, CPU_TICK_PER_SAMPLING_PERIOD, DEAD_TIME_AS_COUN
         if v.carrier_counter >= v.EPwm1Regs_CMPA_bit_CMPA:
             v.deadtime_counter[0] += 1
             if v.deadtime_counter[0] <= DEAD_TIME_AS_COUNT:
-                v.bool_RisingEdgeDelay_is_active[0] = True
+                v.bool_RisingEdgeDelay_is_active[0] = True # this boolean variable is not used
                 v.S1 = False
             else:
                 pass # False
         if v.carrier_counter >= v.EPwm2Regs_CMPA_bit_CMPA:
             v.deadtime_counter[1] += 1
             if v.deadtime_counter[1] <= DEAD_TIME_AS_COUNT:
-                v.bool_RisingEdgeDelay_is_active[1] = True
+                v.bool_RisingEdgeDelay_is_active[1] = True # this boolean variable is not used
                 v.S2 = False
             else:
                 pass # False
         if v.carrier_counter >= v.EPwm3Regs_CMPA_bit_CMPA:
             v.deadtime_counter[2] += 1
             if v.deadtime_counter[2] <= DEAD_TIME_AS_COUNT:
-                v.bool_RisingEdgeDelay_is_active[2] = True
+                v.bool_RisingEdgeDelay_is_active[2] = True # this boolean variable is not used
                 v.S3 = False
             else:
                 pass # False
@@ -778,42 +782,31 @@ def gate_signal_generator(ii, v, CPU_TICK_PER_SAMPLING_PERIOD, DEAD_TIME_AS_COUN
         if v.carrier_counter < v.EPwm1Regs_CMPA_bit_CMPA:
             v.deadtime_counter[0] += 1
             if v.deadtime_counter[0] < DEAD_TIME_AS_COUNT:
-                v.bool_FallingEdgeDelay_is_active[0] = True
+                v.bool_FallingEdgeDelay_is_active[0] = True # this boolean variable is not used
                 v.S4 = False
             else:
                 pass # False
         if v.carrier_counter < v.EPwm2Regs_CMPA_bit_CMPA:
             v.deadtime_counter[1] += 1
             if v.deadtime_counter[1] < DEAD_TIME_AS_COUNT:
-                v.bool_FallingEdgeDelay_is_active[1] = True
+                v.bool_FallingEdgeDelay_is_active[1] = True # this boolean variable is not used
                 v.S5 = False
             else:
                 pass # False
         if v.carrier_counter < v.EPwm3Regs_CMPA_bit_CMPA:
             v.deadtime_counter[2] += 1
             if v.deadtime_counter[2] < DEAD_TIME_AS_COUNT:
-                v.bool_FallingEdgeDelay_is_active[2] = True
+                v.bool_FallingEdgeDelay_is_active[2] = True # this boolean variable is not used
                 v.S6 = False
             else:
                 pass # False
-    # if v.bool_RisingEdgeDelay_is_active[0]:   v.S1 = False # AHC: upper leg implements RED
-    # if v.bool_RisingEdgeDelay_is_active[1]:   v.S2 = False # AHC: upper leg implements RED
-    # if v.bool_RisingEdgeDelay_is_active[2]:   v.S3 = False # AHC: upper leg implements RED
-    # if v.bool_FallingEdgeDelay_is_active[0]:  v.S4 = False # AHC: lower leg implements FED
-    # if v.bool_FallingEdgeDelay_is_active[1]:  v.S5 = False # AHC: lower leg implements FED
-    # if v.bool_FallingEdgeDelay_is_active[2]:  v.S6 = False # AHC: lower leg implements FED
 
-############################################# Wrapper level 1
+
+
+############################################# Wrapper level 1 (Main simulation | Incremental Edition)
 """ MAIN for Real-time simulation """
 @njit(nogil=True)
-def ACMSimPyIncremental(
-        t0, TIME,
-        ACM=None,
-        CTRL=None,
-        reg_id=None,
-        reg_iq=None,
-        reg_speed=None,
-    ):
+def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None, reg_speed=None):
 
     # RK4 simulation and controller execution relative freuqencies
     MACHINE_TS = CTRL.CL_TS / ACM.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD
@@ -822,20 +815,19 @@ def ACMSimPyIncremental(
     # SVPWM
     CPU_TICK_PER_SAMPLING_PERIOD = ACM.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD
     DEAD_TIME_AS_COUNT = int(200*0.5e-4*CPU_TICK_PER_SAMPLING_PERIOD) # 200 count for 0--5000--0 counting sequence
-    print('DEAD_TIME_AS_COUNT =', DEAD_TIME_AS_COUNT)
+    print(t0, 's', 'DEAD_TIME_AS_COUNT =', DEAD_TIME_AS_COUNT)
     Vdc = 150 # Vdc is assumed measured and known
     one_over_Vdc = 1/Vdc
-    # print('Vdc, CPU_TICK_PER_SAMPLING_PERIOD, controller_down_sampling_ceiling', Vdc, CPU_TICK_PER_SAMPLING_PERIOD, controller_down_sampling_ceiling)
     svgen1 = SVgen_Object(CPU_TICK_PER_SAMPLING_PERIOD)
+    # print('Vdc, CPU_TICK_PER_SAMPLING_PERIOD, controller_down_sampling_ceiling', Vdc, CPU_TICK_PER_SAMPLING_PERIOD, controller_down_sampling_ceiling)
 
     # watch variabels
     machine_times = np.arange(t0, t0+TIME, MACHINE_TS)
-    # control_times = np.arange(t0, t0+TIME, CTRL.CL_TS)
     watch_data    = np.zeros( (40, len(machine_times)) ) # new
+    # control_times = np.arange(t0, t0+TIME, CTRL.CL_TS)
     # watch_data = np.zeros( (40, len(control_times)) ) # old
 
     # Main loop
-    # print('\tt0 =', t0)
     jj = controller_down_sampling_ceiling # run controller at step 1
     watch_index = 0
     for ii in range(len(machine_times)):
@@ -848,8 +840,7 @@ def ACMSimPyIncremental(
 
         """ Machine Simulation Output @ MACHINE_TS """
         # Generate output variables for easy access
-        # ACM.x[0] = ACM.x[0] - ACM.x[0]//(2*np.pi)*(2*np.pi)
-        ACM.theta_d_mech = ACM.x[0]
+        ACM.theta_d_mech = ACM.x[0] # ACM.x[0] = ACM.x[0] - ACM.x[0]//(2*np.pi)*(2*np.pi)
         ACM.omega_r_mech = ACM.x[1]
         ACM.KA           = ACM.x[2]
         ACM.iD           = ACM.x[3]
@@ -925,45 +916,6 @@ def ACMSimPyIncremental(
             # DEBUG
             # CTRL.cmd_uab[0] = 10*np.cos(5*2*np.pi*CTRL.timebase)
             # CTRL.cmd_uab[1] = 10*np.sin(5*2*np.pi*CTRL.timebase)
-
-            # """ Watch @ CL_TS """
-            # watch_data[ 0][watch_index] = divmod(ACM.theta_d, 2*np.pi)[1]
-            # watch_data[ 1][watch_index] = ACM.omega_r_mech / (2*np.pi) * 60 # omega_r_mech
-            # watch_data[ 2][watch_index] = ACM.KA
-            # watch_data[ 3][watch_index] = ACM.iD
-            # watch_data[ 4][watch_index] = ACM.iQ
-            # watch_data[ 5][watch_index] = ACM.Tem
-            # watch_data[ 6][watch_index] =   CTRL.iab[0]
-            # watch_data[ 7][watch_index] =   CTRL.iab[1]
-            # watch_data[ 8][watch_index] = CTRL.idq[0]
-            # watch_data[ 9][watch_index] = CTRL.idq[1]
-            # watch_data[10][watch_index] = divmod(CTRL.theta_d, 2*np.pi)[1]
-            # watch_data[11][watch_index] = CTRL.omega_r_elec / (2*np.pi*ACM.npp) * 60
-            # watch_data[12][watch_index] = CTRL.cmd_rpm
-            # watch_data[13][watch_index] = CTRL.cmd_idq[0]
-            # watch_data[14][watch_index] = CTRL.cmd_idq[1]
-            # watch_data[15][watch_index] = CTRL.xS[0] # theta_d
-            # watch_data[16][watch_index] = CTRL.xS[1] / (2*np.pi*ACM.npp) * 60 # omega_r_elec
-            # watch_data[17][watch_index] = CTRL.xS[2] # TL
-            # watch_data[18][watch_index] = CTRL.xS[3] # pT
-            # watch_data[19][watch_index] = CTRL.KA
-            # watch_data[20][watch_index] = CTRL.KE
-            # watch_data[21][watch_index] = CTRL.xT[0] # stator flux[0]
-            # watch_data[22][watch_index] = CTRL.xT[1] # stator flux[1]
-            # watch_data[23][watch_index] = CTRL.xT[2] # I term
-            # watch_data[24][watch_index] = CTRL.xT[3] # I term
-            # watch_data[25][watch_index] = 0.0 # CTRL.active_flux[0] # active flux[0]
-            # watch_data[26][watch_index] = 0.0 # CTRL.active_flux[1] # active flux[1]
-            # watch_data[27][watch_index] = CTRL.Tem
-            # watch_data[28][watch_index] = CTRL.cmd_uab[0]
-            # watch_data[29][watch_index] = CTRL.cmd_uab[1]
-            # watch_data[30][watch_index] = svgen1.S1
-            # watch_data[31][watch_index] = svgen1.EPwm1Regs_CMPA_bit_CMPA
-            # watch_data[32][watch_index] = svgen1.Ta
-            # watch_data[33][watch_index] = svgen1.S4
-            # watch_data[34][watch_index] = svgen1.EPwm2Regs_CMPA_bit_CMPA
-            # watch_data[35][watch_index] = svgen1.carrier_counter
-            # watch_index += 1
 
             # SVPWM for voltage source inverter
             svgen1.Ualfa = CTRL.cmd_uab[0]
@@ -1070,6 +1022,12 @@ def ACMSimPyIncremental(
         watch_data[33][watch_index] = 0.0 # svgen1.voltage_potential_at_terminal[0] # svgen1.deadtime_counter[0] # svgen1.voltage_potential_at_terminal[0]
         watch_data[34][watch_index] = ACM.uab[0] # svgen1.deadtime_counter[1] # svgen1.voltage_potential_at_terminal[1]
         watch_data[35][watch_index] = ACM.uab[1] # svgen1.deadtime_counter[2] # svgen1.voltage_potential_at_terminal[2]
+
+        watch_data[36][watch_index] = ACM.udq[0]
+        watch_data[37][watch_index] = ACM.udq[1]
+        watch_data[38][watch_index] = CTRL.cmd_udq[0]
+        watch_data[39][watch_index] = CTRL.cmd_udq[1]
+
         watch_index += 1
 
     # return machine_times, watch_data # old
@@ -1077,8 +1035,9 @@ def ACMSimPyIncremental(
 
 
 
+############################################# Wrapper level 2 (Collect waveforms data based off user specified names)
 # TODO: need to make this globally shared between the simulation and the GUI.
-_Watch_Mapping = [
+_Unit_Watch_Mapping = [
     '[rad]=ACM.theta_d',
     '[rad/s]=ACM.omega_r_mech',
     '[Wb]=ACM.KA',
@@ -1107,18 +1066,21 @@ _Watch_Mapping = [
     '[Wb]=CTRL.active_flux[0]', # active flux[0]
     '[Wb]=CTRL.active_flux[1]', # active flux[1]
     '[Nm]=CTRL.Tem',
-    '[V]=CTRL.uab[0]', 
-    '[V]=CTRL.uab[1]', 
-    '[1]=svgen1.S1', 
-    '[1]=svgen1.S2', 
-    '[1]=svgen1.S3', 
-    '[1]=svgen1.S4', 
-    '[1]=svgen1.S5', 
-    '[1]=svgen1.S6', 
+    '[V]=CTRL.uab[0]',
+    '[V]=CTRL.uab[1]',
+    '[1]=svgen1.S1',
+    '[1]=svgen1.S2',
+    '[1]=svgen1.S3',
+    '[1]=svgen1.S4',
+    '[1]=svgen1.S5',
+    '[1]=svgen1.S6',
+    '[V]=ACM.udq[0]',
+    '[V]=ACM.udq[1]',
+    '[V]=CTRL.cmd_udq[0]',
+    '[V]=CTRL.cmd_udq[1]',
 ]
-Watch_Mapping = [el[el.find('=')+1:] for el in _Watch_Mapping]
+Watch_Mapping = [el[el.find('=')+1:] for el in _Unit_Watch_Mapping] # remove units before "="
 
-############################################# Wrapper level 2
 def ACMSimPyWrapper(numba__scope_dict, *arg, **kwarg):
 
     # Do Numerical Integrations (that do not care about numba__scope_dict at all and return watch_data whatsoever)
@@ -1171,211 +1133,291 @@ def ACMSimPyWrapper(numba__scope_dict, *arg, **kwarg):
 
 
 
-# Test incremental simulation
-if __name__ == '__main__':
+############################################# Wrapper level 3 (User Interface)
+class Simulation_Benchmark:
+    def __init__(self, d):
 
-    # Basic settings
-    CL_TS      = 1e-4 # [sec]
-    TIME_SLICE = 0.2  # [sec]
+        # init
+        CTRL = The_Motor_Controller(CL_TS = d['CL_TS'],
+                                    VL_TS = d['VL_EXE_PER_CL_EXE']*d['CL_TS'],
+                                    init_npp = d['init_npp'],
+                                    init_IN = d['init_IN'],
+                                    init_R = d['init_R'],
+                                    init_Ld = d['init_Ld'],
+                                    init_Lq = d['init_Lq'],
+                                    init_KE = d['init_KE'],
+                                    init_Rreq = d['init_Rreq'],
+                                    init_Js = d['init_Js'])
+        CTRL.bool_apply_decoupling_voltages_to_current_regulation = d['CTRL.bool_apply_decoupling_voltages_to_current_regulation']
+        CTRL.bool_apply_sweeping_frequency_excitation = d['CTRL.bool_apply_sweeping_frequency_excitation']
+        CTRL.bool_overwrite_speed_commands = d['CTRL.bool_overwrite_speed_commands']
+        ACM       = The_AC_Machine(CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=d['MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD'])
+        reg_id    = The_PI_Regulator(d['CL_SERIES_KP'], d['CL_SERIES_KP']*d['CL_SERIES_KI']*CTRL.CL_TS, d['DC_BUS_VOLTAGE']/1.732) # 我们假设调制方式是SVPWM，所以母线电压就是输出电压的线电压最大值，而我们用的是恒相幅值变换，所以限幅是相电压。
+        reg_iq    = The_PI_Regulator(d['CL_SERIES_KP'], d['CL_SERIES_KP']*d['CL_SERIES_KI']*CTRL.CL_TS, d['DC_BUS_VOLTAGE']/1.732) # 我们假设调制方式是SVPWM，所以母线电压就是输出电压的线电压最大值，而我们用的是恒相幅值变换，所以限幅是相电压。
+        reg_speed = The_PI_Regulator(d['VL_SERIES_KP'], d['VL_SERIES_KP']*d['VL_SERIES_KI']*CTRL.VL_TS, d['VL_LIMIT_OVERLOAD_FACTOR']*1.414*d['init_IN']) # IN 是线电流有效值，我们这边限幅是用的电流幅值。
 
-    # init
-    CTRL = The_Motor_Controller(CL_TS, 5*CL_TS,
-                # init_npp = 4,
-                # init_IN = 3,
-                # init_R = 1.1,
-                # init_Ld = 5e-3,
-                # init_Lq = 6e-3,
-                # init_KE = 0.095,
-                # init_Rreq = 0.0, # note division by 0 is equal to infinity
-                # init_Js = 0.0006168)
-            init_npp = 21,
-            init_IN = 72/1.414,
-            init_R = 0.1222,
-            init_Ld = 0.000502,
-            init_Lq = 0.000571,
-            init_KE = 0.188492, # 150 / 1.732 / (450/60*6.28*21)
-            init_Rreq = 0.0, # -1.0, # PMSM
-            init_Js = 0.203)
-            # {'DOWN_SAMPLE': 1, 
-            # 'n_pp': 21, 
-            # 'IN': 72, 
-            # 'PW': 14000, 
-            # 'RPM': 470, 
-            # 'J_s': 0.20300000000000004, 
-            # 'Udc': 150, 
-            # 'Rs': 0.1222, 
-            # 'Ld': 0.0005020000000000001, 
-            # 'Lq': 0.000571, 
-            # 'KE': 0.188492, 
-            # 'Ls': 0.000571, 
-            # 'CL_TS': 0.0001, 
-            # 'VL_TS': 0.0005, 
-            # 'EndTime': 25, 
-            # 'JLoadRatio': 0.0, 
-            # 'Tload': 3, 
-            # 'ViscousCoeff': 0.0007, 
-            # 'data_file_name_prefix': 'SlessInv-OverEstimated-a2-NL'}
-    # CTRL.bool_overwrite_speed_commands = False
-    ACM       = The_AC_Machine(CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=100)
+        # 这个字典决定你要画的波形是哪些信号，具体能用的信号见：_Watch_Mapping
+        # 允许信号之间进行简单的加减乘除，比如：'CTRL.cmd_rpm - CTRL.omega_r_mech'
+        from collections import OrderedDict as OD
+        numba__scope_dict = OD([
+            # Y Labels                        Signal Name of Traces
+            (r'$q$-axis voltage [V]',         ( 'ACM.udq[1]', 'CTRL.cmd_udq[1]'                     ,) ),
+            (r'$d$-axis voltage [V]',         ( 'ACM.udq[0]', 'CTRL.cmd_udq[0]'                     ,) ),
+            (r'Torque [Nm]',                  ( 'ACM.Tem', 'CTRL.Tem'                               ,) ),
+            (r'Speed [rpm]',                  ( 'CTRL.cmd_rpm', 'CTRL.omega_r_mech', 'CTRL.xS[1]'   ,) ),
+            (r'Speed Error [rpm]',            ( 'CTRL.cmd_rpm - CTRL.omega_r_mech'                  ,) ),
+            (r'Position [rad]',               ( 'ACM.theta_d', 'CTRL.theta_d', 'CTRL.xS[0]'         ,) ),
+            (r'Position mech [rad]',          ( 'ACM.theta_d'                                       ,) ),
+            (r'$q$-axis current [A]',         ( 'ACM.iQ', 'CTRL.cmd_idq[1]'                         ,) ),
+            (r'$d$-axis current [A]',         ( 'ACM.iD', 'CTRL.cmd_idq[0]'                         ,) ),
+            (r'K_{\rm Active} [A]',           ( 'ACM.KA', 'CTRL.KA'                                 ,) ),
+            (r'Load torque [Nm]',             ( 'CTRL.xS[2]'                                        ,) ),
+            (r'CTRL.iD [A]',                  ( 'CTRL.cmd_idq[0]', 'CTRL.idq[0]'                    ,) ),
+            (r'CTRL.iQ [A]',                  ( 'CTRL.cmd_idq[1]', 'CTRL.idq[1]'                    ,) ),
+            (r'CTRL.uab [V]',                 ( 'CTRL.uab[0]', 'CTRL.uab[1]'                        ,) ),
+            (r'S [1]',                        ( 'svgen1.S1', 'svgen1.S2', 'svgen1.S3', 'svgen1.S4', 'svgen1.S5', 'svgen1.S6' ,) ),
+        ])
+        max_number_of_traces = 0
+        for ylabel, trace_names in numba__scope_dict.items():
+            for name in trace_names:
+                max_number_of_traces += 1
+        print(f'{max_number_of_traces=}')
 
-    # reg_id    = The_PI_Regulator(1*6.39955, 
-    # 1*6.39955*237.845*CTRL.CL_TS, 150/1.732)
-    # reg_iq    = The_PI_Regulator(1*6.39955, 1*6.39955*237.845*CTRL.CL_TS, 150/1.732)
-    # # reg_speed = The_PI_Regulator(1.0*0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
-    # # reg_speed = The_PI_Regulator(0.1*0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
-    # # reg_speed = The_PI_Regulator(10 *0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
-    # # reg_speed = The_PI_Regulator(100 *0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
-    # reg_speed = The_PI_Regulator(0.0380362, 0.0380362*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
+        user_number_of_traces = 0
+        global_trace_names = []
+        for ylabel in d['user_interested_ylabels']:
+            user_number_of_traces += len(numba__scope_dict[ylabel])
+            for trace_index, trace_name in enumerate(numba__scope_dict[ylabel]):
+                global_trace_names.append(trace_name)
+        print(f'{user_number_of_traces=}')
 
-    reg_id    = The_PI_Regulator(0.737168, 0.737168*214.011*CTRL.CL_TS, 150/1.732)
-    reg_iq    = The_PI_Regulator(0.737168, 0.737168*214.011*CTRL.CL_TS, 150/1.732)
-    reg_speed = The_PI_Regulator(0.323363, 0.323363*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
-
-    from collections import OrderedDict as OD
-    numba__scope_dict = OD([
-        # Y Labels                        Signal Name of Traces
-        (r'Speed [rpm]',                  ( 'CTRL.cmd_rpm', 'CTRL.omega_r_mech', 'CTRL.xS[1]'   ,) ),
-        (r'Speed Error [rpm]',            ( 'CTRL.cmd_rpm - CTRL.omega_r_mech'                  ,) ),
-        (r'Position [rad]',               ( 'ACM.theta_d', 'CTRL.theta_d', 'CTRL.xS[0]'         ,) ),
-        (r'Position mech [rad]',          ( 'ACM.theta_d'                                       ,) ),
-        (r'$q$-axis current [A]',         ( 'ACM.iQ', 'CTRL.cmd_idq[1]'                         ,) ),
-        (r'$d$-axis current [A]',         ( 'ACM.iD', 'CTRL.cmd_idq[0]'                         ,) ),
-        (r'K_{\rm Active} [A]',           ( 'ACM.KA', 'CTRL.KA'                                 ,) ),
-        (r'Load torque [Nm]',             ( 'CTRL.xS[2]'                                        ,) ),
-        (r'CTRL.iD [A]',                  ( 'CTRL.cmd_idq[0]', 'CTRL.idq[0]'                    ,) ),
-        (r'CTRL.iQ [A]',                  ( 'CTRL.cmd_idq[1]', 'CTRL.idq[1]'                    ,) ),
-        (r'CTRL.uab [V]',                 ( 'CTRL.uab[0]', 'CTRL.uab[1]'                        ,) ),
-        (r'S [1]',                        ( 'svgen1.S1', 'svgen1.S2', 'svgen1.S3', 'svgen1.S4', 'svgen1.S5', 'svgen1.S6' ,) ),
-    ])
-
-    # Global data arrays
-    global_arrays = [None] * 23
-    global_machine_times = None
-
-    # simulate to generate ? sec of data
-    for ii in range(0, 2):
-
-        # controller_commands(t=ii*TIME_SLICE)
-
-        """perform animation step"""
-        machine_times, numba__waveforms_dict = \
-            ACMSimPyWrapper(numba__scope_dict,
-                        t0=ii*TIME_SLICE, TIME=TIME_SLICE, 
-                        ACM=ACM,
-                        CTRL=CTRL,
-                        reg_id=reg_id,
-                        reg_iq=reg_iq,
-                        reg_speed=reg_speed)
-
+        # init global data arrays for plotting
+        global_arrays = [None] * user_number_of_traces
+        global_machine_times = None
         def save_to_global(_global, _local):
             return _local if _global is None else np.append(_global, _local)
-        global_machine_times = save_to_global(global_machine_times, machine_times)
-        print(len(global_machine_times))
 
-        global_index = 0
-        for ylabel in [ r'Speed [rpm]',
-                        r'K_{\rm Active} [A]',
-                        r'$d$-axis current [A]',
-                        r'Position [rad]',
-                        r'Load torque [Nm]',
-                        r'CTRL.iD [A]',
-                        r'CTRL.iQ [A]',
-                        r'CTRL.uab [V]',
-                        r'S [1]'
-                ]:
-            print(ylabel)
-            # cmd_rpm, ACM_speed, OB_speed = numba__waveforms_dict[r'Speed [rpm]']
-            # x5, KA                       = numba__waveforms_dict[r'K_{\rm Active} [A]']
-            # ACM_id, cmd_id               = numba__waveforms_dict[r'$d$-axis current [A]']
-            # ACM_theta_d, CTRL_theta_d, OB_theta_d = numba__waveforms_dict[r'Position [rad]']
-            # TL,                          = numba__waveforms_dict[r'Load torque [Nm]']
-            # cmd_iD, iD                   = numba__waveforms_dict[r'CTRL.iD [A]']
-            # cmd_iQ, iQ                   = numba__waveforms_dict[r'CTRL.iQ [A]']
-            # ualfa, ubeta                 = numba__waveforms_dict[r'CTRL.uab [V]']
-            # S1, S2, S3, S4, S5, S6       = numba__waveforms_dict[r'S [1]']
-            for trace_index, local_trace_data in enumerate(numba__waveforms_dict[ylabel]):
-                global_arrays[global_index] = save_to_global(global_arrays[global_index], local_trace_data)
-                global_index += 1
-                print('\t', global_index, numba__scope_dict[ylabel][trace_index])
+        # simulate to generate NUMBER_OF_SLICES*TIME_SLICE sec of data
+        for ii in range(d['NUMBER_OF_SLICES']):
 
-        # print(ii, f'{ACM.KA=} [Wb]', f'{CTRL.KA=} [Wb]', CTRL.cmd_rpm, '[rpm]')
+            exec(d['user_system_input_code'])
+            # if ii < 5:
+            #     CTRL.cmd_rpm = 50
+            # else:
+            #     ACM.TLoad = 5
 
-        # for k,v in numba__waveforms_dict.items():
-        #     print(k, np.shape(v))
+            # perform animation step
+            machine_times, numba__waveforms_dict = \
+                ACMSimPyWrapper(numba__scope_dict,
+                            t0=ii*d['TIME_SLICE'], TIME=d['TIME_SLICE'], 
+                            ACM=ACM,
+                            CTRL=CTRL,
+                            reg_id=reg_id,
+                            reg_iq=reg_iq,
+                            reg_speed=reg_speed)
 
-        # print(len(global_speed), end='|')
-        # print(max(global_speed), end='|')
-        # print(len(speed), end='|')
-        # print(max(speed))
-        # print()
-        # break
-        pass
+            # and save slice data to global data variables
+            global_machine_times = save_to_global(global_machine_times, machine_times)
+            global_index = 0
+            for ylabel in d['user_interested_ylabels']:
+                for trace_index, local_trace_data in enumerate(numba__waveforms_dict[ylabel]):
+                    # trace data
+                    global_arrays[global_index] = save_to_global(global_arrays[global_index], local_trace_data)
 
-    global_cmd_speed   , \
-    global_ACM_speed   , \
-    global__OB_speed   , \
-    global________x5   , \
-    global___KA        , \
-    global____ACM_id   , \
-    global___CTRL_id   , \
-    global_ACM_theta_d , \
-    global_CTRL_theta_d, \
-    global_OB_theta_d  , \
-    global_TL          , \
-    global_cmd_iD      , \
-    global_iD          , \
-    global_cmd_iQ      , \
-    global_iQ          , \
-    global_ualfa       , \
-    global_ubeta       , \
-    global_S1          , \
-    global_S2          , \
-    global_S3          , \
-    global_S4          , \
-    global_S5          , \
-    global_S6          = global_arrays
+                    # next
+                    global_index += 1
 
-    plt.figure(101, figsize=(15,4))
-    plt.plot(global_cmd_speed); plt.plot(global_ACM_speed); plt.plot(global__OB_speed)
+        # map global data to global names
+        gdd = global_data_dict = OD()
+        for name, array in zip(global_trace_names, global_arrays):
+            global_data_dict[name] = array
+        print(gdd.keys())
 
-    plt.figure(2, figsize=(15,4)); #plt.ylim([-1e-1, 1e-1])
-    plt.plot( (global_cmd_speed - global_ACM_speed) ) # [2000:5000]
+        self.global_machine_times = global_machine_times
+        self.gdd = gdd
 
-    plt.figure(3, figsize=(15,4))
-    plt.plot( global________x5 ); plt.plot( global___KA )
+if __name__ == '__main__':
 
-    plt.figure(4, figsize=(15,4))
-    plt.plot( global____ACM_id ); plt.plot( global___CTRL_id )
+    # User input:
+    # {'DOWN_SAMPLE': 1, 
+    # 'n_pp': 21, 
+    # 'IN': 50.91937765205092, 
+    # 'PW': 14000, 
+    # 'RPM': 470, 
+    # 'J_s': 0.20300000000000004, 
+    # 'Udc': 150, 
+    # 'Rs': 0.1222, 
+    # 'Ld': 0.007833999999999999, 
+    # 'Lq': 0.0089, 
+    # 'KE': 0.127, 
+    # 'Ls': 0.0089, 
+    # 'CL_TS': 0.0001, 
+    # 'VL_TS': 0.0005, 
+    # 'EndTime': 25, 
+    # 'JLoadRatio': 0.0, 
+    # 'Tload': 3, 
+    # 'ViscousCoeff': 0.0007, 
+    # 'data_file_name_prefix': 'SlessInv-OverEstimated-a2-NL'}
+    d = d_user_input = {
+'CL_TS': 1e-4,
+'TIME_SLICE': 0.1,
+'NUMBER_OF_SLICES': 6,
+'VL_EXE_PER_CL_EXE': 5,
+'init_npp': 21,
+'init_IN': 72/1.414,
+'init_R': 0.1222,
+'init_Ld': 0.007834, # 0.000502,
+'init_Lq': 0.0089, # 0.000571,
+'init_KE': 0.127, # 150 / 1.732 / (450/60*6.28*21), # 285 / 1.5 / 72 / 21,
+'init_Rreq': 0.0,
+'init_Js': 0.203,
+'CTRL.bool_apply_decoupling_voltages_to_current_regulation': False,
+'CTRL.bool_apply_sweeping_frequency_excitation': False,
+'CTRL.bool_overwrite_speed_commands': True,
+'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 500,
+'DC_BUS_VOLTAGE': 150,
+'CL_SERIES_KP': 22.5252, # 11.49, # [BW=207.316Hz] # 6.00116,  # [BW=106.6Hz]
+'CL_SERIES_KI': 13.7303,
+'VL_SERIES_KP': 0.611563, # 0.445651, # [BW=38.6522Hz] # 0.250665 # [BW=22.2Hz]
+'VL_SERIES_KI': 25.3092,
+'VL_LIMIT_OVERLOAD_FACTOR': 1,
+'user_interested_ylabels': [r'Speed [rpm]',
+                            r'Torque [Nm]',
+                            r'K_{\rm Active} [A]',
+                            r'$d$-axis current [A]',
+                            r'Position [rad]',
+                            r'Load torque [Nm]',
+                            r'CTRL.iD [A]',
+                            r'CTRL.iQ [A]',
+                            r'CTRL.uab [V]',
+                            r'S [1]',
+                            r'$q$-axis voltage [V]',
+                            r'$d$-axis voltage [V]',
+                            ],
+'user_system_input_code': '''
+if ii < 4:
+    CTRL.cmd_idq[0] = 0 #-4
+    CTRL.cmd_rpm = 200
+else:
+    ACM.TLoad = 50
+''',
+}
 
-    plt.figure(5, figsize=(15,4))
-    plt.plot(global_ACM_theta_d); plt.plot( global_CTRL_theta_d); plt.plot( global_OB_theta_d )
+    def lpf1_inverter(array):
+        y_tminus1 = 0.0
+        new_array = []
+        for x in array:
+            new_x = y_tminus1 + 0.00020828993959591752 * (x - y_tminus1)
+            y_tminus1 = new_x
+            new_array.append(y_tminus1)
+        return new_array
 
-    # plt.figure(figsize=(15,4))
-    # plt.plot( np.sin(global_ACM_theta_d - global_OB_theta_d) )
+    # 图1：空载加速
+    图 = 1
+    sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times
+    def 图1画图代码():
+        plt.rcParams['legend.fontsize'] = 10
+        plt.rcParams["font.family"] = "Times New Roman"
+        plt.rcParams['mathtext.fontset'] = 'stix'
+        plt.rcParams['font.size'] = 14.0
+        plt.rcParams['legend.fontsize'] = 12.5
+        plt.style.use('classic')
+        font = {'family':'Times New Roman', 'weight':'normal', 'size':14}
 
-    # plt.figure(figsize=(15,4))
-    # plt.plot( global_TL )
+        fig, axes = plt.subplots(nrows=6, ncols=1, dpi=150, facecolor='w', figsize=(8,6), sharex=True)
 
-    plt.figure(10, figsize=(15,4))
-    plt.plot( global_cmd_iD); plt.plot( global_iD)
-    plt.figure(11, figsize=(15,4))
-    plt.plot( global_cmd_iQ); plt.plot( global_iQ)
+        ax = axes[0]
+        ax.plot(global_machine_times, gdd['CTRL.cmd_rpm'])
+        ax.plot(global_machine_times, gdd['CTRL.omega_r_mech'])
+        ax.set_ylabel(r'Speed [r/min]', multialignment='center', fontdict=font)
 
-    plt.figure(21, figsize=(15,4))
-    plt.plot(global_ualfa, '--'); plt.plot(global_ubeta, '-.')
-    # plt.figure(22, figsize=(15,4))
-    # plt.plot(global_S1); plt.plot(global_S2)
-    # plt.figure(23, figsize=(15,4))
-    # plt.plot(global_S3);
-    plt.figure(24, figsize=(15,4))
-    plt.plot(global_S1)
-    plt.plot(global_S2)
-    plt.plot(global_S3)
-    plt.figure(27, figsize=(15,4))
-    plt.plot(global_S4); plt.plot(global_S5); plt.plot(global_S6)
+        ax = axes[1]
+        ax.plot(global_machine_times, gdd['CTRL.cmd_idq[0]'])
+        ax.plot(global_machine_times, gdd['CTRL.idq[0]'])
+        # ax.plot(global_machine_times, gdd['ACM.iD'])
+        ax.set_ylabel(r'$i_d$ [A]', multialignment='center', fontdict=font)
 
+        ax = axes[2]
+        ax.plot(global_machine_times, gdd['CTRL.cmd_idq[1]'])
+        ax.plot(global_machine_times, gdd['CTRL.idq[1]'])
+        ax.set_ylabel(r'$i_q$ [A]', multialignment='center', fontdict=font)
 
-    # print(CTRL.ell1, CTRL.ell2, CTRL.ell3, CTRL.ell4)
+        ax = axes[3]
+        ax.plot(global_machine_times, gdd['ACM.Tem'])
+        ax.plot(global_machine_times, gdd['CTRL.Tem'])
+        ax.set_ylabel(r'Tem [Nm]', multialignment='center', fontdict=font)
 
+        ax = axes[4]
+        ax.plot(global_machine_times, (gdd['ACM.udq[0]'])) # lpf1_inverter
+        ax.plot(global_machine_times, gdd['CTRL.cmd_udq[0]'])
+        ax.set_ylabel(r'd-axis votages [V]', multialignment='center', fontdict=font)
+
+        ax = axes[5]
+        ax.plot(global_machine_times, (gdd['ACM.udq[1]'])) # lpf1_inverter
+        ax.plot(global_machine_times, gdd['CTRL.cmd_udq[1]'])
+        ax.set_ylabel(r'q-axis votages [V]', multialignment='center', fontdict=font)
+
+        # ax = axes[6]
+        # ax.plot(global_machine_times, gdd['CTRL.uab[0]'])
+        # ax.plot(global_machine_times, gdd['CTRL.uab[1]'])
+        # ax.set_ylabel(r'raw dq votages [V]', multialignment='center', fontdict=font)
+
+        for ax in axes:
+            ax.grid(True)
+            for tick in ax.xaxis.get_major_ticks() + ax.yaxis.get_major_ticks():
+                tick.label.set_font(font)
+        axes[-1].set_xlabel('Time [s]', fontdict=font)
+        return fig
+    fig = 图1画图代码(); fig.savefig(f'Shizhou-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
     plt.show()
+    quit()
 
+    # 图2：空载加速到弱磁
+    d['init_Js'] *= 10 
+    d['user_system_input_code'] = '''
+if ii < 5:
+    CTRL.cmd_rpm = 500
+else:
+    ACM.TLoad = 200
+'''
+    sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times
+    def 图2画图代码():
+        plt.rcParams['legend.fontsize'] = 10
+        plt.rcParams["font.family"] = "Times New Roman"
+        plt.rcParams['mathtext.fontset'] = 'stix'
+        plt.rcParams['font.size'] = 14.0
+        plt.rcParams['legend.fontsize'] = 12.5
+        plt.style.use('classic')
+        font = {'family':'Times New Roman', 'weight':'normal', 'size':14}
+
+        fig, axes = plt.subplots(nrows=4, ncols=1, dpi=150, facecolor='w', figsize=(8,6), sharex=True)
+
+        ax = axes[0]
+        ax.plot(global_machine_times, gdd['CTRL.cmd_rpm'])
+        ax.plot(global_machine_times, gdd['CTRL.omega_r_mech'])
+        ax.set_ylabel(r'Speed [r/min]', multialignment='center', fontdict=font)
+
+        ax = axes[1]
+        ax.plot(global_machine_times, gdd['CTRL.cmd_idq[0]'])
+        ax.plot(global_machine_times, gdd['CTRL.idq[0]'])
+        # ax.plot(global_machine_times, gdd['ACM.iD'])
+        ax.set_ylabel(r'$i_d$ [A]', multialignment='center', fontdict=font)
+
+        ax = axes[2]
+        ax.plot(global_machine_times, gdd['CTRL.cmd_idq[1]'])
+        ax.plot(global_machine_times, gdd['CTRL.idq[1]'])
+        ax.set_ylabel(r'$i_q$ [A]', multialignment='center', fontdict=font)
+
+        ax = axes[3]
+        ax.plot(global_machine_times, gdd['CTRL.uab[0]'])
+        ax.plot(global_machine_times, gdd['CTRL.uab[1]'])
+        ax.set_ylabel(r'raw dq votages [V]', multialignment='center', fontdict=font)
+
+        for ax in axes:
+            ax.grid(True)
+            for tick in ax.xaxis.get_major_ticks() + ax.yaxis.get_major_ticks():
+                tick.label.set_font(font)
+        axes[-1].set_xlabel('Time [s]', fontdict=font)
+        return fig
+    fig = 图2画图代码(); fig.savefig(f'Shizhou-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
+    plt.show()
