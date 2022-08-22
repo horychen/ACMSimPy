@@ -41,6 +41,7 @@ plt.style.use('ggplot')
             ('index_separate_speed_estimation', int32),
             ('use_disturbance_feedforward_rejection', int32),
             ('bool_apply_decoupling_voltages_to_current_regulation', int32),
+            ('bool_apply_speed_closed_loop_control', int32),
             # commands (sweep freuqency)
             ('bool_apply_sweeping_frequency_excitation', int32),
             ('bool_overwrite_speed_commands', int32),
@@ -125,6 +126,7 @@ class The_Motor_Controller:
         self.index_separate_speed_estimation = 0
         self.use_disturbance_feedforward_rejection = 0
         self.bool_apply_decoupling_voltages_to_current_regulation = False
+        self.bool_apply_speed_closed_loop_control = True
         # sweep frequency
         self.bool_apply_sweeping_frequency_excitation = False
         self.bool_overwrite_speed_commands = False
@@ -535,8 +537,9 @@ def FOC(CTRL, reg_speed, reg_id, reg_iq):
         incremental_pi(reg_speed)
 
     # dq-frame current commands
-    CTRL.cmd_idq[1] = reg_speed.Out
-    # CTRL.cmd_idq[0] = 0.0 # for user specifying
+    if CTRL.bool_apply_speed_closed_loop_control == True:
+        CTRL.cmd_idq[1] = reg_speed.Out
+        # CTRL.cmd_idq[0] = 0.0 # for user specifying
 
     # slip and syn frequencies
     if CTRL.Rreq>0: # IM
@@ -1236,81 +1239,72 @@ class Simulation_Benchmark:
         self.global_machine_times = global_machine_times
         self.gdd = gdd
 
-if __name__ == '__main__':
+def lpf1_inverter(array):
+    y_tminus1 = 0.0
+    new_array = []
+    for x in array:
+        new_x = y_tminus1 + 0.00020828993959591752 * (x - y_tminus1)
+        y_tminus1 = new_x
+        new_array.append(y_tminus1)
+    return new_array
 
+if __name__ == '__main__':
     # User input:
-    # {'DOWN_SAMPLE': 1, 
-    # 'n_pp': 21, 
-    # 'IN': 50.91937765205092, 
-    # 'PW': 14000, 
-    # 'RPM': 470, 
-    # 'J_s': 0.20300000000000004, 
-    # 'Udc': 150, 
-    # 'Rs': 0.1222, 
-    # 'Ld': 0.007833999999999999, 
-    # 'Lq': 0.0089, 
-    # 'KE': 0.127, 
-    # 'Ls': 0.0089, 
-    # 'CL_TS': 0.0001, 
-    # 'VL_TS': 0.0005, 
-    # 'EndTime': 25, 
-    # 'JLoadRatio': 0.0, 
-    # 'Tload': 3, 
-    # 'ViscousCoeff': 0.0007, 
-    # 'data_file_name_prefix': 'SlessInv-OverEstimated-a2-NL'}
     d = d_user_input = {
-'CL_TS': 1e-4,
-'TIME_SLICE': 0.1,
-'NUMBER_OF_SLICES': 6,
-'VL_EXE_PER_CL_EXE': 5,
-'init_npp': 21,
-'init_IN': 72/1.414,
-'init_R': 0.1222,
-'init_Ld': 0.007834, # 0.000502,
-'init_Lq': 0.0089, # 0.000571,
-'init_KE': 0.127, # 150 / 1.732 / (450/60*6.28*21), # 285 / 1.5 / 72 / 21,
-'init_Rreq': 0.0,
-'init_Js': 0.203,
-'CTRL.bool_apply_decoupling_voltages_to_current_regulation': False,
-'CTRL.bool_apply_sweeping_frequency_excitation': False,
-'CTRL.bool_overwrite_speed_commands': True,
-'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 500,
-'DC_BUS_VOLTAGE': 150,
-'CL_SERIES_KP': 22.5252, # 11.49, # [BW=207.316Hz] # 6.00116,  # [BW=106.6Hz]
-'CL_SERIES_KI': 13.7303,
-'VL_SERIES_KP': 0.611563, # 0.445651, # [BW=38.6522Hz] # 0.250665 # [BW=22.2Hz]
-'VL_SERIES_KI': 25.3092,
-'VL_LIMIT_OVERLOAD_FACTOR': 1,
-'user_interested_ylabels': [r'Speed [rpm]',
-                            r'Torque [Nm]',
-                            r'K_{\rm Active} [A]',
-                            r'$d$-axis current [A]',
-                            r'Position [rad]',
-                            r'Load torque [Nm]',
-                            r'CTRL.iD [A]',
-                            r'CTRL.iQ [A]',
-                            r'CTRL.uab [V]',
-                            r'S [1]',
-                            r'$q$-axis voltage [V]',
-                            r'$d$-axis voltage [V]',
-                            ],
-'user_system_input_code': '''
+        'CL_TS': 1e-4,
+        'TIME_SLICE': 0.1,
+        'NUMBER_OF_SLICES': 6,
+        'VL_EXE_PER_CL_EXE': 5,
+        'init_npp': 21,
+        'init_IN': 72/1.414,
+        'init_R': 0.1222,
+        'init_Ld': 0.0011, # 0.007834, # 0.000502, # 4*0.000502, # 
+        'init_Lq': 0.00125, # 0.0089, # 0.000571, # 4*0.000571, # 
+        'init_KE': 0.127, # 150 / 1.732 / (450/60*6.28*21), # 285 / 1.5 / 72 / 21,
+        # 'init_KE': 0.087559479, # 150 / ((450/60*6.28*21) * 1.732)
+        'init_Rreq': 0.0,
+        'init_Js': 0.203,
+        'CTRL.bool_apply_speed_closed_loop_control': True,
+        'CTRL.bool_apply_decoupling_voltages_to_current_regulation': False,
+        'CTRL.bool_apply_sweeping_frequency_excitation': False,
+        'CTRL.bool_overwrite_speed_commands': True,
+        'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 1,  # 500,
+        'DC_BUS_VOLTAGE': 300,
+        'FOC_delta': 6.5,
+        'FOC_desired_VLBW_HZ': 40,
+        'CL_SERIES_KP': None, # 1.61377, # 11.49, # [BW=207.316Hz] # 6.00116,  # [BW=106.6Hz]
+        'CL_SERIES_KI': None, # 97.76,
+        'VL_SERIES_KP': None, # 0.479932, # 0.445651, # [BW=38.6522Hz] # 0.250665 # [BW=22.2Hz]
+        'VL_SERIES_KI': None, # 30.5565,
+        'VL_LIMIT_OVERLOAD_FACTOR': 1,
+        'user_interested_ylabels': [r'Speed [rpm]',
+                                    r'Torque [Nm]',
+                                    r'K_{\rm Active} [A]',
+                                    r'$d$-axis current [A]',
+                                    r'Position [rad]',
+                                    r'Load torque [Nm]',
+                                    r'CTRL.iD [A]',
+                                    r'CTRL.iQ [A]',
+                                    r'CTRL.uab [V]',
+                                    r'S [1]',
+                                    r'$q$-axis voltage [V]',
+                                    r'$d$-axis voltage [V]',
+                                    ],
+        'user_system_input_code': '''
 if ii < 4:
-    CTRL.cmd_idq[0] = 0 #-4
-    CTRL.cmd_rpm = 200
+    CTRL.cmd_idq[0] = -60
+    CTRL.cmd_rpm = 1200
 else:
-    ACM.TLoad = 50
+    ACM.TLoad = 285
+    # ACM.TLoad = 250
 ''',
 }
+    print(f'最大电流上升率 {d["DC_BUS_VOLTAGE"]/1.732/d["init_Lq"]} A/s、最大转速上升率 rpm/s')
 
-    def lpf1_inverter(array):
-        y_tminus1 = 0.0
-        new_array = []
-        for x in array:
-            new_x = y_tminus1 + 0.00020828993959591752 * (x - y_tminus1)
-            y_tminus1 = new_x
-            new_array.append(y_tminus1)
-        return new_array
+    # Auto-tuning PI
+    if d['CL_SERIES_KP'] is None:
+        import tuner
+        tuner.tunner_wrapper(d)
 
     # 图1：空载加速
     图 = 1
@@ -1369,19 +1363,21 @@ else:
         axes[-1].set_xlabel('Time [s]', fontdict=font)
         return fig
     fig = 图1画图代码(); fig.savefig(f'Shizhou-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
-    plt.show()
-    quit()
 
-    # 图2：空载加速到弱磁
-    d['init_Js'] *= 10 
+
+    # 图1：空载加速
+    图 = 2
+    d['CTRL.bool_apply_speed_closed_loop_control'] = False
     d['user_system_input_code'] = '''
 if ii < 5:
-    CTRL.cmd_rpm = 500
+    CTRL.cmd_idq[0] = 0
+    CTRL.cmd_idq[1] = 285
+    CTRL.cmd_rpm = 700
 else:
     ACM.TLoad = 200
 '''
     sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times
-    def 图2画图代码():
+    def 图1画图代码():
         plt.rcParams['legend.fontsize'] = 10
         plt.rcParams["font.family"] = "Times New Roman"
         plt.rcParams['mathtext.fontset'] = 'stix'
@@ -1390,7 +1386,7 @@ else:
         plt.style.use('classic')
         font = {'family':'Times New Roman', 'weight':'normal', 'size':14}
 
-        fig, axes = plt.subplots(nrows=4, ncols=1, dpi=150, facecolor='w', figsize=(8,6), sharex=True)
+        fig, axes = plt.subplots(nrows=6, ncols=1, dpi=150, facecolor='w', figsize=(8,6), sharex=True)
 
         ax = axes[0]
         ax.plot(global_machine_times, gdd['CTRL.cmd_rpm'])
@@ -1409,6 +1405,82 @@ else:
         ax.set_ylabel(r'$i_q$ [A]', multialignment='center', fontdict=font)
 
         ax = axes[3]
+        ax.plot(global_machine_times, gdd['ACM.Tem'])
+        ax.plot(global_machine_times, gdd['CTRL.Tem'])
+        ax.set_ylabel(r'Tem [Nm]', multialignment='center', fontdict=font)
+
+        ax = axes[4]
+        ax.plot(global_machine_times, (gdd['ACM.udq[0]'])) # lpf1_inverter
+        ax.plot(global_machine_times, gdd['CTRL.cmd_udq[0]'])
+        ax.set_ylabel(r'd-axis votages [V]', multialignment='center', fontdict=font)
+
+        ax = axes[5]
+        ax.plot(global_machine_times, (gdd['ACM.udq[1]'])) # lpf1_inverter
+        ax.plot(global_machine_times, gdd['CTRL.cmd_udq[1]'])
+        ax.set_ylabel(r'q-axis votages [V]', multialignment='center', fontdict=font)
+
+        # ax = axes[6]
+        # ax.plot(global_machine_times, gdd['CTRL.uab[0]'])
+        # ax.plot(global_machine_times, gdd['CTRL.uab[1]'])
+        # ax.set_ylabel(r'raw dq votages [V]', multialignment='center', fontdict=font)
+
+        for ax in axes:
+            ax.grid(True)
+            for tick in ax.xaxis.get_major_ticks() + ax.yaxis.get_major_ticks():
+                tick.label.set_font(font)
+        axes[-1].set_xlabel('Time [s]', fontdict=font)
+        return fig
+    fig = 图1画图代码(); fig.savefig(f'Shizhou-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
+
+
+    plt.show()
+    quit()
+
+
+    # 图3：改变惯量
+    图 = 3
+    d['init_Js'] *= 0.2
+    d['user_system_input_code'] = '''
+if ii < 5:
+    CTRL.cmd_idq[0] = 0
+    CTRL.cmd_rpm = 500
+else:
+    ACM.TLoad = 200
+'''
+    sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times
+    def 图2画图代码():
+        plt.rcParams['legend.fontsize'] = 10
+        plt.rcParams["font.family"] = "Times New Roman"
+        plt.rcParams['mathtext.fontset'] = 'stix'
+        plt.rcParams['font.size'] = 14.0
+        plt.rcParams['legend.fontsize'] = 12.5
+        plt.style.use('classic')
+        font = {'family':'Times New Roman', 'weight':'normal', 'size':14}
+
+        fig, axes = plt.subplots(nrows=5, ncols=1, dpi=150, facecolor='w', figsize=(8,6), sharex=True)
+
+        ax = axes[0]
+        ax.plot(global_machine_times, gdd['CTRL.cmd_rpm'])
+        ax.plot(global_machine_times, gdd['CTRL.omega_r_mech'])
+        ax.set_ylabel(r'Speed [r/min]', multialignment='center', fontdict=font)
+
+        ax = axes[1]
+        ax.plot(global_machine_times, gdd['CTRL.cmd_idq[0]'])
+        ax.plot(global_machine_times, gdd['CTRL.idq[0]'])
+        # ax.plot(global_machine_times, gdd['ACM.iD'])
+        ax.set_ylabel(r'$i_d$ [A]', multialignment='center', fontdict=font)
+
+        ax = axes[2]
+        ax.plot(global_machine_times, gdd['CTRL.cmd_idq[1]'])
+        ax.plot(global_machine_times, gdd['CTRL.idq[1]'])
+        ax.set_ylabel(r'$i_q$ [A]', multialignment='center', fontdict=font)
+
+        ax = axes[3]
+        ax.plot(global_machine_times, gdd['ACM.Tem'])
+        ax.plot(global_machine_times, gdd['CTRL.Tem'])
+        ax.set_ylabel(r'Tem [Nm]', multialignment='center', fontdict=font)
+
+        ax = axes[4]
         ax.plot(global_machine_times, gdd['CTRL.uab[0]'])
         ax.plot(global_machine_times, gdd['CTRL.uab[1]'])
         ax.set_ylabel(r'raw dq votages [V]', multialignment='center', fontdict=font)
