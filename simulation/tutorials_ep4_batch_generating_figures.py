@@ -550,6 +550,27 @@ def FOC(CTRL, reg_speed, reg_id, reg_iq):
         CTRL.omega_slip = CTRL.Rreq * CTRL.cmd_idq[1] / CTRL.KA # Use commands for calculation (base off Harnefors recommendations)
     else:
         CTRL.omega_slip = 0.0
+
+        # Field weakening control (simple)
+                                    # 电气转折速度 = CTRL.DC_BUS_VOLTAGE/1.732 / CTRL.KA * 0.7
+                                    # print('Turning point', 电气转折速度 * 60 / (2*np.pi * CTRL.npp), 'r/min')
+                                    # if CTRL.omega_r_elec > 电气转折速度:
+                                    #     # 计算弱磁电流
+                                    #     下一弱磁速度增量 = 10 / 60 * 2*np.pi * CTRL.npp
+                                    #     CTRL.cmd_idq[0] = - (CTRL.KE - 电气转折速度 / (CTRL.omega_r_elec + 下一弱磁速度增量)) / (CTRL.Ld - CTRL.Lq)
+                                    #     # 修改速度环输出限幅
+                                    #     reg_speed.OutLimit = np.sqrt((CTRL.IN*1.414)**2 - CTRL.cmd_idq[0]**2)
+                                    #     print(f'{reg_speed.OutLimit=}')
+        当前速度 = CTRL.omega_r_elec*60/(2*np.pi*CTRL.npp)
+        if 当前速度 < 450:
+            CTRL.cmd_idq[0] = 0
+        elif 当前速度 < 1000:
+            CTRL.cmd_idq[0] = (当前速度 - 450) / (1000 - 450) * -60
+        else:
+            CTRL.cmd_idq[0] = -60
+        if CTRL.IN*1.414 > CTRL.cmd_idq[0]:
+            reg_speed.OutLimit = np.sqrt((CTRL.IN*1.414)**2 - CTRL.cmd_idq[0]**2)
+
     CTRL.omega_syn = CTRL.omega_r_elec + CTRL.omega_slip
 
     # d-axis
@@ -821,7 +842,7 @@ def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None,
     # SVPWM
     CPU_TICK_PER_SAMPLING_PERIOD = ACM.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD
     DEAD_TIME_AS_COUNT = int(200*0.5e-4*CPU_TICK_PER_SAMPLING_PERIOD) # 200 count for 0--5000--0 counting sequence
-    print(t0, 's', 'DEAD_TIME_AS_COUNT =', DEAD_TIME_AS_COUNT)
+    print(t0, 's', 'DEAD_TIME_AS_COUNT =', DEAD_TIME_AS_COUNT, )
     Vdc = CTRL.DC_BUS_VOLTAGE # Vdc is assumed measured and known
     one_over_Vdc = 1/Vdc
     svgen1 = SVgen_Object(CPU_TICK_PER_SAMPLING_PERIOD)
@@ -829,7 +850,7 @@ def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None,
 
     # watch variabels
     machine_times = np.arange(t0, t0+TIME, MACHINE_TS)
-    watch_data    = np.zeros( (40, len(machine_times)) ) # new
+    watch_data    = np.zeros( (50, len(machine_times)) ) # new
     # control_times = np.arange(t0, t0+TIME, CTRL.CL_TS)
     # watch_data = np.zeros( (40, len(control_times)) ) # old
 
@@ -1034,6 +1055,8 @@ def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None,
         watch_data[38][watch_index] = CTRL.cmd_udq[0]
         watch_data[39][watch_index] = CTRL.cmd_udq[1]
 
+        watch_data[40][watch_index] = reg_speed.OutLimit
+
         watch_index += 1
 
     # return machine_times, watch_data # old
@@ -1084,6 +1107,7 @@ _Unit_Watch_Mapping = [
     '[V]=ACM.udq[1]',
     '[V]=CTRL.cmd_udq[0]',
     '[V]=CTRL.cmd_udq[1]',
+    '[A]=reg_speed.OutLimit',
 ]
 Watch_Mapping = [el[el.find('=')+1:] for el in _Unit_Watch_Mapping] # remove units before "="
 
@@ -1168,6 +1192,7 @@ class Simulation_Benchmark:
         from collections import OrderedDict as OD
         numba__scope_dict = OD([
             # Y Labels                        Signal Name of Traces
+            (r'Speed Out Limit [A]',          ( 'reg_speed.OutLimit'                                ,) ),
             (r'$q$-axis voltage [V]',         ( 'ACM.udq[1]', 'CTRL.cmd_udq[1]'                     ,) ),
             (r'$d$-axis voltage [V]',         ( 'ACM.udq[0]', 'CTRL.cmd_udq[0]'                     ,) ),
             (r'Torque [Nm]',                  ( 'ACM.Tem', 'CTRL.Tem'                               ,) ),
@@ -1257,7 +1282,7 @@ if __name__ == '__main__':
     d = d_user_input = {
         'CL_TS': 1e-4,
         'TIME_SLICE': 0.1,
-        'NUMBER_OF_SLICES': 6,
+        'NUMBER_OF_SLICES': 9,
         'VL_EXE_PER_CL_EXE': 5,
         'init_npp': 21,
         'init_IN': 72/1.414,
@@ -1293,6 +1318,7 @@ if __name__ == '__main__':
                                     r'S [1]',
                                     r'$q$-axis voltage [V]',
                                     r'$d$-axis voltage [V]',
+                                    r'Speed Out Limit [A]',
                                     ],
         'user_system_input_code': '''
 if ii < 4:
@@ -1308,12 +1334,209 @@ else:
     if d['CL_SERIES_KP'] is None:
         import tuner
         tuner.tunner_wrapper(d)
-        print(d)
+        print(f'{d=}')
  
-    # 图1：空载加速
-    图 = 1
+
+
+    图 = 1 # 空载加速、加载
+    if False:
+        sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times
+        def 图1画图代码():
+            plt.style.use('classic')
+            plt.rcParams['mathtext.fontset'] = 'stix'
+            mpl.rc('font', family='Times New Roman', size=14.0)
+            mpl.rc('legend', fontsize=8)
+
+            fig, axes = plt.subplots(nrows=6, ncols=1, dpi=150, facecolor='w', figsize=(8,6), sharex=True)
+
+            ax = axes[0]
+            ax.plot(global_machine_times, gdd['CTRL.cmd_rpm'], label=r'$\omega_r^*$')
+            ax.plot(global_machine_times, gdd['CTRL.omega_r_mech'], label=r'$\omega_r$')
+            ax.set_ylabel(r'Speed [r/min]', multialignment='center') #) #, fontdict=font)
+            # ax.legend(loc=2, prop={'size': 6})
+            ax.legend(loc=2, fontsize=6)
+
+            ax = axes[1]
+            ax.plot(global_machine_times, gdd['CTRL.cmd_idq[0]'], label=r'$i_d^*$')
+            ax.plot(global_machine_times, gdd['CTRL.idq[0]'], label=r'$i_d$')
+            # ax.plot(global_machine_times, gdd['ACM.iD'])
+            ax.set_ylabel(r'$i_d$ [A]', multialignment='center') #, fontdict=font)
+            ax.legend(loc=2)
+
+            ax = axes[2]
+            ax.plot(global_machine_times, gdd['CTRL.cmd_idq[1]'], label=r'$i_q^*$')
+            ax.plot(global_machine_times, gdd['CTRL.idq[1]'], label=r'$i_q$')
+            ax.set_ylabel(r'$i_q$ [A]', multialignment='center') #, fontdict=font)
+            ax.legend(loc=2)
+
+            ax = axes[3]
+            ax.plot(global_machine_times, gdd['ACM.Tem'])
+            ax.plot(global_machine_times, gdd['CTRL.Tem'])
+            ax.set_ylabel(r'Tem [Nm]', multialignment='center') #, fontdict=font)
+
+            ax = axes[4]
+            ax.plot(global_machine_times, lpf1_inverter(gdd['ACM.udq[0]'])) # 
+            ax.plot(global_machine_times, gdd['CTRL.cmd_udq[0]'])
+            ax.set_ylabel(r'd-axis votages [V]', multialignment='center') #, fontdict=font)
+
+            ax = axes[5]
+            ax.plot(global_machine_times, lpf1_inverter(gdd['ACM.udq[1]'])) # 
+            ax.plot(global_machine_times, gdd['CTRL.cmd_udq[1]'])
+            ax.set_ylabel(r'q-axis votages [V]', multialignment='center') #, fontdict=font)
+
+            # ax = axes[6]
+            # ax.plot(global_machine_times, gdd['CTRL.uab[0]'])
+            # ax.plot(global_machine_times, gdd['CTRL.uab[1]'])
+            # ax.set_ylabel(r'raw dq votages [V]', multialignment='center') #, fontdict=font)
+
+            for ax in axes:
+                ax.grid(True)
+                # for tick in ax.xaxis.get_major_ticks() + ax.yaxis.get_major_ticks():
+                #     tick.label.set_font(font)
+            axes[-1].set_xlabel('Time [s]') #, fontdict=font)
+            return fig
+        fig = 图1画图代码(); fig.savefig(f'Shizhou-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
+
+
+
+    图 = 2 # 开环加速
+    if False:
+        d['CTRL.bool_apply_speed_closed_loop_control'] = False
+        d['user_system_input_code'] = '''
+if ii < 5:
+    CTRL.cmd_idq[0] = 0
+    CTRL.cmd_idq[1] = 285
+    CTRL.cmd_rpm = 700
+else:
+    ACM.TLoad = 200
+'''
+        sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times
+        def 图2画图代码():
+            plt.style.use('classic')
+            font = {'family':'Times New Roman', 'weight':'normal', 'size':14}
+            mpl.rc('font', family='Times New Roman', size=14.0) # legend font
+            mpl.rc('legend', fontsize=8)
+
+            fig, axes = plt.subplots(nrows=6, ncols=1, dpi=150, facecolor='w', figsize=(8,6), sharex=True)
+
+            ax = axes[0]
+            ax.plot(global_machine_times, gdd['CTRL.cmd_rpm'])
+            ax.plot(global_machine_times, gdd['CTRL.omega_r_mech'])
+            ax.set_ylabel(r'Speed [r/min]', multialignment='center') #, fontdict=font)
+
+            ax = axes[1]
+            ax.plot(global_machine_times, gdd['CTRL.cmd_idq[0]'])
+            ax.plot(global_machine_times, gdd['CTRL.idq[0]'])
+            # ax.plot(global_machine_times, gdd['ACM.iD'])
+            ax.set_ylabel(r'$i_d$ [A]', multialignment='center') #, fontdict=font)
+
+            ax = axes[2]
+            ax.plot(global_machine_times, gdd['CTRL.cmd_idq[1]'])
+            ax.plot(global_machine_times, gdd['CTRL.idq[1]'])
+            ax.set_ylabel(r'$i_q$ [A]', multialignment='center') #, fontdict=font)
+
+            ax = axes[3]
+            ax.plot(global_machine_times, gdd['ACM.Tem'])
+            ax.plot(global_machine_times, gdd['CTRL.Tem'])
+            ax.set_ylabel(r'Tem [Nm]', multialignment='center') #, fontdict=font)
+
+            ax = axes[4]
+            ax.plot(global_machine_times, lpf1_inverter(gdd['ACM.udq[0]'])) # 
+            ax.plot(global_machine_times, gdd['CTRL.cmd_udq[0]'])
+            ax.set_ylabel(r'd-axis votages [V]', multialignment='center') #, fontdict=font)
+
+            ax = axes[5]
+            ax.plot(global_machine_times, lpf1_inverter(gdd['ACM.udq[1]'])) # 
+            ax.plot(global_machine_times, gdd['CTRL.cmd_udq[1]'])
+            ax.set_ylabel(r'q-axis votages [V]', multialignment='center') #, fontdict=font)
+
+            # ax = axes[6]
+            # ax.plot(global_machine_times, gdd['CTRL.uab[0]'])
+            # ax.plot(global_machine_times, gdd['CTRL.uab[1]'])
+            # ax.set_ylabel(r'raw dq votages [V]', multialignment='center') #, fontdict=font)
+
+            for ax in axes:
+                ax.grid(True)
+                # for tick in ax.xaxis.get_major_ticks() + ax.yaxis.get_major_ticks():
+                #     tick.label.set_font(font)
+            axes[-1].set_xlabel('Time [s]') #, fontdict=font)
+            return fig
+        fig = 图2画图代码(); fig.savefig(f'Shizhou-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
+
+
+
+    图 = 3 # 改变惯量
+    if False:
+        d['init_Js'] *= 0.2
+        d['user_system_input_code'] = '''
+if ii < 5:
+    CTRL.cmd_idq[0] = 0
+    CTRL.cmd_rpm = 500
+else:
+    ACM.TLoad = 200
+'''
+        sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times
+        def 图3画图代码():
+            plt.rcParams['legend.fontsize'] = 10
+            plt.rcParams["font.family"] = "Times New Roman"
+            plt.rcParams['mathtext.fontset'] = 'stix'
+            plt.rcParams['font.size'] = 14.0
+            plt.rcParams['legend.fontsize'] = 12.5
+            plt.style.use('classic')
+            font = {'family':'Times New Roman', 'weight':'normal', 'size':14}
+            mpl.rc('font', family='Times New Roman', size=14.0) # legend font
+            mpl.rc('legend', fontsize=8)
+
+            fig, axes = plt.subplots(nrows=5, ncols=1, dpi=150, facecolor='w', figsize=(8,6), sharex=True)
+
+            ax = axes[0]
+            ax.plot(global_machine_times, gdd['CTRL.cmd_rpm'])
+            ax.plot(global_machine_times, gdd['CTRL.omega_r_mech'])
+            ax.set_ylabel(r'Speed [r/min]', multialignment='center') #, fontdict=font)
+
+            ax = axes[1]
+            ax.plot(global_machine_times, gdd['CTRL.cmd_idq[0]'])
+            ax.plot(global_machine_times, gdd['CTRL.idq[0]'])
+            # ax.plot(global_machine_times, gdd['ACM.iD'])
+            ax.set_ylabel(r'$i_d$ [A]', multialignment='center') #, fontdict=font)
+
+            ax = axes[2]
+            ax.plot(global_machine_times, gdd['CTRL.cmd_idq[1]'])
+            ax.plot(global_machine_times, gdd['CTRL.idq[1]'])
+            ax.set_ylabel(r'$i_q$ [A]', multialignment='center') #, fontdict=font)
+
+            ax = axes[3]
+            ax.plot(global_machine_times, gdd['ACM.Tem'])
+            ax.plot(global_machine_times, gdd['CTRL.Tem'])
+            ax.set_ylabel(r'Tem [Nm]', multialignment='center') #, fontdict=font)
+
+            ax = axes[4]
+            ax.plot(global_machine_times, gdd['CTRL.uab[0]'])
+            ax.plot(global_machine_times, gdd['CTRL.uab[1]'])
+            ax.set_ylabel(r'raw dq votages [V]', multialignment='center') #, fontdict=font)
+
+            for ax in axes:
+                ax.grid(True)
+                for tick in ax.xaxis.get_major_ticks() + ax.yaxis.get_major_ticks():
+                    tick.label.set_font(font)
+            axes[-1].set_xlabel('Time [s]') #, fontdict=font)
+            return fig
+        fig = 图3画图代码(); fig.savefig(f'Shizhou-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
+        plt.show()
+
+
+
+
+    图 = 4 # 弱磁控制
+    d['user_system_input_code'] = '''
+if ii < 5:
+    CTRL.cmd_rpm = 1200
+else:
+    ACM.TLoad = 100
+print(f'{reg_speed.OutLimit=}')
+'''
     sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times
-    def 图1画图代码():
+    def 图4画图代码():
         plt.style.use('classic')
         plt.rcParams['mathtext.fontset'] = 'stix'
         mpl.rc('font', family='Times New Roman', size=14.0)
@@ -1326,20 +1549,21 @@ else:
         ax.plot(global_machine_times, gdd['CTRL.omega_r_mech'], label=r'$\omega_r$')
         ax.set_ylabel(r'Speed [r/min]', multialignment='center') #) #, fontdict=font)
         # ax.legend(loc=2, prop={'size': 6})
-        ax.legend(loc=2, fontsize=6)
+        # ax.legend(loc=2, fontsize=6)
 
         ax = axes[1]
         ax.plot(global_machine_times, gdd['CTRL.cmd_idq[0]'], label=r'$i_d^*$')
         ax.plot(global_machine_times, gdd['CTRL.idq[0]'], label=r'$i_d$')
         # ax.plot(global_machine_times, gdd['ACM.iD'])
         ax.set_ylabel(r'$i_d$ [A]', multialignment='center') #, fontdict=font)
-        ax.legend(loc=2)
+        # ax.legend(loc=2)
 
         ax = axes[2]
         ax.plot(global_machine_times, gdd['CTRL.cmd_idq[1]'], label=r'$i_q^*$')
         ax.plot(global_machine_times, gdd['CTRL.idq[1]'], label=r'$i_q$')
+        ax.plot(global_machine_times, gdd['reg_speed.OutLimit'], label=r'max~$i_q$')
         ax.set_ylabel(r'$i_q$ [A]', multialignment='center') #, fontdict=font)
-        ax.legend(loc=2)
+        ax.legend(loc=1)
 
         ax = axes[3]
         ax.plot(global_machine_times, gdd['ACM.Tem'])
@@ -1367,135 +1591,11 @@ else:
             #     tick.label.set_font(font)
         axes[-1].set_xlabel('Time [s]') #, fontdict=font)
         return fig
-    fig = 图1画图代码(); fig.savefig(f'Shizhou-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
+    fig = 图4画图代码(); fig.savefig(f'Shizhou-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
 
-    plt.show()
-    quit()
 
-    # 图2：开环加速
-    图 = 2
-    d['CTRL.bool_apply_speed_closed_loop_control'] = False
-    d['user_system_input_code'] = '''
-if ii < 5:
-    CTRL.cmd_idq[0] = 0
-    CTRL.cmd_idq[1] = 285
-    CTRL.cmd_rpm = 700
-else:
-    ACM.TLoad = 200
-'''
-    sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times
-    def 图2画图代码():
-        plt.style.use('classic')
-        font = {'family':'Times New Roman', 'weight':'normal', 'size':14}
-        mpl.rc('font', family='Times New Roman', size=14.0) # legend font
-        mpl.rc('legend', fontsize=8)
 
-        fig, axes = plt.subplots(nrows=6, ncols=1, dpi=150, facecolor='w', figsize=(8,6), sharex=True)
-
-        ax = axes[0]
-        ax.plot(global_machine_times, gdd['CTRL.cmd_rpm'])
-        ax.plot(global_machine_times, gdd['CTRL.omega_r_mech'])
-        ax.set_ylabel(r'Speed [r/min]', multialignment='center') #, fontdict=font)
-
-        ax = axes[1]
-        ax.plot(global_machine_times, gdd['CTRL.cmd_idq[0]'])
-        ax.plot(global_machine_times, gdd['CTRL.idq[0]'])
-        # ax.plot(global_machine_times, gdd['ACM.iD'])
-        ax.set_ylabel(r'$i_d$ [A]', multialignment='center') #, fontdict=font)
-
-        ax = axes[2]
-        ax.plot(global_machine_times, gdd['CTRL.cmd_idq[1]'])
-        ax.plot(global_machine_times, gdd['CTRL.idq[1]'])
-        ax.set_ylabel(r'$i_q$ [A]', multialignment='center') #, fontdict=font)
-
-        ax = axes[3]
-        ax.plot(global_machine_times, gdd['ACM.Tem'])
-        ax.plot(global_machine_times, gdd['CTRL.Tem'])
-        ax.set_ylabel(r'Tem [Nm]', multialignment='center') #, fontdict=font)
-
-        ax = axes[4]
-        ax.plot(global_machine_times, lpf1_inverter(gdd['ACM.udq[0]'])) # 
-        ax.plot(global_machine_times, gdd['CTRL.cmd_udq[0]'])
-        ax.set_ylabel(r'd-axis votages [V]', multialignment='center') #, fontdict=font)
-
-        ax = axes[5]
-        ax.plot(global_machine_times, lpf1_inverter(gdd['ACM.udq[1]'])) # 
-        ax.plot(global_machine_times, gdd['CTRL.cmd_udq[1]'])
-        ax.set_ylabel(r'q-axis votages [V]', multialignment='center') #, fontdict=font)
-
-        # ax = axes[6]
-        # ax.plot(global_machine_times, gdd['CTRL.uab[0]'])
-        # ax.plot(global_machine_times, gdd['CTRL.uab[1]'])
-        # ax.set_ylabel(r'raw dq votages [V]', multialignment='center') #, fontdict=font)
-
-        for ax in axes:
-            ax.grid(True)
-            # for tick in ax.xaxis.get_major_ticks() + ax.yaxis.get_major_ticks():
-            #     tick.label.set_font(font)
-        axes[-1].set_xlabel('Time [s]') #, fontdict=font)
-        return fig
-    fig = 图2画图代码(); fig.savefig(f'Shizhou-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
 
 
     plt.show()
     quit()
-
-
-    # 图3：改变惯量
-    图 = 3
-    d['init_Js'] *= 0.2
-    d['user_system_input_code'] = '''
-if ii < 5:
-    CTRL.cmd_idq[0] = 0
-    CTRL.cmd_rpm = 500
-else:
-    ACM.TLoad = 200
-'''
-    sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times
-    def 图3画图代码():
-        plt.rcParams['legend.fontsize'] = 10
-        plt.rcParams["font.family"] = "Times New Roman"
-        plt.rcParams['mathtext.fontset'] = 'stix'
-        plt.rcParams['font.size'] = 14.0
-        plt.rcParams['legend.fontsize'] = 12.5
-        plt.style.use('classic')
-        font = {'family':'Times New Roman', 'weight':'normal', 'size':14}
-        mpl.rc('font', family='Times New Roman', size=14.0) # legend font
-        mpl.rc('legend', fontsize=8)
-
-        fig, axes = plt.subplots(nrows=5, ncols=1, dpi=150, facecolor='w', figsize=(8,6), sharex=True)
-
-        ax = axes[0]
-        ax.plot(global_machine_times, gdd['CTRL.cmd_rpm'])
-        ax.plot(global_machine_times, gdd['CTRL.omega_r_mech'])
-        ax.set_ylabel(r'Speed [r/min]', multialignment='center') #, fontdict=font)
-
-        ax = axes[1]
-        ax.plot(global_machine_times, gdd['CTRL.cmd_idq[0]'])
-        ax.plot(global_machine_times, gdd['CTRL.idq[0]'])
-        # ax.plot(global_machine_times, gdd['ACM.iD'])
-        ax.set_ylabel(r'$i_d$ [A]', multialignment='center') #, fontdict=font)
-
-        ax = axes[2]
-        ax.plot(global_machine_times, gdd['CTRL.cmd_idq[1]'])
-        ax.plot(global_machine_times, gdd['CTRL.idq[1]'])
-        ax.set_ylabel(r'$i_q$ [A]', multialignment='center') #, fontdict=font)
-
-        ax = axes[3]
-        ax.plot(global_machine_times, gdd['ACM.Tem'])
-        ax.plot(global_machine_times, gdd['CTRL.Tem'])
-        ax.set_ylabel(r'Tem [Nm]', multialignment='center') #, fontdict=font)
-
-        ax = axes[4]
-        ax.plot(global_machine_times, gdd['CTRL.uab[0]'])
-        ax.plot(global_machine_times, gdd['CTRL.uab[1]'])
-        ax.set_ylabel(r'raw dq votages [V]', multialignment='center') #, fontdict=font)
-
-        for ax in axes:
-            ax.grid(True)
-            for tick in ax.xaxis.get_major_ticks() + ax.yaxis.get_major_ticks():
-                tick.label.set_font(font)
-        axes[-1].set_xlabel('Time [s]') #, fontdict=font)
-        return fig
-    fig = 图3画图代码(); fig.savefig(f'Shizhou-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
-    plt.show()
