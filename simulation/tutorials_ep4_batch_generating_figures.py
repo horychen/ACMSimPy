@@ -3,7 +3,7 @@
 import enum
 from numba.experimental import jitclass
 from numba import njit, int32, float64
-from pylab import np, plt
+from pylab import np, plt, mpl
 import re
 plt.style.use('ggplot')
 
@@ -1314,62 +1314,65 @@ else:
     图 = 1
     sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times
     def 图1画图代码():
-        plt.rcParams['legend.fontsize'] = 10
-        plt.rcParams["font.family"] = "Times New Roman"
-        plt.rcParams['mathtext.fontset'] = 'stix'
-        plt.rcParams['font.size'] = 14.0
-        plt.rcParams['legend.fontsize'] = 12.5
         plt.style.use('classic')
-        font = {'family':'Times New Roman', 'weight':'normal', 'size':14}
+        plt.rcParams['mathtext.fontset'] = 'stix'
+        mpl.rc('font', family='Times New Roman', size=14.0)
+        mpl.rc('legend', fontsize=8)
 
         fig, axes = plt.subplots(nrows=6, ncols=1, dpi=150, facecolor='w', figsize=(8,6), sharex=True)
 
         ax = axes[0]
-        ax.plot(global_machine_times, gdd['CTRL.cmd_rpm'])
-        ax.plot(global_machine_times, gdd['CTRL.omega_r_mech'])
-        ax.set_ylabel(r'Speed [r/min]', multialignment='center', fontdict=font)
+        ax.plot(global_machine_times, gdd['CTRL.cmd_rpm'], label=r'$\omega_r^*$')
+        ax.plot(global_machine_times, gdd['CTRL.omega_r_mech'], label=r'$\omega_r$')
+        ax.set_ylabel(r'Speed [r/min]', multialignment='center') #) #, fontdict=font)
+        # ax.legend(loc=2, prop={'size': 6})
+        ax.legend(loc=2, fontsize=6)
 
         ax = axes[1]
-        ax.plot(global_machine_times, gdd['CTRL.cmd_idq[0]'])
-        ax.plot(global_machine_times, gdd['CTRL.idq[0]'])
+        ax.plot(global_machine_times, gdd['CTRL.cmd_idq[0]'], label=r'$i_d^*$')
+        ax.plot(global_machine_times, gdd['CTRL.idq[0]'], label=r'$i_d$')
         # ax.plot(global_machine_times, gdd['ACM.iD'])
-        ax.set_ylabel(r'$i_d$ [A]', multialignment='center', fontdict=font)
+        ax.set_ylabel(r'$i_d$ [A]', multialignment='center') #, fontdict=font)
+        ax.legend(loc=2)
 
         ax = axes[2]
-        ax.plot(global_machine_times, gdd['CTRL.cmd_idq[1]'])
-        ax.plot(global_machine_times, gdd['CTRL.idq[1]'])
-        ax.set_ylabel(r'$i_q$ [A]', multialignment='center', fontdict=font)
+        ax.plot(global_machine_times, gdd['CTRL.cmd_idq[1]'], label=r'$i_q^*$')
+        ax.plot(global_machine_times, gdd['CTRL.idq[1]'], label=r'$i_q$')
+        ax.set_ylabel(r'$i_q$ [A]', multialignment='center') #, fontdict=font)
+        ax.legend(loc=2)
 
         ax = axes[3]
         ax.plot(global_machine_times, gdd['ACM.Tem'])
         ax.plot(global_machine_times, gdd['CTRL.Tem'])
-        ax.set_ylabel(r'Tem [Nm]', multialignment='center', fontdict=font)
+        ax.set_ylabel(r'Tem [Nm]', multialignment='center') #, fontdict=font)
 
         ax = axes[4]
         ax.plot(global_machine_times, lpf1_inverter(gdd['ACM.udq[0]'])) # 
         ax.plot(global_machine_times, gdd['CTRL.cmd_udq[0]'])
-        ax.set_ylabel(r'd-axis votages [V]', multialignment='center', fontdict=font)
+        ax.set_ylabel(r'd-axis votages [V]', multialignment='center') #, fontdict=font)
 
         ax = axes[5]
         ax.plot(global_machine_times, lpf1_inverter(gdd['ACM.udq[1]'])) # 
         ax.plot(global_machine_times, gdd['CTRL.cmd_udq[1]'])
-        ax.set_ylabel(r'q-axis votages [V]', multialignment='center', fontdict=font)
+        ax.set_ylabel(r'q-axis votages [V]', multialignment='center') #, fontdict=font)
 
         # ax = axes[6]
         # ax.plot(global_machine_times, gdd['CTRL.uab[0]'])
         # ax.plot(global_machine_times, gdd['CTRL.uab[1]'])
-        # ax.set_ylabel(r'raw dq votages [V]', multialignment='center', fontdict=font)
+        # ax.set_ylabel(r'raw dq votages [V]', multialignment='center') #, fontdict=font)
 
         for ax in axes:
             ax.grid(True)
-            for tick in ax.xaxis.get_major_ticks() + ax.yaxis.get_major_ticks():
-                tick.label.set_font(font)
-        axes[-1].set_xlabel('Time [s]', fontdict=font)
+            # for tick in ax.xaxis.get_major_ticks() + ax.yaxis.get_major_ticks():
+            #     tick.label.set_font(font)
+        axes[-1].set_xlabel('Time [s]') #, fontdict=font)
         return fig
     fig = 图1画图代码(); fig.savefig(f'Shizhou-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
 
+    plt.show()
+    quit()
 
-    # 图1：空载加速
+    # 图2：开环加速
     图 = 2
     d['CTRL.bool_apply_speed_closed_loop_control'] = False
     d['user_system_input_code'] = '''
@@ -1381,60 +1384,57 @@ else:
     ACM.TLoad = 200
 '''
     sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times
-    def 图1画图代码():
-        plt.rcParams['legend.fontsize'] = 10
-        plt.rcParams["font.family"] = "Times New Roman"
-        plt.rcParams['mathtext.fontset'] = 'stix'
-        plt.rcParams['font.size'] = 14.0
-        plt.rcParams['legend.fontsize'] = 12.5
+    def 图2画图代码():
         plt.style.use('classic')
         font = {'family':'Times New Roman', 'weight':'normal', 'size':14}
+        mpl.rc('font', family='Times New Roman', size=14.0) # legend font
+        mpl.rc('legend', fontsize=8)
 
         fig, axes = plt.subplots(nrows=6, ncols=1, dpi=150, facecolor='w', figsize=(8,6), sharex=True)
 
         ax = axes[0]
         ax.plot(global_machine_times, gdd['CTRL.cmd_rpm'])
         ax.plot(global_machine_times, gdd['CTRL.omega_r_mech'])
-        ax.set_ylabel(r'Speed [r/min]', multialignment='center', fontdict=font)
+        ax.set_ylabel(r'Speed [r/min]', multialignment='center') #, fontdict=font)
 
         ax = axes[1]
         ax.plot(global_machine_times, gdd['CTRL.cmd_idq[0]'])
         ax.plot(global_machine_times, gdd['CTRL.idq[0]'])
         # ax.plot(global_machine_times, gdd['ACM.iD'])
-        ax.set_ylabel(r'$i_d$ [A]', multialignment='center', fontdict=font)
+        ax.set_ylabel(r'$i_d$ [A]', multialignment='center') #, fontdict=font)
 
         ax = axes[2]
         ax.plot(global_machine_times, gdd['CTRL.cmd_idq[1]'])
         ax.plot(global_machine_times, gdd['CTRL.idq[1]'])
-        ax.set_ylabel(r'$i_q$ [A]', multialignment='center', fontdict=font)
+        ax.set_ylabel(r'$i_q$ [A]', multialignment='center') #, fontdict=font)
 
         ax = axes[3]
         ax.plot(global_machine_times, gdd['ACM.Tem'])
         ax.plot(global_machine_times, gdd['CTRL.Tem'])
-        ax.set_ylabel(r'Tem [Nm]', multialignment='center', fontdict=font)
+        ax.set_ylabel(r'Tem [Nm]', multialignment='center') #, fontdict=font)
 
         ax = axes[4]
         ax.plot(global_machine_times, lpf1_inverter(gdd['ACM.udq[0]'])) # 
         ax.plot(global_machine_times, gdd['CTRL.cmd_udq[0]'])
-        ax.set_ylabel(r'd-axis votages [V]', multialignment='center', fontdict=font)
+        ax.set_ylabel(r'd-axis votages [V]', multialignment='center') #, fontdict=font)
 
         ax = axes[5]
         ax.plot(global_machine_times, lpf1_inverter(gdd['ACM.udq[1]'])) # 
         ax.plot(global_machine_times, gdd['CTRL.cmd_udq[1]'])
-        ax.set_ylabel(r'q-axis votages [V]', multialignment='center', fontdict=font)
+        ax.set_ylabel(r'q-axis votages [V]', multialignment='center') #, fontdict=font)
 
         # ax = axes[6]
         # ax.plot(global_machine_times, gdd['CTRL.uab[0]'])
         # ax.plot(global_machine_times, gdd['CTRL.uab[1]'])
-        # ax.set_ylabel(r'raw dq votages [V]', multialignment='center', fontdict=font)
+        # ax.set_ylabel(r'raw dq votages [V]', multialignment='center') #, fontdict=font)
 
         for ax in axes:
             ax.grid(True)
-            for tick in ax.xaxis.get_major_ticks() + ax.yaxis.get_major_ticks():
-                tick.label.set_font(font)
-        axes[-1].set_xlabel('Time [s]', fontdict=font)
+            # for tick in ax.xaxis.get_major_ticks() + ax.yaxis.get_major_ticks():
+            #     tick.label.set_font(font)
+        axes[-1].set_xlabel('Time [s]') #, fontdict=font)
         return fig
-    fig = 图1画图代码(); fig.savefig(f'Shizhou-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
+    fig = 图2画图代码(); fig.savefig(f'Shizhou-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
 
 
     plt.show()
@@ -1452,7 +1452,7 @@ else:
     ACM.TLoad = 200
 '''
     sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times
-    def 图2画图代码():
+    def 图3画图代码():
         plt.rcParams['legend.fontsize'] = 10
         plt.rcParams["font.family"] = "Times New Roman"
         plt.rcParams['mathtext.fontset'] = 'stix'
@@ -1460,40 +1460,42 @@ else:
         plt.rcParams['legend.fontsize'] = 12.5
         plt.style.use('classic')
         font = {'family':'Times New Roman', 'weight':'normal', 'size':14}
+        mpl.rc('font', family='Times New Roman', size=14.0) # legend font
+        mpl.rc('legend', fontsize=8)
 
         fig, axes = plt.subplots(nrows=5, ncols=1, dpi=150, facecolor='w', figsize=(8,6), sharex=True)
 
         ax = axes[0]
         ax.plot(global_machine_times, gdd['CTRL.cmd_rpm'])
         ax.plot(global_machine_times, gdd['CTRL.omega_r_mech'])
-        ax.set_ylabel(r'Speed [r/min]', multialignment='center', fontdict=font)
+        ax.set_ylabel(r'Speed [r/min]', multialignment='center') #, fontdict=font)
 
         ax = axes[1]
         ax.plot(global_machine_times, gdd['CTRL.cmd_idq[0]'])
         ax.plot(global_machine_times, gdd['CTRL.idq[0]'])
         # ax.plot(global_machine_times, gdd['ACM.iD'])
-        ax.set_ylabel(r'$i_d$ [A]', multialignment='center', fontdict=font)
+        ax.set_ylabel(r'$i_d$ [A]', multialignment='center') #, fontdict=font)
 
         ax = axes[2]
         ax.plot(global_machine_times, gdd['CTRL.cmd_idq[1]'])
         ax.plot(global_machine_times, gdd['CTRL.idq[1]'])
-        ax.set_ylabel(r'$i_q$ [A]', multialignment='center', fontdict=font)
+        ax.set_ylabel(r'$i_q$ [A]', multialignment='center') #, fontdict=font)
 
         ax = axes[3]
         ax.plot(global_machine_times, gdd['ACM.Tem'])
         ax.plot(global_machine_times, gdd['CTRL.Tem'])
-        ax.set_ylabel(r'Tem [Nm]', multialignment='center', fontdict=font)
+        ax.set_ylabel(r'Tem [Nm]', multialignment='center') #, fontdict=font)
 
         ax = axes[4]
         ax.plot(global_machine_times, gdd['CTRL.uab[0]'])
         ax.plot(global_machine_times, gdd['CTRL.uab[1]'])
-        ax.set_ylabel(r'raw dq votages [V]', multialignment='center', fontdict=font)
+        ax.set_ylabel(r'raw dq votages [V]', multialignment='center') #, fontdict=font)
 
         for ax in axes:
             ax.grid(True)
             for tick in ax.xaxis.get_major_ticks() + ax.yaxis.get_major_ticks():
                 tick.label.set_font(font)
-        axes[-1].set_xlabel('Time [s]', fontdict=font)
+        axes[-1].set_xlabel('Time [s]') #, fontdict=font)
         return fig
-    fig = 图2画图代码(); fig.savefig(f'Shizhou-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
+    fig = 图3画图代码(); fig.savefig(f'Shizhou-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
     plt.show()
