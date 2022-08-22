@@ -56,6 +56,7 @@ plt.style.use('ggplot')
             # name plate data
             ('npp',   int32),
             ('IN',  float64),
+            ('DC_BUS_VOLTAGE', float64),
             # electrical parameters
             ('R',   float64),
             ('Ld',  float64),
@@ -93,6 +94,7 @@ class The_Motor_Controller:
         init_KE = 0.095,
         init_Rreq = -1, # note division by 0 is equal to infinity
         init_Js = 0.0006168,
+        DC_BUS_VOLTAGE = 300,
     ):
         ''' CONTROL '''
         # constants
@@ -146,6 +148,7 @@ class The_Motor_Controller:
         self.KE   = init_KE
         self.Rreq = init_Rreq
         self.Js   = init_Js
+        self.DC_BUS_VOLTAGE = DC_BUS_VOLTAGE
 
         ''' OBSERVER '''
         # feedback / input
@@ -819,7 +822,7 @@ def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None,
     CPU_TICK_PER_SAMPLING_PERIOD = ACM.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD
     DEAD_TIME_AS_COUNT = int(200*0.5e-4*CPU_TICK_PER_SAMPLING_PERIOD) # 200 count for 0--5000--0 counting sequence
     print(t0, 's', 'DEAD_TIME_AS_COUNT =', DEAD_TIME_AS_COUNT)
-    Vdc = 150 # Vdc is assumed measured and known
+    Vdc = CTRL.DC_BUS_VOLTAGE # Vdc is assumed measured and known
     one_over_Vdc = 1/Vdc
     svgen1 = SVgen_Object(CPU_TICK_PER_SAMPLING_PERIOD)
     # print('Vdc, CPU_TICK_PER_SAMPLING_PERIOD, controller_down_sampling_ceiling', Vdc, CPU_TICK_PER_SAMPLING_PERIOD, controller_down_sampling_ceiling)
@@ -1150,7 +1153,8 @@ class Simulation_Benchmark:
                                     init_Lq = d['init_Lq'],
                                     init_KE = d['init_KE'],
                                     init_Rreq = d['init_Rreq'],
-                                    init_Js = d['init_Js'])
+                                    init_Js = d['init_Js'],
+                                    DC_BUS_VOLTAGE = d['DC_BUS_VOLTAGE'])
         CTRL.bool_apply_decoupling_voltages_to_current_regulation = d['CTRL.bool_apply_decoupling_voltages_to_current_regulation']
         CTRL.bool_apply_sweeping_frequency_excitation = d['CTRL.bool_apply_sweeping_frequency_excitation']
         CTRL.bool_overwrite_speed_commands = d['CTRL.bool_overwrite_speed_commands']
@@ -1265,13 +1269,13 @@ if __name__ == '__main__':
         'init_Rreq': 0.0,
         'init_Js': 0.203,
         'CTRL.bool_apply_speed_closed_loop_control': True,
-        'CTRL.bool_apply_decoupling_voltages_to_current_regulation': False,
+        'CTRL.bool_apply_decoupling_voltages_to_current_regulation': True,
         'CTRL.bool_apply_sweeping_frequency_excitation': False,
         'CTRL.bool_overwrite_speed_commands': True,
-        'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 1,  # 500,
+        'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 500,  # 500,
         'DC_BUS_VOLTAGE': 300,
         'FOC_delta': 6.5,
-        'FOC_desired_VLBW_HZ': 40,
+        'FOC_desired_VLBW_HZ': 60,
         'CL_SERIES_KP': None, # 1.61377, # 11.49, # [BW=207.316Hz] # 6.00116,  # [BW=106.6Hz]
         'CL_SERIES_KI': None, # 97.76,
         'VL_SERIES_KP': None, # 0.479932, # 0.445651, # [BW=38.6522Hz] # 0.250665 # [BW=22.2Hz]
@@ -1296,7 +1300,6 @@ if ii < 4:
     CTRL.cmd_rpm = 1200
 else:
     ACM.TLoad = 285
-    # ACM.TLoad = 250
 ''',
 }
     print(f'最大电流上升率 {d["DC_BUS_VOLTAGE"]/1.732/d["init_Lq"]} A/s、最大转速上升率 rpm/s')
@@ -1305,7 +1308,8 @@ else:
     if d['CL_SERIES_KP'] is None:
         import tuner
         tuner.tunner_wrapper(d)
-
+        print(d)
+ 
     # 图1：空载加速
     图 = 1
     sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times
@@ -1342,12 +1346,12 @@ else:
         ax.set_ylabel(r'Tem [Nm]', multialignment='center', fontdict=font)
 
         ax = axes[4]
-        ax.plot(global_machine_times, (gdd['ACM.udq[0]'])) # lpf1_inverter
+        ax.plot(global_machine_times, lpf1_inverter(gdd['ACM.udq[0]'])) # 
         ax.plot(global_machine_times, gdd['CTRL.cmd_udq[0]'])
         ax.set_ylabel(r'd-axis votages [V]', multialignment='center', fontdict=font)
 
         ax = axes[5]
-        ax.plot(global_machine_times, (gdd['ACM.udq[1]'])) # lpf1_inverter
+        ax.plot(global_machine_times, lpf1_inverter(gdd['ACM.udq[1]'])) # 
         ax.plot(global_machine_times, gdd['CTRL.cmd_udq[1]'])
         ax.set_ylabel(r'q-axis votages [V]', multialignment='center', fontdict=font)
 
@@ -1410,12 +1414,12 @@ else:
         ax.set_ylabel(r'Tem [Nm]', multialignment='center', fontdict=font)
 
         ax = axes[4]
-        ax.plot(global_machine_times, (gdd['ACM.udq[0]'])) # lpf1_inverter
+        ax.plot(global_machine_times, lpf1_inverter(gdd['ACM.udq[0]'])) # 
         ax.plot(global_machine_times, gdd['CTRL.cmd_udq[0]'])
         ax.set_ylabel(r'd-axis votages [V]', multialignment='center', fontdict=font)
 
         ax = axes[5]
-        ax.plot(global_machine_times, (gdd['ACM.udq[1]'])) # lpf1_inverter
+        ax.plot(global_machine_times, lpf1_inverter(gdd['ACM.udq[1]'])) # 
         ax.plot(global_machine_times, gdd['CTRL.cmd_udq[1]'])
         ax.set_ylabel(r'q-axis votages [V]', multialignment='center', fontdict=font)
 
