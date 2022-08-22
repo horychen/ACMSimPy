@@ -47,7 +47,7 @@ class ConsoleWindow(QMainWindow):
         self.themes = themes.items
         self.plainTextEdit_ControllerCommands = PyTextEdit(
             text = r'''# Console @ CL_TS
-def controller_commands(t, ACM, CTRL, reg_id=None, reg_iq=None, reg_speed=None):
+def user_controller_commands(t, ACM, CTRL, reg_id=None, reg_iq=None, reg_speed=None):
     # Sweep frequency
     CTRL.bool_overwrite_speed_commands = True
     return

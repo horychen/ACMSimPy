@@ -756,7 +756,7 @@ if __name__ == '__main__':
                 init_Ld = 5e-3,
                 init_Lq = 6e-3,
                 init_KE = 0.095,
-                init_Rreq = -1.0, # PMSM
+                init_Rreq = 0.0, # PMSM
                 # init_Rreq = 1.0, # IM
                 init_Js = 0.0006168)
     CTRL.bool_overwrite_speed_commands = False

@@ -432,9 +432,9 @@ def angle_diff(a,b):
 ############################################# MACHINE SIMULATION SECTION
 @njit(nogil=True)
 def DYNAMICS_MACHINE(t, x, ACM, CLARKE_TRANS_TORQUE_GAIN=1.5):
-    fx = np.zeros(ACM.NS)
+    fx = np.zeros(ACM.NS) # s x = f(x)
 
-    # omega_d_mech = x[0]
+    # theta_d_mech = x[0]
     # omega_r_mech = x[1]
     KA    = x[2]
     iD    = x[3]
@@ -452,7 +452,7 @@ def DYNAMICS_MACHINE(t, x, ACM, CLARKE_TRANS_TORQUE_GAIN=1.5):
         fx[3] = (ACM.udq[0] - ACM.R*iD + ACM.omega_syn*ACM.Lq*iQ - fx[2]) / ACM.Lq # (6a)
     elif ACM.Rreq < 0:
         raise Exception('ACM.Rreq is used to calculate slip so it must be zero for PMSM.')
-    else: 
+    else:
             # note fx[3] * ACM.Lq = ACM.udq[0] - ACM.R*iD + omega*ACM.Lq*iQ - fx[2]
             #  =>  fx[3] * ACM.Lq = ACM.udq[0] - ACM.R*iD + omega*ACM.Lq*iQ - (ACM.Ld - ACM.Lq) * fx[3] - 0.0
             #  =>  fx[3] * ACM.Ld = ACM.udq[0] - ACM.R*iD + omega*ACM.Lq*iQ
@@ -1571,14 +1571,16 @@ print(f'{reg_speed.OutLimit=}')
         ax.set_ylabel(r'Tem [Nm]', multialignment='center') #, fontdict=font)
 
         ax = axes[4]
-        ax.plot(global_machine_times, lpf1_inverter(gdd['ACM.udq[0]'])) # 
-        ax.plot(global_machine_times, gdd['CTRL.cmd_udq[0]'])
+        ax.plot(global_machine_times, lpf1_inverter(gdd['ACM.udq[0]']), label='ACM.uD') # 
+        ax.plot(global_machine_times, gdd['CTRL.cmd_udq[0]'], label='CTRL.uD')
         ax.set_ylabel(r'd-axis votages [V]', multialignment='center') #, fontdict=font)
+        ax.legend(loc=1)
 
         ax = axes[5]
-        ax.plot(global_machine_times, lpf1_inverter(gdd['ACM.udq[1]'])) # 
-        ax.plot(global_machine_times, gdd['CTRL.cmd_udq[1]'])
+        ax.plot(global_machine_times, lpf1_inverter(gdd['ACM.udq[1]']), label='ACM.uQ') # 
+        ax.plot(global_machine_times, gdd['CTRL.cmd_udq[1]'], label='CTRL.uQ')
         ax.set_ylabel(r'q-axis votages [V]', multialignment='center') #, fontdict=font)
+        ax.legend(loc=1)
 
         # ax = axes[6]
         # ax.plot(global_machine_times, gdd['CTRL.uab[0]'])

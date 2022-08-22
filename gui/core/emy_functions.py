@@ -11,8 +11,9 @@ import pandas as pd
 
 # from gui.core.json_settings import Settings
 import simulation.tutorials as acmsimpy2
-# import simulation.tutorials_ep2_full_dynamics as acmsimpy3 # note the slip error with Rreq=-1 exists here
-import simulation.tutorials_ep3_svpwm as acmsimpy
+    # import simulation.tutorials_ep2_full_dynamics as acmsimpy # note the slip error with Rreq=-1 exists here
+    # import simulation.tutorials_ep3_svpwm as acmsimpy
+import simulation.tutorials_ep4_batch_generating_figures as acmsimpy
 
 # 后端
 # use cairo only for acmsimpy | use cairo for acmsimc will slow down plotting
@@ -103,15 +104,16 @@ class THE_CONSOLE:
     reset : int = False
     _pause : int = False
     SAMPLING_RATE : float = 1e4
-    MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD : int = 100
+    MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD : int = 1
     TIME_SLICE : float = 0.2
-    NUMBER_OF_TIME_SLICE_TO_SHOW : int = 10
+    NUMBER_OF_TIME_SLICE_TO_SHOW : int = 5
     bool_exit: int = False
     numba__scope_dict: dict = None
     ii_list: list = None
     def __post_init__(self):
         # self.pause_time = 0.0
         self.CL_TS = 1 / self.SAMPLING_RATE
+        self.MACHINE_TS = self.CL_TS / self.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD
         # self.NUMBER_OF_SAMPLE_TO_SHOW = int(self.NUMBER_OF_TIME_SLICE_TO_SHOW * self.TIME_SLICE * self.SAMPLING_RATE) # old
         self.NUMBER_OF_SAMPLE_TO_SHOW = int(self.NUMBER_OF_TIME_SLICE_TO_SHOW * self.TIME_SLICE * self.SAMPLING_RATE * self.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD) # new
 
@@ -168,7 +170,7 @@ class EmyFunctions(object):
         # This dict d is assigned by the codes filled in the console window.
         d = dict(locals(), **globals())
         exec(mainWindowObject.console_window.plainTextEdit_ControllerCommands.toPlainText(), d, d)
-        CONSOLE.controller_commands = d['controller_commands']
+        CONSOLE.user_controller_commands = d['user_controller_commands']
 
         # print('numba__scope_dict =', numba__scope_dict)
         number_of_subplot = len(numba__scope_dict)
@@ -264,7 +266,8 @@ class EmyFunctions(object):
                 init_Lq = 0.000571,
                 init_KE = 0.188492, # 150 / 1.732 / (450/60*6.28*21)
                 init_Rreq = 0.0, # -1.0, # PMSM
-                init_Js = 0.203)
+                init_Js = 0.203,
+                DC_BUS_VOLTAGE=300)
                 # init_Ld = 5e-3, # PMSM
                 # init_Lq = 6e-3, # PMSM
                 # init_KE =  1.0, # PMSM
@@ -310,10 +313,10 @@ class EmyFunctions(object):
             # start time for the present slice of simulation
             t0 = ii*CONSOLE.TIME_SLICE
 
-            CONSOLE.controller_commands(t0, ACM=ACM, CTRL=CTRL, reg_id=reg_id, reg_iq=reg_iq, reg_speed=reg_speed)
+            CONSOLE.user_controller_commands(t0, ACM=ACM, CTRL=CTRL, reg_id=reg_id, reg_iq=reg_iq, reg_speed=reg_speed)
 
             # Run one slice of simulation
-            control_times, numba__waveforms_dict = acmsimpy.ACMSimPyWrapper(
+            machine_times, numba__waveforms_dict = acmsimpy.ACMSimPyWrapper(
                 CONSOLE.numba__scope_dict,
                 t0=t0, TIME=CONSOLE.TIME_SLICE,
                 ACM=ACM,
@@ -322,7 +325,7 @@ class EmyFunctions(object):
                 reg_iq=reg_iq,
                 reg_speed=reg_speed,
             )
-            end_time = control_times[-1] # print('\tend_time:', end_time)
+            end_time = machine_times[-1] # print('\tend_time:', end_time)
             # progress_callback.emit([t0, numba__waveforms_dict, end_time])
 
             """ update matplotlib artist """
@@ -409,7 +412,7 @@ class EmyFunctions(object):
             t0 = ii*CONSOLE.TIME_SLICE
 
             # Run one slice of simulation
-            control_times, numba__waveforms_dict, = acmsimpy.ACMSimPyWrapper(
+            machine_times, numba__waveforms_dict, = acmsimpy.ACMSimPyWrapper(
                 CONSOLE.numba__scope_dict,
                 t0=t0, TIME=CONSOLE.TIME_SLICE,
                 ACM=ACM,
@@ -418,7 +421,7 @@ class EmyFunctions(object):
                 reg_iq=reg_iq,
                 reg_speed=reg_speed,
             )
-            end_time = control_times[-1] # print('\tend_time:', end_time)
+            end_time = machine_times[-1] # print('\tend_time:', end_time)
             # progress_callback.emit([t0, numba__waveforms_dict, end_time])
 
             """ update matplotlib artist """
@@ -570,7 +573,8 @@ class EmyFunctions(object):
         line.MIN = min(line.ydata) if min(line.ydata) < line.MIN else line.MIN
         line.MAX = max(line.ydata) if max(line.ydata) > line.MAX else line.MAX
 
-        xdata = np.arange(end_time*CONSOLE.SAMPLING_RATE-len(line.ydata), end_time*CONSOLE.SAMPLING_RATE, 1) * CONSOLE.CL_TS # 整数代替浮点数，精度高否则会出现xdata长3001，ydata长3000的问题。
+        xdata = np.arange(end_time*CONSOLE.SAMPLING_RATE*CONSOLE.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD-len(line.ydata),
+                          end_time*CONSOLE.SAMPLING_RATE*CONSOLE.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD, 1) * CONSOLE.MACHINE_TS # 整数代替浮点数，精度高否则会出现xdata长3001，ydata长3000的问题。
         # print(len(xdata),len(line.ydata))
         line.set_data(xdata, line.ydata)
 
