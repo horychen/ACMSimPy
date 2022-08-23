@@ -12,4 +12,4 @@
 
 ## Examples (incoming)
 
-![Example 1](https://github.com/horychen/ACMSimPy/blob/numba_demo_fulldynamics_svpwm/gui/images/svg_images/Example01.jpg?raw=true)
+![Example 1](https://github.com/horychen/ACMSimPy/blob/numba_demo_fulldynamics_svpwm/gui/images/Example01.jpg?raw=true)
