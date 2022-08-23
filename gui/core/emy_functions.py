@@ -129,7 +129,7 @@ class EmyFunctions(object):
                 f.write(the_cmd)
             numba__scope_dict = eval(the_cmd[the_cmd.find('OD'):])
 
-            # Add white space between operators and variable names
+            # Add white space between operators and variable names (which is needed for decoding for simple math operations)
             # print('BEFORE', numba__scope_dict)
             for key, expressions in numba__scope_dict.items():
                 corrected_expressions = []
@@ -250,50 +250,56 @@ class EmyFunctions(object):
         CONSOLE = mainWindowObject.CONSOLE
 
         """ Simulation Globals """
-        CTRL = mainWindowObject.CTRL = acmsimpy.The_Motor_Controller(CONSOLE.CL_TS, 5*CONSOLE.CL_TS,
-                # init_npp = 4,
-                # init_IN = 3,
-                # init_R = 1.1,
-                # init_Ld = 5e-3,
-                # init_Lq = 6e-3,
-                # init_KE = 0.095,
-                # init_Rreq = 0.0, # note division by 0 is equal to infinity
-                # init_Js = 0.0006168)
-                init_npp = 21,
-                init_IN = 72/1.414,
-                init_R = 0.1222,
-                init_Ld = 0.000502,
-                init_Lq = 0.000571,
-                init_KE = 0.188492, # 150 / 1.732 / (450/60*6.28*21)
-                init_Rreq = 0.0, # -1.0, # PMSM
-                init_Js = 0.203,
-                DC_BUS_VOLTAGE=300)
-                # init_Ld = 5e-3, # PMSM
-                # init_Lq = 6e-3, # PMSM
-                # init_KE =  1.0, # PMSM
-                # init_Rreq = 0.0, # PMSM
-                # # init_Ld = 440e-3, # IM
-                # # init_Lq = 25e-3, # IM
-                # # init_KE = 0.0, # IM
-                # # init_Rreq = 1.0, # IM
-                # init_Js = 0.0006168)
-        ACM       = mainWindowObject.ACM       = acmsimpy.The_AC_Machine(CTRL, CONSOLE.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD)
-
-        # POLE = 200
-        # KP = 2 * POLE
-        # KI = 1 * POLE**2 / KP
-        # # reg_id  = mainWindowObject.reg_id    = acmsimpy.The_PI_Regulator(KP, KP*KI*CTRL.CL_TS, 400) #(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
-        # # reg_iq  = mainWindowObject.reg_iq    = acmsimpy.The_PI_Regulator(KP, KP*KI*CTRL.CL_TS, 400) #(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
-        # reg_id    = mainWindowObject.reg_id    = acmsimpy.The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
-        # reg_iq    = mainWindowObject.reg_iq    = acmsimpy.The_PI_Regulator(6.39955, 6.39955*237.845*CTRL.CL_TS, 600)
-        # POLE = 10
-        # KP = 2 * POLE
-        # KI = 1 * POLE**2 / KP
-        # reg_speed = mainWindowObject.reg_speed = acmsimpy.The_PI_Regulator(KP, KP*KI*CTRL.VL_TS, 100*1.414*ACM.IN)
-
-        reg_id    = mainWindowObject.reg_id    = acmsimpy.The_PI_Regulator(0.737168, 0.737168*214.011*CTRL.CL_TS, 150/1.732)
-        reg_iq    = mainWindowObject.reg_iq    = acmsimpy.The_PI_Regulator(0.737168, 0.737168*214.011*CTRL.CL_TS, 150/1.732)
-        reg_speed = mainWindowObject.reg_speed = acmsimpy.The_PI_Regulator(0.323363, 0.323363*30.5565*CTRL.VL_TS, 1*1.414*ACM.IN)
+        d = d_user_input = {
+            'CL_TS': 1e-4,
+            'TIME_SLICE': 0.1,
+            'NUMBER_OF_SLICES': 9,
+            'VL_EXE_PER_CL_EXE': 5,
+            'init_npp': 21,
+            'init_IN': 72/1.414,
+            'init_R': 0.1222,
+            'init_Ld': 0.0011, # 0.007834, # 0.000502, # 4*0.000502, # 
+            'init_Lq': 0.00125, # 0.0089, # 0.000571, # 4*0.000571, # 
+            'init_KE': 0.127, # 150 / 1.732 / (450/60*6.28*21), # 285 / 1.5 / 72 / 21,
+            # 'init_KE': 0.087559479, # 150 / ((450/60*6.28*21) * 1.732)
+            'init_Rreq': 0.0,
+            'init_Js': 0.203,
+            'CTRL.bool_apply_speed_closed_loop_control': True,
+            'CTRL.bool_apply_decoupling_voltages_to_current_regulation': True,
+            'CTRL.bool_apply_sweeping_frequency_excitation': False,
+            'CTRL.bool_overwrite_speed_commands': True,
+            'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 500,  # 500,
+            'DC_BUS_VOLTAGE': 300,
+            'FOC_delta': 6.5,
+            'FOC_desired_VLBW_HZ': 60,
+            'CL_SERIES_KP': None, # 1.61377, # 11.49, # [BW=207.316Hz] # 6.00116,  # [BW=106.6Hz]
+            'CL_SERIES_KI': None, # 97.76,
+            'VL_SERIES_KP': None, # 0.479932, # 0.445651, # [BW=38.6522Hz] # 0.250665 # [BW=22.2Hz]
+            'VL_SERIES_KI': None, # 30.5565,
+            'VL_LIMIT_OVERLOAD_FACTOR': 1,
+            'user_interested_ylabels': [r'Speed [rpm]',
+                                        r'Torque [Nm]',
+                                        r'K_{\rm Active} [A]',
+                                        r'$d$-axis current [A]',
+                                        r'Position [rad]',
+                                        r'Load torque [Nm]',
+                                        r'CTRL.iD [A]',
+                                        r'CTRL.iQ [A]',
+                                        r'CTRL.uab [V]',
+                                        r'S [1]',
+                                        r'$q$-axis voltage [V]',
+                                        r'$d$-axis voltage [V]',
+                                        r'Speed Out Limit [A]',
+                                        ],
+            'user_system_input_code': '''
+if ii < 4:
+    CTRL.cmd_idq[0] = -60
+    CTRL.cmd_rpm = 1200
+else:
+    ACM.TLoad = 285
+''',
+}
+        CTRL, ACM, reg_id, reg_iq, reg_speed = acmsimpy.Simulation_Benchmark(d).get_global_objects()
 
         """ Simulation Globals Access from Console """
         if mainWindowObject.console_window is not None:
@@ -353,7 +359,7 @@ class EmyFunctions(object):
             # mainWindowObject.ui.MplWidget_ACMPlot.canvas.flush_events() # flush any pending GUI events, re-painting the screen if needed
 
             progress_callback.emit(t0)
-            if CONSOLE.SAMPLING_RATE * CONSOLE.TIME_SLICE < 1e4*0.5:
+            if CONSOLE.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD * CONSOLE.SAMPLING_RATE * CONSOLE.TIME_SLICE < 1e4*0.5:
                 plt.pause(0.2) # avoid to call canvas.draw too frequently.
             while CONSOLE._pause:
                 plt.pause(0.2)

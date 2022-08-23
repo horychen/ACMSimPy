@@ -42,6 +42,7 @@ plt.style.use('ggplot')
             ('use_disturbance_feedforward_rejection', int32),
             ('bool_apply_decoupling_voltages_to_current_regulation', int32),
             ('bool_apply_speed_closed_loop_control', int32),
+            ('bool_zero_id_control', int32),
             # commands (sweep freuqency)
             ('bool_apply_sweeping_frequency_excitation', int32),
             ('bool_overwrite_speed_commands', int32),
@@ -129,6 +130,7 @@ class The_Motor_Controller:
         self.use_disturbance_feedforward_rejection = 0
         self.bool_apply_decoupling_voltages_to_current_regulation = False
         self.bool_apply_speed_closed_loop_control = True
+        self.bool_zero_id_control = True
         # sweep frequency
         self.bool_apply_sweeping_frequency_excitation = False
         self.bool_overwrite_speed_commands = False
@@ -532,8 +534,8 @@ def incremental_pi(reg):
 
 @njit(nogil=True)
 def FOC(CTRL, reg_speed, reg_id, reg_iq):
-    reg_speed.Ref = CTRL.cmd_rpm / 60 * 2*np.pi * CTRL.npp # [elec.rad]
-    reg_speed.Fbk = CTRL.omega_r_elec # [elec.rad]
+    reg_speed.Ref = CTRL.cmd_rpm / 60 * 2*np.pi * CTRL.npp # [elec.rad/s]
+    reg_speed.Fbk = CTRL.omega_r_elec # [elec.rad/s]
     CTRL.velocity_loop_counter += 1
     if CTRL.velocity_loop_counter >= CTRL.velocity_loop_ceiling:
         CTRL.velocity_loop_counter = 0
@@ -551,25 +553,29 @@ def FOC(CTRL, reg_speed, reg_id, reg_iq):
     else:
         CTRL.omega_slip = 0.0
 
-        # Field weakening control (simple)
-                                    # 电气转折速度 = CTRL.DC_BUS_VOLTAGE/1.732 / CTRL.KA * 0.7
-                                    # print('Turning point', 电气转折速度 * 60 / (2*np.pi * CTRL.npp), 'r/min')
-                                    # if CTRL.omega_r_elec > 电气转折速度:
-                                    #     # 计算弱磁电流
-                                    #     下一弱磁速度增量 = 10 / 60 * 2*np.pi * CTRL.npp
-                                    #     CTRL.cmd_idq[0] = - (CTRL.KE - 电气转折速度 / (CTRL.omega_r_elec + 下一弱磁速度增量)) / (CTRL.Ld - CTRL.Lq)
-                                    #     # 修改速度环输出限幅
-                                    #     reg_speed.OutLimit = np.sqrt((CTRL.IN*1.414)**2 - CTRL.cmd_idq[0]**2)
-                                    #     print(f'{reg_speed.OutLimit=}')
-        当前速度 = CTRL.omega_r_elec*60/(2*np.pi*CTRL.npp)
-        if 当前速度 < 450:
+        if CTRL.bool_zero_id_control == True:
             CTRL.cmd_idq[0] = 0
-        elif 当前速度 < 1000:
-            CTRL.cmd_idq[0] = (当前速度 - 450) / (1000 - 450) * -60
         else:
-            CTRL.cmd_idq[0] = -60
-        if CTRL.IN*1.414 > CTRL.cmd_idq[0]:
-            reg_speed.OutLimit = np.sqrt((CTRL.IN*1.414)**2 - CTRL.cmd_idq[0]**2)
+            # Field weakening control (simple)
+                # 电气转折速度 = CTRL.DC_BUS_VOLTAGE/1.732 / CTRL.KA * 0.7
+                # print('Turning point', 电气转折速度 * 60 / (2*np.pi * CTRL.npp), 'r/min')
+                # if CTRL.omega_r_elec > 电气转折速度:
+                #     # 计算弱磁电流
+                #     下一弱磁速度增量 = 10 / 60 * 2*np.pi * CTRL.npp
+                #     CTRL.cmd_idq[0] = - (CTRL.KE - 电气转折速度 / (CTRL.omega_r_elec + 下一弱磁速度增量)) / (CTRL.Ld - CTRL.Lq)
+                #     # 修改速度环输出限幅
+                #     reg_speed.OutLimit = np.sqrt((CTRL.IN*1.414)**2 - CTRL.cmd_idq[0]**2)
+                #     print(f'{reg_speed.OutLimit=}')
+            当前速度 = CTRL.omega_r_elec*60/(2*np.pi*CTRL.npp)
+            MAX_DEMAG_CURRENT = 60
+            if 当前速度 < 450:
+                CTRL.cmd_idq[0] = 0
+            elif 当前速度 < 1000:
+                CTRL.cmd_idq[0] = (当前速度 - 450) / (1000 - 450) * -MAX_DEMAG_CURRENT
+            else:
+                CTRL.cmd_idq[0] = -MAX_DEMAG_CURRENT
+            if CTRL.IN*1.414 > CTRL.cmd_idq[0]:
+                reg_speed.OutLimit = np.sqrt((CTRL.IN*1.414)**2 - CTRL.cmd_idq[0]**2)
 
     CTRL.omega_syn = CTRL.omega_r_elec + CTRL.omega_slip
 
@@ -833,6 +839,22 @@ def gate_signal_generator(ii, v, CPU_TICK_PER_SAMPLING_PERIOD, DEAD_TIME_AS_COUN
 ############################################# Wrapper level 1 (Main simulation | Incremental Edition)
 """ MAIN for Real-time simulation """
 @njit(nogil=True)
+def vehicel_load_model(t, ACM):
+    EVM=1500    #####(车身质量)
+    EVA=2.5     ####(迎风面积)
+    EVCD=0.37   #####(风阻系数)
+    EVF=0.015   #####(摩擦系数)
+    EVR=0.297   #####(车轮转动半径)
+    grav=9.8    #####(重力加速度g)
+    VEV=ACM.omega_r_mech*60*EVR*60*1e-3   ####车速
+    # VEV=60               ##### 暂时车速
+    FW=EVCD*EVA*VEV*VEV/21.15    ##### 风阻
+    FF=EVM*grav*EVF              ##### 滚阻
+    FLoad=(FW+FF)*0.5            ##### 单侧阻力负载
+    ACM.TLoad=FLoad*EVR          ##### 单侧转矩负载
+    ACM.Js = EVJ = EVM*EVR*EVR*0.25  ##### 单轮等效转动惯量
+
+@njit(nogil=True)
 def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None, reg_speed=None):
 
     # RK4 simulation and controller execution relative freuqencies
@@ -863,6 +885,7 @@ def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None,
 
         """ Machine Simulation @ MACHINE_TS """
         # Numerical Integration (ode4) with 5 states
+        vehicel_load_model(t, ACM)
         RK4_MACHINE(t, ACM, hs=MACHINE_TS)
 
         """ Machine Simulation Output @ MACHINE_TS """
@@ -1057,6 +1080,8 @@ def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None,
 
         watch_data[40][watch_index] = reg_speed.OutLimit
 
+        watch_data[41][watch_index] = ACM.TLoad
+
         watch_index += 1
 
     # return machine_times, watch_data # old
@@ -1108,6 +1133,7 @@ _Unit_Watch_Mapping = [
     '[V]=CTRL.cmd_udq[0]',
     '[V]=CTRL.cmd_udq[1]',
     '[A]=reg_speed.OutLimit',
+    '[Nm]=ACM.TLoad',
 ]
 Watch_Mapping = [el[el.find('=')+1:] for el in _Unit_Watch_Mapping] # remove units before "="
 
@@ -1164,9 +1190,43 @@ def ACMSimPyWrapper(numba__scope_dict, *arg, **kwarg):
 
 
 ############################################# Wrapper level 3 (User Interface)
+from collections import OrderedDict as OD
 class Simulation_Benchmark:
     def __init__(self, d):
 
+        self.d = d
+
+        # Auto-tuning PI
+        if d['CL_SERIES_KP'] is None:
+            import tuner
+            tuner.tunner_wrapper(d)
+            print(f'{d=}')
+
+        # 这个字典决定你要画的波形是哪些信号，具体能用的信号见：_Watch_Mapping
+        # 允许信号之间进行简单的加减乘除，比如：'CTRL.cmd_rpm - CTRL.omega_r_mech'
+        numba__scope_dict = OD([
+            # Y Labels                        Signal Name of Traces
+            (r'Speed Out Limit [A]',          ( 'reg_speed.OutLimit'                                ,) ),
+            (r'$q$-axis voltage [V]',         ( 'ACM.udq[1]', 'CTRL.cmd_udq[1]'                     ,) ),
+            (r'$d$-axis voltage [V]',         ( 'ACM.udq[0]', 'CTRL.cmd_udq[0]'                     ,) ),
+            (r'Torque [Nm]',                  ( 'ACM.Tem', 'CTRL.Tem'                               ,) ),
+            (r'Speed [rpm]',                  ( 'CTRL.cmd_rpm', 'CTRL.omega_r_mech', 'CTRL.xS[1]'   ,) ),
+            (r'Speed Error [rpm]',            ( 'CTRL.cmd_rpm - CTRL.omega_r_mech'                  ,) ),
+            (r'Position [rad]',               ( 'ACM.theta_d', 'CTRL.theta_d', 'CTRL.xS[0]'         ,) ),
+            (r'Position mech [rad]',          ( 'ACM.theta_d'                                       ,) ),
+            (r'$q$-axis current [A]',         ( 'ACM.iQ', 'CTRL.cmd_idq[1]'                         ,) ),
+            (r'$d$-axis current [A]',         ( 'ACM.iD', 'CTRL.cmd_idq[0]'                         ,) ),
+            (r'K_{\rm Active} [A]',           ( 'ACM.KA', 'CTRL.KA'                                 ,) ),
+            (r'Load torque [Nm]',             ( 'ACM.TLoad', 'CTRL.xS[2]'                           ,) ),
+            (r'CTRL.iD [A]',                  ( 'CTRL.cmd_idq[0]', 'CTRL.idq[0]'                    ,) ),
+            (r'CTRL.iQ [A]',                  ( 'CTRL.cmd_idq[1]', 'CTRL.idq[1]'                    ,) ),
+            (r'CTRL.uab [V]',                 ( 'CTRL.uab[0]', 'CTRL.uab[1]'                        ,) ),
+            (r'S [1]',                        ( 'svgen1.S1', 'svgen1.S2', 'svgen1.S3', 'svgen1.S4', 'svgen1.S5', 'svgen1.S6' ,) ),
+        ])
+
+        self.start_simulation_slices(d, numba__scope_dict)
+
+    def get_global_objects(self):
         # init
         CTRL = The_Motor_Controller(CL_TS = d['CL_TS'],
                                     VL_TS = d['VL_EXE_PER_CL_EXE']*d['CL_TS'],
@@ -1182,33 +1242,19 @@ class Simulation_Benchmark:
         CTRL.bool_apply_decoupling_voltages_to_current_regulation = d['CTRL.bool_apply_decoupling_voltages_to_current_regulation']
         CTRL.bool_apply_sweeping_frequency_excitation = d['CTRL.bool_apply_sweeping_frequency_excitation']
         CTRL.bool_overwrite_speed_commands = d['CTRL.bool_overwrite_speed_commands']
+        CTRL.bool_zero_id_control = d['CTRL.bool_zero_id_control']
         ACM       = The_AC_Machine(CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=d['MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD'])
         reg_id    = The_PI_Regulator(d['CL_SERIES_KP'], d['CL_SERIES_KP']*d['CL_SERIES_KI']*CTRL.CL_TS, d['DC_BUS_VOLTAGE']/1.732) # 我们假设调制方式是SVPWM，所以母线电压就是输出电压的线电压最大值，而我们用的是恒相幅值变换，所以限幅是相电压。
         reg_iq    = The_PI_Regulator(d['CL_SERIES_KP'], d['CL_SERIES_KP']*d['CL_SERIES_KI']*CTRL.CL_TS, d['DC_BUS_VOLTAGE']/1.732) # 我们假设调制方式是SVPWM，所以母线电压就是输出电压的线电压最大值，而我们用的是恒相幅值变换，所以限幅是相电压。
         reg_speed = The_PI_Regulator(d['VL_SERIES_KP'], d['VL_SERIES_KP']*d['VL_SERIES_KI']*CTRL.VL_TS, d['VL_LIMIT_OVERLOAD_FACTOR']*1.414*d['init_IN']) # IN 是线电流有效值，我们这边限幅是用的电流幅值。
 
-        # 这个字典决定你要画的波形是哪些信号，具体能用的信号见：_Watch_Mapping
-        # 允许信号之间进行简单的加减乘除，比如：'CTRL.cmd_rpm - CTRL.omega_r_mech'
-        from collections import OrderedDict as OD
-        numba__scope_dict = OD([
-            # Y Labels                        Signal Name of Traces
-            (r'Speed Out Limit [A]',          ( 'reg_speed.OutLimit'                                ,) ),
-            (r'$q$-axis voltage [V]',         ( 'ACM.udq[1]', 'CTRL.cmd_udq[1]'                     ,) ),
-            (r'$d$-axis voltage [V]',         ( 'ACM.udq[0]', 'CTRL.cmd_udq[0]'                     ,) ),
-            (r'Torque [Nm]',                  ( 'ACM.Tem', 'CTRL.Tem'                               ,) ),
-            (r'Speed [rpm]',                  ( 'CTRL.cmd_rpm', 'CTRL.omega_r_mech', 'CTRL.xS[1]'   ,) ),
-            (r'Speed Error [rpm]',            ( 'CTRL.cmd_rpm - CTRL.omega_r_mech'                  ,) ),
-            (r'Position [rad]',               ( 'ACM.theta_d', 'CTRL.theta_d', 'CTRL.xS[0]'         ,) ),
-            (r'Position mech [rad]',          ( 'ACM.theta_d'                                       ,) ),
-            (r'$q$-axis current [A]',         ( 'ACM.iQ', 'CTRL.cmd_idq[1]'                         ,) ),
-            (r'$d$-axis current [A]',         ( 'ACM.iD', 'CTRL.cmd_idq[0]'                         ,) ),
-            (r'K_{\rm Active} [A]',           ( 'ACM.KA', 'CTRL.KA'                                 ,) ),
-            (r'Load torque [Nm]',             ( 'CTRL.xS[2]'                                        ,) ),
-            (r'CTRL.iD [A]',                  ( 'CTRL.cmd_idq[0]', 'CTRL.idq[0]'                    ,) ),
-            (r'CTRL.iQ [A]',                  ( 'CTRL.cmd_idq[1]', 'CTRL.idq[1]'                    ,) ),
-            (r'CTRL.uab [V]',                 ( 'CTRL.uab[0]', 'CTRL.uab[1]'                        ,) ),
-            (r'S [1]',                        ( 'svgen1.S1', 'svgen1.S2', 'svgen1.S3', 'svgen1.S4', 'svgen1.S5', 'svgen1.S6' ,) ),
-        ])
+        return CTRL, ACM, reg_id, reg_iq, reg_speed
+
+    def start_simulation_slices(self, d, numba__scope_dict):
+
+        global_objects = self.get_global_objects()
+        self.CTRL, self.ACM, self.reg_id, self.reg_iq, self.reg_speed = CTRL, ACM, reg_id, reg_iq, reg_speed = global_objects
+
         max_number_of_traces = 0
         for ylabel, trace_names in numba__scope_dict.items():
             for name in trace_names:
@@ -1226,6 +1272,7 @@ class Simulation_Benchmark:
         # init global data arrays for plotting
         global_arrays = [None] * user_number_of_traces
         global_machine_times = None
+
         def save_to_global(_global, _local):
             return _local if _global is None else np.append(_global, _local)
 
@@ -1263,7 +1310,8 @@ class Simulation_Benchmark:
         gdd = global_data_dict = OD()
         for name, array in zip(global_trace_names, global_arrays):
             global_data_dict[name] = array
-        print(gdd.keys())
+
+        print(f'{gdd.keys()=}')
 
         self.global_machine_times = global_machine_times
         self.gdd = gdd
@@ -1272,7 +1320,7 @@ def lpf1_inverter(array):
     y_tminus1 = 0.0
     new_array = []
     for x in array:
-        new_x = y_tminus1 + 0.00020828993959591752 * (x - y_tminus1)
+        new_x = y_tminus1 + 5* 0.00020828993959591752 * (x - y_tminus1)
         y_tminus1 = new_x
         new_array.append(y_tminus1)
     return new_array
@@ -1281,8 +1329,8 @@ if __name__ == '__main__':
     # User input:
     d = d_user_input = {
         'CL_TS': 1e-4,
-        'TIME_SLICE': 0.1,
-        'NUMBER_OF_SLICES': 9,
+        'TIME_SLICE': 0.2,
+        'NUMBER_OF_SLICES': 20,
         'VL_EXE_PER_CL_EXE': 5,
         'init_npp': 21,
         'init_IN': 72/1.414,
@@ -1290,14 +1338,14 @@ if __name__ == '__main__':
         'init_Ld': 0.0011, # 0.007834, # 0.000502, # 4*0.000502, # 
         'init_Lq': 0.00125, # 0.0089, # 0.000571, # 4*0.000571, # 
         'init_KE': 0.127, # 150 / 1.732 / (450/60*6.28*21), # 285 / 1.5 / 72 / 21,
-        # 'init_KE': 0.087559479, # 150 / ((450/60*6.28*21) * 1.732)
         'init_Rreq': 0.0,
         'init_Js': 0.203,
         'CTRL.bool_apply_speed_closed_loop_control': True,
         'CTRL.bool_apply_decoupling_voltages_to_current_regulation': True,
         'CTRL.bool_apply_sweeping_frequency_excitation': False,
         'CTRL.bool_overwrite_speed_commands': True,
-        'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 500,  # 500,
+        'CTRL.bool_zero_id_control': False,
+        'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 500,
         'DC_BUS_VOLTAGE': 300,
         'FOC_delta': 6.5,
         'FOC_desired_VLBW_HZ': 60,
@@ -1323,19 +1371,12 @@ if __name__ == '__main__':
         'user_system_input_code': '''
 if ii < 4:
     CTRL.cmd_idq[0] = -60
-    CTRL.cmd_rpm = 1200
+    CTRL.cmd_rpm = 1500
 else:
     ACM.TLoad = 285
 ''',
 }
     print(f'最大电流上升率 {d["DC_BUS_VOLTAGE"]/1.732/d["init_Lq"]} A/s、最大转速上升率 rpm/s')
-
-    # Auto-tuning PI
-    if d['CL_SERIES_KP'] is None:
-        import tuner
-        tuner.tunner_wrapper(d)
-        print(f'{d=}')
- 
 
 
     图 = 1 # 空载加速、加载
@@ -1526,23 +1567,92 @@ else:
 
 
 
-
     图 = 4 # 弱磁控制
-    d['user_system_input_code'] = '''
+    if False:
+        d['user_system_input_code'] = '''
 if ii < 5:
-    CTRL.cmd_rpm = 1200
+    CTRL.cmd_rpm = 2000
 else:
     ACM.TLoad = 100
 print(f'{reg_speed.OutLimit=}')
-'''
+    '''
+        sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times
+        def 图4画图代码():
+            plt.style.use('classic')
+            plt.rcParams['mathtext.fontset'] = 'stix'
+            mpl.rc('font', family='Times New Roman', size=14.0)
+            mpl.rc('legend', fontsize=8)
+
+            fig, axes = plt.subplots(nrows=6, ncols=1, dpi=150, facecolor='w', figsize=(8,6), sharex=True)
+
+            ax = axes[0]
+            ax.plot(global_machine_times, gdd['CTRL.cmd_rpm'], label=r'$\omega_r^*$')
+            ax.plot(global_machine_times, gdd['CTRL.omega_r_mech'], label=r'$\omega_r$')
+            ax.set_ylabel(r'Speed [r/min]', multialignment='center') #) #, fontdict=font)
+            # ax.legend(loc=2, prop={'size': 6})
+            # ax.legend(loc=2, fontsize=6)
+
+            ax = axes[1]
+            ax.plot(global_machine_times, gdd['CTRL.cmd_idq[0]'], label=r'$i_d^*$')
+            ax.plot(global_machine_times, gdd['CTRL.idq[0]'], label=r'$i_d$')
+            # ax.plot(global_machine_times, gdd['ACM.iD'])
+            ax.set_ylabel(r'$i_d$ [A]', multialignment='center') #, fontdict=font)
+            # ax.legend(loc=2)
+
+            ax = axes[2]
+            ax.plot(global_machine_times, gdd['CTRL.cmd_idq[1]'], label=r'$i_q^*$')
+            ax.plot(global_machine_times, gdd['CTRL.idq[1]'], label=r'$i_q$')
+            ax.plot(global_machine_times, gdd['reg_speed.OutLimit'], label=r'max~$i_q$')
+            ax.set_ylabel(r'$i_q$ [A]', multialignment='center') #, fontdict=font)
+            ax.legend(loc=1)
+
+            ax = axes[3]
+            ax.plot(global_machine_times, gdd['ACM.Tem'])
+            ax.plot(global_machine_times, gdd['CTRL.Tem'])
+            ax.set_ylabel(r'Tem [Nm]', multialignment='center') #, fontdict=font)
+
+            ax = axes[4]
+            ax.plot(global_machine_times, lpf1_inverter(gdd['ACM.udq[0]']), label='ACM.uD') # 
+            ax.plot(global_machine_times, gdd['CTRL.cmd_udq[0]'], label='CTRL.uD')
+            ax.set_ylabel(r'd-axis votages [V]', multialignment='center') #, fontdict=font)
+            ax.legend(loc=1)
+
+            ax = axes[5]
+            ax.plot(global_machine_times, lpf1_inverter(gdd['ACM.udq[1]']), label='ACM.uQ') # 
+            ax.plot(global_machine_times, gdd['CTRL.cmd_udq[1]'], label='CTRL.uQ')
+            ax.set_ylabel(r'q-axis votages [V]', multialignment='center') #, fontdict=font)
+            ax.legend(loc=1)
+
+            # ax = axes[6]
+            # ax.plot(global_machine_times, gdd['CTRL.uab[0]'])
+            # ax.plot(global_machine_times, gdd['CTRL.uab[1]'])
+            # ax.set_ylabel(r'raw dq votages [V]', multialignment='center') #, fontdict=font)
+
+            for ax in axes:
+                ax.grid(True)
+                # for tick in ax.xaxis.get_major_ticks() + ax.yaxis.get_major_ticks():
+                #     tick.label.set_font(font)
+            axes[-1].set_xlabel('Time [s]') #, fontdict=font)
+            return fig
+        fig = 图4画图代码(); fig.savefig(f'Shizhou-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
+
+        print(sim1.ACM.Ld, sim1.ACM.Lq)
+
+
+    图 = 5 # 车辆测试
+    d['TIME_SLICE'] = 1
+    d['NUMBER_OF_SLICES'] = 40
+    d['init_Js'] = 33
+    d['MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD'] = 1
+    d['user_system_input_code'] = '''CTRL.cmd_rpm = 1500'''
     sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times
-    def 图4画图代码():
+    def 图5画图代码():
         plt.style.use('classic')
         plt.rcParams['mathtext.fontset'] = 'stix'
         mpl.rc('font', family='Times New Roman', size=14.0)
         mpl.rc('legend', fontsize=8)
 
-        fig, axes = plt.subplots(nrows=6, ncols=1, dpi=150, facecolor='w', figsize=(8,6), sharex=True)
+        fig, axes = plt.subplots(nrows=7, ncols=1, dpi=150, facecolor='w', figsize=(8,6), sharex=True)
 
         ax = axes[0]
         ax.plot(global_machine_times, gdd['CTRL.cmd_rpm'], label=r'$\omega_r^*$')
@@ -1582,6 +1692,10 @@ print(f'{reg_speed.OutLimit=}')
         ax.set_ylabel(r'q-axis votages [V]', multialignment='center') #, fontdict=font)
         ax.legend(loc=1)
 
+        ax = axes[6]
+        ax.plot(global_machine_times, gdd['ACM.TLoad'])
+        ax.set_ylabel(r'$T_L$ [Nm]', multialignment='center') #, fontdict=font)
+
         # ax = axes[6]
         # ax.plot(global_machine_times, gdd['CTRL.uab[0]'])
         # ax.plot(global_machine_times, gdd['CTRL.uab[1]'])
@@ -1593,10 +1707,7 @@ print(f'{reg_speed.OutLimit=}')
             #     tick.label.set_font(font)
         axes[-1].set_xlabel('Time [s]') #, fontdict=font)
         return fig
-    fig = 图4画图代码(); fig.savefig(f'Shizhou-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
-
-
-
+    fig = 图5画图代码(); fig.savefig(f'Shizhou-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
 
 
     plt.show()
