@@ -106,16 +106,16 @@ class THE_CONSOLE:
     # offset_anime_ii : int = 0
     reset : int = False
     _pause : int = False
-    SAMPLING_RATE : float = 1e4
-    MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD : int = 1
-    TIME_SLICE : float = 0.2
-    NUMBER_OF_TIME_SLICE_TO_SHOW : int = 5
     bool_exit: int = False
     ii_list: list = None
     def __post_init__(self):
-        # self.pause_time = 0.0
-        self.CL_TS = 1 / self.SAMPLING_RATE
+        self.TIME_SLICE = self.d_user_input_motor_dict['TIME_SLICE']
+        self.NUMBER_OF_TIME_SLICE_TO_SHOW = self.d_user_input_motor_dict['NUMBER_OF_SLICES']
+        self.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD = self.d_user_input_motor_dict['MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD']
+        self.CL_TS = self.d_user_input_motor_dict['CL_TS']
+        self.SAMPLING_RATE = 1/self.CL_TS
         self.MACHINE_TS = self.CL_TS / self.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD
+        # self.pause_time = 0.0
         # self.NUMBER_OF_SAMPLE_TO_SHOW = int(self.NUMBER_OF_TIME_SLICE_TO_SHOW * self.TIME_SLICE * self.SAMPLING_RATE) # old
         self.NUMBER_OF_SAMPLE_TO_SHOW = int(self.NUMBER_OF_TIME_SLICE_TO_SHOW * self.TIME_SLICE * self.SAMPLING_RATE * self.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD) # new
 
@@ -211,9 +211,9 @@ class EmyFunctions(object):
         for index, (ylabel, waveform_names) in enumerate(numba__scope_dict.items()):
             # get axes
             ax = mainWindowObject.ui.MplWidget_ACMPlot.canvas.figure.add_subplot(
-                number_of_subplot, 
-                1, 1+index, 
-                autoscale_on=False, 
+                number_of_subplot,
+                1, 1+index,
+                autoscale_on=False,
                 sharex=first_ax
             )
             first_ax = ax if index == 0 else first_ax
@@ -223,11 +223,11 @@ class EmyFunctions(object):
             for jj, name in enumerate(waveform_names):
                 # print(jj, name)
                 # get line objects
-                line, = ax.plot([], [], 
-                                linestyle=cjh_plotting.cjh_linestyles[jj], 
-                                color=cjh_plotting.cjh_colors[jj], 
-                                lw=1.5, 
-                                label=name, 
+                line, = ax.plot([], [],
+                                linestyle=cjh_plotting.cjh_linestyles[jj],
+                                color=cjh_plotting.cjh_colors[jj],
+                                lw=1.5,
+                                label=name,
                                 alpha=0.7) # zorder
                 line.ax = ax
                 line.ydata = np.array(0)
@@ -289,7 +289,7 @@ class EmyFunctions(object):
                 reg_iq=reg_iq,
                 reg_speed=reg_speed,
             )
-            end_time = machine_times[-1] # print('\tend_time:', end_time)
+            end_time = machine_times[-1] 
             # progress_callback.emit([t0, numba__waveforms_dict, end_time])
 
             """ update matplotlib artist """
@@ -309,7 +309,7 @@ class EmyFunctions(object):
 
             # time_text.set_text('time = %.1f' % end_time)
 
-            mainWindowObject.first_ax.set_xlim([end_time-CONSOLE.NUMBER_OF_SAMPLE_TO_SHOW*CONSOLE.CL_TS, end_time])
+            mainWindowObject.first_ax.set_xlim([end_time-CONSOLE.NUMBER_OF_SAMPLE_TO_SHOW*CONSOLE.MACHINE_TS, end_time])
             # first_ax.set_xticklabels(np.arange(0, int(round(end_time)), int(round(end_time))*0.1)) #, fontdict=font)
             # return line01, line02, time_text # for using blit=True but blit does not update xticks and yticks
 
@@ -539,7 +539,7 @@ class EmyFunctions(object):
 
         xdata = np.arange(end_time*CONSOLE.SAMPLING_RATE*CONSOLE.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD-len(line.ydata),
                           end_time*CONSOLE.SAMPLING_RATE*CONSOLE.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD, 1) * CONSOLE.MACHINE_TS # 整数代替浮点数，精度高否则会出现xdata长3001，ydata长3000的问题。
-        # print(len(xdata),len(line.ydata))
+        # print('update line data:', len(xdata), len(line.ydata), -CONSOLE.NUMBER_OF_SAMPLE_TO_SHOW)
         line.set_data(xdata, line.ydata)
 
         # this is slower as we set ylim for each line rather than each axis

@@ -1142,6 +1142,7 @@ def ACMSimPyWrapper(numba__scope_dict, *arg, **kwarg):
 
     # Do Numerical Integrations (that do not care about numba__scope_dict at all and return watch_data whatsoever)
     machine_times, watch_data = ACMSimPyIncremental(*arg, **kwarg)
+    # print(f'{len(watch_data[0])=}。 end_time', machine_times[-1])
     watch_data_as_dict = dict(zip(Watch_Mapping, watch_data))
     # print(watch_data_as_dict.keys())
 
@@ -1279,7 +1280,7 @@ class Simulation_Benchmark:
         # simulate to generate NUMBER_OF_SLICES*TIME_SLICE sec of data
         for ii in range(d['NUMBER_OF_SLICES']):
 
-            exec(d['user_system_input_code'])
+            exec(d['user_system_input_code']) # 和 CONSOLE.user_controller_commands 功能相同
             # if ii < 5:
             #     CTRL.cmd_rpm = 50
             # else:

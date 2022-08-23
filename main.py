@@ -53,23 +53,24 @@ class MainWindow(QMainWindow):
         else:
             self.STRING_SCOPE_DICT = r"""numba__scope_dict = OD([
 # Y Labels                # Signal Name of Traces
-(r'Speed Out Limit [A]',  ( 'reg_speed.OutLimit'                                ,) ),
-(r'$q$-axis voltage [V]', ( 'ACM.udq[1]', 'CTRL.cmd_udq[1]'                     ,) ),
-(r'$d$-axis voltage [V]', ( 'ACM.udq[0]', 'CTRL.cmd_udq[0]'                     ,) ),
-(r'Torque [Nm]',          ( 'ACM.Tem', 'CTRL.Tem'                               ,) ),
-(r'Speed [rpm]',          ( 'CTRL.cmd_rpm', 'CTRL.omega_r_mech', 'CTRL.xS[1]'   ,) ),
-(r'Speed Error [rpm]',    ( 'CTRL.cmd_rpm - CTRL.omega_r_mech'                  ,) ),
-(r'Position [rad]',       ( 'ACM.theta_d', 'CTRL.theta_d', 'CTRL.xS[0]'         ,) ),
-(r'Position mech [rad]',  ( 'ACM.theta_d'                                       ,) ),
-(r'$q$-axis current [A]', ( 'ACM.iQ', 'CTRL.cmd_idq[1]'                         ,) ),
-(r'$d$-axis current [A]', ( 'ACM.iD', 'CTRL.cmd_idq[0]'                         ,) ),
-(r'K_{\rm Active} [A]',   ( 'ACM.KA', 'CTRL.KA'                                 ,) ),
-(r'Load torque [Nm]',     ( 'ACM.TLoad', 'CTRL.xS[2]'                           ,) ),
-(r'CTRL.iD [A]',          ( 'CTRL.cmd_idq[0]', 'CTRL.idq[0]'                    ,) ),
-(r'CTRL.iQ [A]',          ( 'CTRL.cmd_idq[1]', 'CTRL.idq[1]'                    ,) ),
-(r'CTRL.uab [V]',         ( 'CTRL.uab[0]', 'CTRL.uab[1]'                        ,) ),
-(r'S [1]',                ( 'svgen1.S1', 'svgen1.S2', 'svgen1.S3', 'svgen1.S4', 'svgen1.S5', 'svgen1.S6' ,) ),
-])"""
+(r'Speed Out Limit [A]',  ( 'reg_speed.OutLimit'                             ,)),
+(r'$q$-axis voltage [V]', ( 'ACM.udq[1]', 'CTRL.cmd_udq[1]'                  ,)),
+(r'$d$-axis voltage [V]', ( 'ACM.udq[0]', 'CTRL.cmd_udq[0]'                  ,)),
+(r'Torque [Nm]',          ( 'ACM.Tem', 'CTRL.Tem'                            ,)),
+(r'Speed [rpm]',          ( 'CTRL.cmd_rpm', 'CTRL.omega_r_mech', 'CTRL.xS[1]',)),
+(r'Speed Error [rpm]',    ( 'CTRL.cmd_rpm - CTRL.omega_r_mech'               ,)),
+(r'Position [rad]',       ( 'ACM.theta_d', 'CTRL.theta_d', 'CTRL.xS[0]'      ,)),
+(r'Position mech [rad]',  ( 'ACM.theta_d'                                    ,)),
+(r'$q$-axis current [A]', ( 'ACM.iQ', 'CTRL.cmd_idq[1]'                      ,)),
+(r'$d$-axis current [A]', ( 'ACM.iD', 'CTRL.cmd_idq[0]'                      ,)),
+(r'K_{\rm Active} [A]',   ( 'ACM.KA', 'CTRL.KA'                              ,)),
+(r'Load torque [Nm]',     ( 'ACM.TLoad', 'CTRL.xS[2]'                        ,)),
+(r'CTRL.iD [A]',          ( 'CTRL.cmd_idq[0]', 'CTRL.idq[0]'                 ,)),
+(r'CTRL.iQ [A]',          ( 'CTRL.cmd_idq[1]', 'CTRL.idq[1]'                 ,)),
+(r'CTRL.uab [V]',         ( 'CTRL.uab[0]', 'CTRL.uab[1]'                     ,)),
+(r'S [1]',                ( 'svgen1.S1', 'svgen1.S2', 'svgen1.S3', 'svgen1.S4', 'svgen1.S5', 'svgen1.S6',)),
+])
+"""
 
         # LOAD USER INPUT for PARALLEL (IF ANY)
         if os.path.exists('user_input_parallel.txt'):
