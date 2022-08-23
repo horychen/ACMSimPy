@@ -229,6 +229,7 @@ class The_Motor_Controller:
         ('sinT', float64),
         # simulation settings
         ('MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD', int32),
+        ('bool_apply_load_model', int32)
     ])
 class The_AC_Machine:
     def __init__(self, CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=1):
@@ -272,6 +273,7 @@ class The_AC_Machine:
         self.cosT = 1.0
         self.sinT = 0.0
         self.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD = MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD
+        self.bool_apply_load_model = False
 
 @jitclass(
     spec=[
@@ -884,7 +886,7 @@ def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None,
 
         """ Machine Simulation @ MACHINE_TS """
         # Numerical Integration (ode4) with 5 states
-        vehicel_load_model(t, ACM)
+        if ACM.bool_apply_load_model: vehicel_load_model(t, ACM)
         RK4_MACHINE(t, ACM, hs=MACHINE_TS)
 
         """ Machine Simulation Output @ MACHINE_TS """
