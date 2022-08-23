@@ -10,10 +10,11 @@ import traceback
 import pandas as pd
 
 # from gui.core.json_settings import Settings
-import simulation.tutorials as acmsimpy2
+    # import simulation.tutorials as acmsimpy2
     # import simulation.tutorials_ep2_full_dynamics as acmsimpy # note the slip error with Rreq=-1 exists here
     # import simulation.tutorials_ep3_svpwm as acmsimpy
 import simulation.tutorials_ep4_batch_generating_figures as acmsimpy
+import simulation.tuner as tuner
 
 # 后端
 # use cairo only for acmsimpy | use cairo for acmsimc will slow down plotting
@@ -100,6 +101,8 @@ class CJH_Plotting(object):
 @dataclass
 class THE_CONSOLE:
     """ User control over the mpl animation """
+    d_user_input_motor_dict: dict = None
+    numba__scope_dict: dict = None
     # offset_anime_ii : int = 0
     reset : int = False
     _pause : int = False
@@ -108,7 +111,6 @@ class THE_CONSOLE:
     TIME_SLICE : float = 0.2
     NUMBER_OF_TIME_SLICE_TO_SHOW : int = 5
     bool_exit: int = False
-    numba__scope_dict: dict = None
     ii_list: list = None
     def __post_init__(self):
         # self.pause_time = 0.0
@@ -122,10 +124,15 @@ class EmyFunctions(object):
 
     def prepare_canvas_on_page_3(mainWindowObject):
 
-        """ Read scope dict from GUI """
+        """ Read user input dict and user specified scope dict from GUI """
         try:
-            the_cmd = mainWindowObject.plainTextEdit_NumbaScopeDict.toPlainText()
-            with open('user_input.txt', 'w') as f:
+            the_cmd = mainWindowObject.plainTextEdit_UserInputDict_0.toPlainText()
+            with open('user_input_motor_dict.txt', 'w') as f:
+                f.write(the_cmd)
+            d_user_input_motor_dict = eval(the_cmd[the_cmd.find('{'):])
+
+            the_cmd = mainWindowObject.plainTextEdit_NumbaScopeDict_1.toPlainText()
+            with open('user_input_scope_dict.txt', 'w') as f:
                 f.write(the_cmd)
             numba__scope_dict = eval(the_cmd[the_cmd.find('OD'):])
 
@@ -164,13 +171,13 @@ class EmyFunctions(object):
         # mainWindowObject.ui.MplWidget_ACMPlot.toolbar.setStyleSheet("background-color: #9AA5B1;")
         # mainWindowObject.ui.right_column.horizontalLayout_CBSMplToolBar.addWidget(ui.MplWidget_ACMPlot.toolbar)
 
-        CONSOLE = THE_CONSOLE(numba__scope_dict=numba__scope_dict)
+        CONSOLE = THE_CONSOLE(d_user_input_motor_dict=d_user_input_motor_dict, numba__scope_dict=numba__scope_dict)
         mainWindowObject.console_push_variable({f'CONSOLE':CONSOLE})
 
         # This dict d is assigned by the codes filled in the console window.
-        d = dict(locals(), **globals())
-        exec(mainWindowObject.console_window.plainTextEdit_ControllerCommands.toPlainText(), d, d)
-        CONSOLE.user_controller_commands = d['user_controller_commands']
+        d_code = dict(locals(), **globals())
+        exec(mainWindowObject.console_window.plainTextEdit_ControllerCommands.toPlainText(), d_code, d_code)
+        CONSOLE.user_controller_commands = d_code['user_controller_commands']
 
         # print('numba__scope_dict =', numba__scope_dict)
         number_of_subplot = len(numba__scope_dict)
@@ -250,56 +257,7 @@ class EmyFunctions(object):
         CONSOLE = mainWindowObject.CONSOLE
 
         """ Simulation Globals """
-        d = d_user_input = {
-            'CL_TS': 1e-4,
-            'TIME_SLICE': 0.1,
-            'NUMBER_OF_SLICES': 9,
-            'VL_EXE_PER_CL_EXE': 5,
-            'init_npp': 21,
-            'init_IN': 72/1.414,
-            'init_R': 0.1222,
-            'init_Ld': 0.0011, # 0.007834, # 0.000502, # 4*0.000502, # 
-            'init_Lq': 0.00125, # 0.0089, # 0.000571, # 4*0.000571, # 
-            'init_KE': 0.127, # 150 / 1.732 / (450/60*6.28*21), # 285 / 1.5 / 72 / 21,
-            # 'init_KE': 0.087559479, # 150 / ((450/60*6.28*21) * 1.732)
-            'init_Rreq': 0.0,
-            'init_Js': 0.203,
-            'CTRL.bool_apply_speed_closed_loop_control': True,
-            'CTRL.bool_apply_decoupling_voltages_to_current_regulation': True,
-            'CTRL.bool_apply_sweeping_frequency_excitation': False,
-            'CTRL.bool_overwrite_speed_commands': True,
-            'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 500,  # 500,
-            'DC_BUS_VOLTAGE': 300,
-            'FOC_delta': 6.5,
-            'FOC_desired_VLBW_HZ': 60,
-            'CL_SERIES_KP': None, # 1.61377, # 11.49, # [BW=207.316Hz] # 6.00116,  # [BW=106.6Hz]
-            'CL_SERIES_KI': None, # 97.76,
-            'VL_SERIES_KP': None, # 0.479932, # 0.445651, # [BW=38.6522Hz] # 0.250665 # [BW=22.2Hz]
-            'VL_SERIES_KI': None, # 30.5565,
-            'VL_LIMIT_OVERLOAD_FACTOR': 1,
-            'user_interested_ylabels': [r'Speed [rpm]',
-                                        r'Torque [Nm]',
-                                        r'K_{\rm Active} [A]',
-                                        r'$d$-axis current [A]',
-                                        r'Position [rad]',
-                                        r'Load torque [Nm]',
-                                        r'CTRL.iD [A]',
-                                        r'CTRL.iQ [A]',
-                                        r'CTRL.uab [V]',
-                                        r'S [1]',
-                                        r'$q$-axis voltage [V]',
-                                        r'$d$-axis voltage [V]',
-                                        r'Speed Out Limit [A]',
-                                        ],
-            'user_system_input_code': '''
-if ii < 4:
-    CTRL.cmd_idq[0] = -60
-    CTRL.cmd_rpm = 1200
-else:
-    ACM.TLoad = 285
-''',
-}
-        CTRL, ACM, reg_id, reg_iq, reg_speed = acmsimpy.Simulation_Benchmark(d).get_global_objects()
+        CTRL, ACM, reg_id, reg_iq, reg_speed = mainWindowObject.CTRL, mainWindowObject.ACM, mainWindowObject.reg_id, mainWindowObject.reg_iq, mainWindowObject.reg_speed = acmsimpy.Simulation_Benchmark(CONSOLE.d_user_input_motor_dict, tuner=tuner, bool_start_simulation=False).get_global_objects()
 
         """ Simulation Globals Access from Console """
         if mainWindowObject.console_window is not None:
@@ -489,7 +447,7 @@ else:
 
         """ Read scope dict from GUI """
         try:
-            the_cmd = mainWindowObject.plainTextEdit_NumbaScopeDict_Parallel.toPlainText()
+            the_cmd = mainWindowObject.plainTextEdit_NumbaScopeDict_1_Parallel.toPlainText()
             with open('user_input_parallel.txt', 'w') as f:
                 f.write(the_cmd)
             numba__scope_dict = eval(the_cmd[the_cmd.find('OD'):])

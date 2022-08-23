@@ -173,27 +173,32 @@ def iterate_for_desired_bandwidth( delta, desired_VLBW_Hz, motor_dict, CLBW_Hz_i
         Gw_open = dc_motor_motion * Gi_closed * speedPI
 
         # C2C
-        plt.figure(101)
+        # fig = plt.figure(101)
         c2c_tf = Gi_closed
-        mag, phase, omega = control.bode_plot(c2c_tf, 2*np.pi*np.logspace(0,4,500), dB=1, Hz=1, deg=1, lw='0.5', label=f'{CLBW_Hz:g} Hz')
+        mag, phase, omega = control.bode_plot(c2c_tf, 2*np.pi*np.logspace(0,4,500), dB=1, Hz=1, deg=1, lw='0.5', label=f'{CLBW_Hz:g} Hz', plot=False)
         CLBW_Hz = omega[(np.abs(mag-0.707)).argmin()]/2/np.pi
         C2C_designedMagPhaseOmega = mag, phase, omega
+        # plt.close(fig)
 
         # C2V
-        plt.figure(102)
+        # fig = plt.figure(102)
         c2v_tf = dc_motor_motion * Gi_closed
-        mag, phase, omega = control.bode_plot(c2v_tf, 2*np.pi*np.logspace(0,4,500), dB=1, Hz=1, deg=1, lw='0.5', label=f'{CLBW_Hz:g} Hz')
+        mag, phase, omega = control.bode_plot(c2v_tf, 2*np.pi*np.logspace(0,4,500), dB=1, Hz=1, deg=1, lw='0.5', label=f'{CLBW_Hz:g} Hz', plot=False)
         open_cutoff_frequency_HZ = omega[(np.abs(mag-0.0)).argmin()]/2/np.pi
         C2V_designedMagPhaseOmega = mag, phase, omega
+        # plt.close(fig)
 
         # V2V
-        plt.figure(103)
+        # fig = plt.figure(103)
         Gw_closed = Gw_open / (1+Gw_open)
-        mag, phase, omega = control.bode_plot(Gw_closed, 2*np.pi*np.logspace(0,4,500), dB=1, Hz=1, deg=1, lw='0.5', label=f'{delta:g}')
+        mag, phase, omega = control.bode_plot(Gw_closed, 2*np.pi*np.logspace(0,4,500), dB=1, Hz=1, deg=1, lw='0.5', label=f'{delta:g}', plot=False)
         VLBW_Hz = omega[(np.abs(mag-0.707)).argmin()]/2/np.pi
         V2V_designedMagPhaseOmega = mag, phase, omega
+        # plt.close(fig)
+
         # print(Gw_closed)
         # print('\tSpeed loop bandwidth:', VLBW_Hz, 'Hz')
+
     return  (currentKp, currentKi), \
             (speedKp, speedKi), \
             (上位机电流KP, 上位机电流KI), \

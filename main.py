@@ -47,16 +47,28 @@ class MainWindow(QMainWindow):
         self.settings = settings.items
 
         # LOAD USER INPUT (IF ANY)
-        if os.path.exists('user_input.txt'):
-            with open('user_input.txt', 'r') as f:
+        if os.path.exists('user_input_scope_dict.txt'):
+            with open('user_input_scope_dict.txt', 'r') as f:
                 self.STRING_SCOPE_DICT = f.read()
         else:
             self.STRING_SCOPE_DICT = r"""numba__scope_dict = OD([
-(r'Speed [rpm]',      ( 'CTRL.cmd_rpm', 'ACM.omega_r_mech', 'CTRL.omega_r_mech',)),
-(r'Speed Error [rpm]',( 'CTRL.cmd_rpm - ACM.omega_r_mech'                      ,)),
-(r'Position [rad]',   ( 'ACM.theta_d', 'CTRL.theta_d'                          ,)),
-(r'$dq$ current [A]', ( 'ACM.iQ', 'CTRL.idq[1]', 'ACM.iD', 'CTRL.idq[0]'       ,)),
-(r'Torque [Nm]',      ( 'ACM.Tem', 'CTRL.Tem'                                  ,)),
+# Y Labels                # Signal Name of Traces
+(r'Speed Out Limit [A]',  ( 'reg_speed.OutLimit'                                ,) ),
+(r'$q$-axis voltage [V]', ( 'ACM.udq[1]', 'CTRL.cmd_udq[1]'                     ,) ),
+(r'$d$-axis voltage [V]', ( 'ACM.udq[0]', 'CTRL.cmd_udq[0]'                     ,) ),
+(r'Torque [Nm]',          ( 'ACM.Tem', 'CTRL.Tem'                               ,) ),
+(r'Speed [rpm]',          ( 'CTRL.cmd_rpm', 'CTRL.omega_r_mech', 'CTRL.xS[1]'   ,) ),
+(r'Speed Error [rpm]',    ( 'CTRL.cmd_rpm - CTRL.omega_r_mech'                  ,) ),
+(r'Position [rad]',       ( 'ACM.theta_d', 'CTRL.theta_d', 'CTRL.xS[0]'         ,) ),
+(r'Position mech [rad]',  ( 'ACM.theta_d'                                       ,) ),
+(r'$q$-axis current [A]', ( 'ACM.iQ', 'CTRL.cmd_idq[1]'                         ,) ),
+(r'$d$-axis current [A]', ( 'ACM.iD', 'CTRL.cmd_idq[0]'                         ,) ),
+(r'K_{\rm Active} [A]',   ( 'ACM.KA', 'CTRL.KA'                                 ,) ),
+(r'Load torque [Nm]',     ( 'ACM.TLoad', 'CTRL.xS[2]'                           ,) ),
+(r'CTRL.iD [A]',          ( 'CTRL.cmd_idq[0]', 'CTRL.idq[0]'                    ,) ),
+(r'CTRL.iQ [A]',          ( 'CTRL.cmd_idq[1]', 'CTRL.idq[1]'                    ,) ),
+(r'CTRL.uab [V]',         ( 'CTRL.uab[0]', 'CTRL.uab[1]'                        ,) ),
+(r'S [1]',                ( 'svgen1.S1', 'svgen1.S2', 'svgen1.S3', 'svgen1.S4', 'svgen1.S5', 'svgen1.S6' ,) ),
 ])"""
 
         # LOAD USER INPUT for PARALLEL (IF ANY)
@@ -65,18 +77,46 @@ class MainWindow(QMainWindow):
                 self.STRING_SCOPE_DICT_PARALLEL = f.read()
         else:
             self.STRING_SCOPE_DICT_PARALLEL = r"""numba__scope_dict = OD([
-(r'Speed [rpm]',      ( 'ACM.omega_r_mech',)),
-(r'Position [rad]',   ( 'ACM.theta_d'     ,)),
-(r'$d$-axis current [A]', ( 'ACM.iD'      ,)),
-(r'$q$-axis current [A]', ( 'ACM.iQ'      ,)),
-(r'Torque [Nm]',      ( 'ACM.Tem'         ,)),])"""
+            (r'Speed [rpm]',      ( 'ACM.omega_r_mech',)),
+            (r'Position [rad]',   ( 'ACM.theta_d'     ,)),
+            (r'$d$-axis current [A]', ( 'ACM.iD'      ,)),
+            (r'$q$-axis current [A]', ( 'ACM.iQ'      ,)),
+            (r'Torque [Nm]',      ( 'ACM.Tem'         ,)),])"""
 
-        # LOAD 
-        self.STRING_WATCH_MAPPING = r"""Watch_Mapping = [
-'[rad]=ACM.theta_d', 
-...
-'[Nm]=CTRL.Tem',
-]"""
+        if os.path.exists('user_input_motor_dict.txt'):
+            with open('user_input_motor_dict.txt', 'r') as f:
+                self.STRING_USER_INPUT_MOTOR_DICT = f.read()
+        else:
+            self.STRING_USER_INPUT_MOTOR_DICT = r"""d = d_user_input_motor_dict = {
+'CL_TS': 1e-4,
+'TIME_SLICE': 0.2,
+'NUMBER_OF_SLICES': 20,
+'VL_EXE_PER_CL_EXE': 5,
+'init_npp': 21,
+'init_IN': 72/1.414,
+'init_R': 0.1222,
+'init_Ld': 0.0011,
+'init_Lq': 0.00125,
+'init_KE': 0.127,
+'init_Rreq': 0.0,
+'init_Js': 0.203,
+'CTRL.bool_apply_speed_closed_loop_control': True,
+'CTRL.bool_apply_decoupling_voltages_to_current_regulation': True,
+'CTRL.bool_apply_sweeping_frequency_excitation': True,
+'CTRL.bool_overwrite_speed_commands': True,
+'CTRL.bool_zero_id_control': False,
+'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 1,
+'DC_BUS_VOLTAGE': 300,
+'FOC_delta': 6.5,
+'FOC_desired_VLBW_HZ': 60,
+'CL_SERIES_KP': None, # 1.61377,
+'CL_SERIES_KI': None, # 97.76
+'VL_SERIES_KP': None, # 0.479932,
+'VL_SERIES_KI': None, # 30.5565
+'VL_LIMIT_OVERLOAD_FACTOR': 1,
+'user_system_input_code': '''
+''',
+}"""
 
         # LOAD 
         self.STRING_CODES = r"""list_extra_execution_code = [

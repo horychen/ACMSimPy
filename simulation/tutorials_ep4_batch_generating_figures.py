@@ -1,11 +1,10 @@
 # %%
 ############################################# PACKAGES
-import enum
 from numba.experimental import jitclass
 from numba import njit, int32, float64
 from pylab import np, plt, mpl
-import re
 plt.style.use('ggplot')
+
 
 ############################################# CLASS DEFINITION 
 @jitclass(
@@ -1192,13 +1191,15 @@ def ACMSimPyWrapper(numba__scope_dict, *arg, **kwarg):
 ############################################# Wrapper level 3 (User Interface)
 from collections import OrderedDict as OD
 class Simulation_Benchmark:
-    def __init__(self, d):
+    def __init__(self, d, tuner=None, bool_start_simulation=True):
 
         self.d = d
 
         # Auto-tuning PI
         if d['CL_SERIES_KP'] is None:
-            import tuner
+            if tuner is None:
+                # sys.path.append(os.path.join(os.path.dirname(__file__), "tuner"))
+                import tuner
             tuner.tunner_wrapper(d)
             print(f'{d=}')
 
@@ -1224,9 +1225,11 @@ class Simulation_Benchmark:
             (r'S [1]',                        ( 'svgen1.S1', 'svgen1.S2', 'svgen1.S3', 'svgen1.S4', 'svgen1.S5', 'svgen1.S6' ,) ),
         ])
 
-        self.start_simulation_slices(d, numba__scope_dict)
+        if bool_start_simulation:
+            self.start_simulation_slices(d, numba__scope_dict)
 
     def get_global_objects(self):
+        d = self.d
         # init
         CTRL = The_Motor_Controller(CL_TS = d['CL_TS'],
                                     VL_TS = d['VL_EXE_PER_CL_EXE']*d['CL_TS'],
@@ -1255,22 +1258,17 @@ class Simulation_Benchmark:
         global_objects = self.get_global_objects()
         self.CTRL, self.ACM, self.reg_id, self.reg_iq, self.reg_speed = CTRL, ACM, reg_id, reg_iq, reg_speed = global_objects
 
+        global_trace_names = []
         max_number_of_traces = 0
         for ylabel, trace_names in numba__scope_dict.items():
             for name in trace_names:
                 max_number_of_traces += 1
+            for trace_index, name in enumerate(trace_names):
+                global_trace_names.append(name)
         print(f'{max_number_of_traces=}')
 
-        user_number_of_traces = 0
-        global_trace_names = []
-        for ylabel in d['user_interested_ylabels']:
-            user_number_of_traces += len(numba__scope_dict[ylabel])
-            for trace_index, trace_name in enumerate(numba__scope_dict[ylabel]):
-                global_trace_names.append(trace_name)
-        print(f'{user_number_of_traces=}')
-
         # init global data arrays for plotting
-        global_arrays = [None] * user_number_of_traces
+        global_arrays = [None] * max_number_of_traces
         global_machine_times = None
 
         def save_to_global(_global, _local):
@@ -1298,7 +1296,7 @@ class Simulation_Benchmark:
             # and save slice data to global data variables
             global_machine_times = save_to_global(global_machine_times, machine_times)
             global_index = 0
-            for ylabel in d['user_interested_ylabels']:
+            for ylabel in numba__scope_dict.keys():
                 for trace_index, local_trace_data in enumerate(numba__waveforms_dict[ylabel]):
                     # trace data
                     global_arrays[global_index] = save_to_global(global_arrays[global_index], local_trace_data)
@@ -1327,7 +1325,7 @@ def lpf1_inverter(array):
 
 if __name__ == '__main__':
     # User input:
-    d = d_user_input = {
+    d = d_user_input_motor_dict = {
         'CL_TS': 1e-4,
         'TIME_SLICE': 0.2,
         'NUMBER_OF_SLICES': 20,
@@ -1354,20 +1352,6 @@ if __name__ == '__main__':
         'VL_SERIES_KP': None, # 0.479932, # 0.445651, # [BW=38.6522Hz] # 0.250665 # [BW=22.2Hz]
         'VL_SERIES_KI': None, # 30.5565,
         'VL_LIMIT_OVERLOAD_FACTOR': 1,
-        'user_interested_ylabels': [r'Speed [rpm]',
-                                    r'Torque [Nm]',
-                                    r'K_{\rm Active} [A]',
-                                    r'$d$-axis current [A]',
-                                    r'Position [rad]',
-                                    r'Load torque [Nm]',
-                                    r'CTRL.iD [A]',
-                                    r'CTRL.iQ [A]',
-                                    r'CTRL.uab [V]',
-                                    r'S [1]',
-                                    r'$q$-axis voltage [V]',
-                                    r'$d$-axis voltage [V]',
-                                    r'Speed Out Limit [A]',
-                                    ],
         'user_system_input_code': '''
 if ii < 4:
     CTRL.cmd_idq[0] = -60
@@ -1375,8 +1359,9 @@ if ii < 4:
 else:
     ACM.TLoad = 285
 ''',
-}
+    }
     print(f'最大电流上升率 {d["DC_BUS_VOLTAGE"]/1.732/d["init_Lq"]} A/s、最大转速上升率 rpm/s')
+
 
 
     图 = 1 # 空载加速、加载
@@ -1602,7 +1587,7 @@ print(f'{reg_speed.OutLimit=}')
             ax = axes[2]
             ax.plot(global_machine_times, gdd['CTRL.cmd_idq[1]'], label=r'$i_q^*$')
             ax.plot(global_machine_times, gdd['CTRL.idq[1]'], label=r'$i_q$')
-            ax.plot(global_machine_times, gdd['reg_speed.OutLimit'], label=r'max~$i_q$')
+            ax.plot(global_machine_times, gdd['reg_speed.OutLimit'], label=r'max $i_q^*$')
             ax.set_ylabel(r'$i_q$ [A]', multialignment='center') #, fontdict=font)
             ax.legend(loc=1)
 

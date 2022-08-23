@@ -20,7 +20,8 @@ from gui.widgets.py_table_widget.py_table_widget import PyTableWidget
 from . functions_main_window import *
 import sys
 import os
-import simulation.tutorials as acmsimpy
+# import simulation.tutorials as acmsimpy
+import simulation.tutorials_ep4_batch_generating_figures as acmsimpy
 
 # IMPORT QT CORE
 # ///////////////////////////////////////////////////////////////
@@ -300,8 +301,22 @@ class SetupMainWindow:
         self.logo_svg = QSvgWidget(Functions.set_svg_image("logo_home_acmsimpy.svg"))
         self.ui.load_pages.logo_layout.addWidget(self.logo_svg, Qt.AlignCenter, Qt.AlignCenter)
 
-        # Scope Dict (User input)
-        self.plainTextEdit_NumbaScopeDict = PyTextEdit(
+        # User Input Dict (Motor Data and More)
+        self.plainTextEdit_UserInputDict_0 = PyTextEdit(
+            text = self.STRING_USER_INPUT_MOTOR_DICT,
+            # place_holder_text = 
+            radius = 8,
+            border_size = 2,
+            color = self.themes["app_color"]["text_foreground"],
+            selection_color = self.themes["app_color"]["white"],
+            bg_color = self.themes["app_color"]["dark_one"],
+            bg_color_active = self.themes["app_color"]["dark_three"],
+            context_color = self.themes["app_color"]["context_color"]
+        )
+        self.plainTextEdit_UserInputDict_0.setMinimumHeight(300)
+
+        # Scope Dict (User Specify What to Draw as Waveforms)
+        self.plainTextEdit_NumbaScopeDict_1 = PyTextEdit(
             text = self.STRING_SCOPE_DICT,
             place_holder_text = "Input scope dictionary for your simulation",
             radius = 8,
@@ -312,12 +327,11 @@ class SetupMainWindow:
             bg_color_active = self.themes["app_color"]["dark_three"],
             context_color = self.themes["app_color"]["context_color"]
         )
-        self.plainTextEdit_NumbaScopeDict.setMinimumHeight(300)
-        self.ui.load_pages.page_1_layout.addWidget(self.plainTextEdit_NumbaScopeDict)
+        self.plainTextEdit_NumbaScopeDict_1.setMinimumHeight(300)
 
         # Scope Dict (Reference)
         self.plainTextEdit_NumbaScopeDict_2 = PyTextEdit(
-            text = '_Watch_Mapping = ' + '\n'.join(str(acmsimpy._Watch_Mapping).split()),
+            text = '_Watch_Mapping = ' + '\n'.join(str(acmsimpy._Unit_Watch_Mapping).split()),
             # place_holder_text = STRING_WATCH_MAPPING,
             radius = 8,
             border_size = 2,
@@ -329,7 +343,14 @@ class SetupMainWindow:
         )
         self.plainTextEdit_NumbaScopeDict_2.setReadOnly(True)
         self.plainTextEdit_NumbaScopeDict_2.setMinimumHeight(300)
-        self.ui.load_pages.page_1_layout.addWidget(self.plainTextEdit_NumbaScopeDict_2)
+
+        # Add the three PyTextEdit objects to page_1_layout
+        self.ui.load_pages.page_1_layout.addWidget(self.plainTextEdit_UserInputDict_0)
+        vbox = QVBoxLayout()
+        vbox.addWidget(self.plainTextEdit_NumbaScopeDict_1)
+        vbox.addWidget(self.plainTextEdit_NumbaScopeDict_2)
+        self.ui.load_pages.page_1_layout.addLayout(vbox)
+
 
         # Codes for parallel simulation
         self.ui.plainTextEdit_Codes = PyTextEdit(
