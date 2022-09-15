@@ -3,7 +3,8 @@ __pycache__/
 .git/
 .pyc
 
+*.code-workspace
+
 user_input*.txt
 
-
-shizhou-fig*.pdf
+*fig*.pdf
