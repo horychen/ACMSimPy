@@ -1326,7 +1326,7 @@ class Simulation_Benchmark:
             (r'Load torque [Nm]',             ( 'ACM.TLoad', 'CTRL.xS[2]'                           ,) ),
             (r'CTRL.iD [A]',                  ( 'CTRL.cmd_idq[0]', 'CTRL.idq[0]'                    ,) ),
             (r'CTRL.iQ [A]',                  ( 'CTRL.cmd_idq[1]', 'CTRL.idq[1]'                    ,) ),
-            (r'CTRL.uab [V]',                 ( 'CTRL.cmd_uab[0]', 'CTRL.cmd_uab[1]'                        ,) ),
+            (r'CTRL.uab [V]',                 ( 'CTRL.cmd_uab[0]', 'CTRL.cmd_uab[1]'                ,) ),
             (r'S [1]',                        ( 'svgen1.S1', 'svgen1.S2', 'svgen1.S3', 'svgen1.S4', 'svgen1.S5', 'svgen1.S6' ,) ),
         ])
 
@@ -1356,32 +1356,35 @@ class Simulation_Benchmark:
         reg_dispX = The_PID_Regulator(d['disp.Kp'], d['disp.Ki'], d['disp.Kd'], d['disp.tau'], d['disp.OutLimit'], d['disp.IntLimit'], d['CL_TS'])
         reg_dispY = The_PID_Regulator(d['disp.Kp'], d['disp.Ki'], d['disp.Kd'], d['disp.tau'], d['disp.OutLimit'], d['disp.IntLimit'], d['CL_TS'])
 
-        # reg_id    = The_PI_Regulator(d['CL_SERIES_KP'], d['CL_SERIES_KP']*d['CL_SERIES_KI']*CTRL.CL_TS, d['DC_BUS_VOLTAGE']/1.732) # 我们假设调制方式是SVPWM，所以母线电压就是输出电压的线电压最大值，而我们用的是恒相幅值变换，所以限幅是相电压。
-        # reg_iq    = The_PI_Regulator(d['CL_SERIES_KP'], d['CL_SERIES_KP']*d['CL_SERIES_KI']*CTRL.CL_TS, d['DC_BUS_VOLTAGE']/1.732) # 我们假设调制方式是SVPWM，所以母线电压就是输出电压的线电压最大值，而我们用的是恒相幅值变换，所以限幅是相电压。
-        # reg_speed = The_PI_Regulator(d['VL_SERIES_KP'], d['VL_SERIES_KP']*d['VL_SERIES_KI']*CTRL.VL_TS, d['VL_LIMIT_OVERLOAD_FACTOR']*1.414*d['init_IN']) # IN 是线电流有效值，我们这边限幅是用的电流幅值。
-
-        d['disp.Kp'] = d['CL_SERIES_KP']
-        if d['CTRL.bool_apply_decoupling_voltages_to_current_regulation'] == False:
-            d['disp.Ki'] = d['CL_SERIES_KP']*d['CL_SERIES_KI'] * d['FOC_CL_KI_factor_when__bool_apply_decoupling_voltages_to_current_regulation__is_False']
-            print('Note bool_apply_decoupling_voltages_to_current_regulation is False, to improve the current regulator performance a factor of %g has been multiplied to CL KI.' % (d['FOC_CL_KI_factor_when__bool_apply_decoupling_voltages_to_current_regulation__is_False']))
+        if False:
+            # Use incremental_pi codes
+            reg_id    = The_PI_Regulator(d['CL_SERIES_KP'], d['CL_SERIES_KP']*d['CL_SERIES_KI']*CTRL.CL_TS, d['DC_BUS_VOLTAGE']/1.732) # 我们假设调制方式是SVPWM，所以母线电压就是输出电压的线电压最大值，而我们用的是恒相幅值变换，所以限幅是相电压。
+            reg_iq    = The_PI_Regulator(d['CL_SERIES_KP'], d['CL_SERIES_KP']*d['CL_SERIES_KI']*CTRL.CL_TS, d['DC_BUS_VOLTAGE']/1.732) # 我们假设调制方式是SVPWM，所以母线电压就是输出电压的线电压最大值，而我们用的是恒相幅值变换，所以限幅是相电压。
+            reg_speed = The_PI_Regulator(d['VL_SERIES_KP'], d['VL_SERIES_KP']*d['VL_SERIES_KI']*CTRL.VL_TS, d['VL_LIMIT_OVERLOAD_FACTOR']*1.414*d['init_IN']) # IN 是线电流有效值，我们这边限幅是用的电流幅值。
         else:
-            d['disp.Ki'] = d['CL_SERIES_KP']*d['CL_SERIES_KI']
-        d['disp.Kd'] = 0.0
-        d['disp.tau'] = 0.0
-        d['disp.OutLimit'] =     d['DC_BUS_VOLTAGE']/1.732
-        d['disp.IntLimit'] = 1.0*d['DC_BUS_VOLTAGE']/1.732 # Integrator having a lower output limit makes no sense. For example, the q-axis current regulator needs to cancel back emf using the integrator output for almost full dc bus voltage at maximum speed.
-        reg_id    = The_PID_Regulator(d['disp.Kp'], d['disp.Ki'], d['disp.Kd'], d['disp.tau'], d['disp.OutLimit'], d['disp.IntLimit'], d['CL_TS'])
-        reg_iq    = The_PID_Regulator(d['disp.Kp'], d['disp.Ki'], d['disp.Kd'], d['disp.tau'], d['disp.OutLimit'], d['disp.IntLimit'], d['CL_TS'])
-        print(reg_id.OutLimit, 'V')
+            # Use tustin_pi codes
+            d['disp.Kp'] = d['CL_SERIES_KP']
+            if d['CTRL.bool_apply_decoupling_voltages_to_current_regulation'] == False:
+                d['disp.Ki'] = d['CL_SERIES_KP']*d['CL_SERIES_KI'] * d['FOC_CL_KI_factor_when__bool_apply_decoupling_voltages_to_current_regulation__is_False']
+                print('Note bool_apply_decoupling_voltages_to_current_regulation is False, to improve the current regulator performance a factor of %g has been multiplied to CL KI.' % (d['FOC_CL_KI_factor_when__bool_apply_decoupling_voltages_to_current_regulation__is_False']))
+            else:
+                d['disp.Ki'] = d['CL_SERIES_KP']*d['CL_SERIES_KI']
+            d['disp.Kd'] = 0.0
+            d['disp.tau'] = 0.0
+            d['disp.OutLimit'] =     d['DC_BUS_VOLTAGE']/1.732
+            d['disp.IntLimit'] = 1.0*d['DC_BUS_VOLTAGE']/1.732 # Integrator having a lower output limit makes no sense. For example, the q-axis current regulator needs to cancel back emf using the integrator output for almost full dc bus voltage at maximum speed.
+            reg_id    = The_PID_Regulator(d['disp.Kp'], d['disp.Ki'], d['disp.Kd'], d['disp.tau'], d['disp.OutLimit'], d['disp.IntLimit'], d['CL_TS'])
+            reg_iq    = The_PID_Regulator(d['disp.Kp'], d['disp.Ki'], d['disp.Kd'], d['disp.tau'], d['disp.OutLimit'], d['disp.IntLimit'], d['CL_TS'])
+            print(reg_id.OutLimit, 'V')
 
-        d['disp.Kp'] = d['VL_SERIES_KP']
-        d['disp.Ki'] = d['VL_SERIES_KP']*d['VL_SERIES_KI']
-        d['disp.Kd'] = 0.0
-        d['disp.tau'] = 0.0
-        d['disp.OutLimit'] =     d['VL_LIMIT_OVERLOAD_FACTOR']*1.414*d['init_IN']
-        d['disp.IntLimit'] = 1.0*d['VL_LIMIT_OVERLOAD_FACTOR']*1.414*d['init_IN']
-        reg_speed = The_PID_Regulator(d['disp.Kp'], d['disp.Ki'], d['disp.Kd'], d['disp.tau'], d['disp.OutLimit'], d['disp.IntLimit'], CTRL.VL_TS)
-        print(reg_speed.OutLimit, 'A')
+            d['disp.Kp'] = d['VL_SERIES_KP']
+            d['disp.Ki'] = d['VL_SERIES_KP']*d['VL_SERIES_KI']
+            d['disp.Kd'] = 0.0
+            d['disp.tau'] = 0.0
+            d['disp.OutLimit'] =     d['VL_LIMIT_OVERLOAD_FACTOR']*1.414*d['init_IN']
+            d['disp.IntLimit'] = 1.0*d['VL_LIMIT_OVERLOAD_FACTOR']*1.414*d['init_IN']
+            reg_speed = The_PID_Regulator(d['disp.Kp'], d['disp.Ki'], d['disp.Kd'], d['disp.tau'], d['disp.OutLimit'], d['disp.IntLimit'], CTRL.VL_TS)
+            print(reg_speed.OutLimit, 'A')
 
         return CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY
 
@@ -1397,7 +1400,7 @@ class Simulation_Benchmark:
                 max_number_of_traces += 1
             for trace_index, name in enumerate(trace_names):
                 global_trace_names.append(name)
-        print(f'{max_number_of_traces=}')
+        print(f'\t{max_number_of_traces=}')
 
         # init global data arrays for plotting
         global_arrays = [None] * max_number_of_traces
@@ -1441,7 +1444,7 @@ class Simulation_Benchmark:
         for name, array in zip(global_trace_names, global_arrays):
             global_data_dict[name] = array
 
-        print(f'{gdd.keys()=}')
+        print(f'\t{gdd.keys()=}')
 
         self.global_machine_times = global_machine_times
         self.gdd = gdd
@@ -1458,42 +1461,37 @@ def lpf1_inverter(array):
 if __name__ == '__main__':
     # User input:
     d = d_user_input_motor_dict = {
+        # Timing
         'CL_TS': 1e-4,
+        'VL_EXE_PER_CL_EXE': 5,
+        'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 500,
         'TIME_SLICE': 0.2,
-        'NUMBER_OF_SLICES': 3,
-        'VL_EXE_PER_CL_EXE': 1,
+        'NUMBER_OF_SLICES': 6,
+        # Motor data
         'init_npp': 22,
         'init_IN': 1.3*6/1.414,
         'init_R': 0.035,
-        'init_Ld': 0.036*1e-3,
-        'init_Lq': 0.036*1e-3,
+        'init_Ld': 1*0.036*1e-3,
+        'init_Lq': 1*0.036*1e-3,
         'init_KE': 0.0125,
         'init_Rreq': 0.0,
         'init_Js': 0.44*1e-4,
+        'DC_BUS_VOLTAGE': 5,
+        'user_system_input_code': '''if ii < 1: CTRL.cmd_idq[0] = 0.0; CTRL.cmd_rpm = 50 \nelif ii <5: ACM.TLoad = 0.2 \nelif ii <100: CTRL.cmd_rpm = -50''',
+        # Controller config
         'CTRL.bool_apply_speed_closed_loop_control': True,
         'CTRL.bool_apply_decoupling_voltages_to_current_regulation': False,
         'CTRL.bool_apply_sweeping_frequency_excitation': False,
         'CTRL.bool_overwrite_speed_commands': True,
         'CTRL.bool_zero_id_control': True,
-        'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 1,
-        'DC_BUS_VOLTAGE': 50,
-        'FOC_delta': 25, # 6.5
-        'FOC_desired_VLBW_HZ': 20, # 60
+        'FOC_delta': 15, # 25, # 6.5
+        'FOC_desired_VLBW_HZ': 120, # 60
         'FOC_CL_KI_factor_when__bool_apply_decoupling_voltages_to_current_regulation__is_False': 10,
-        'CL_SERIES_KP': None, # 1.61377, # 11.49, # [BW=207.316Hz] # 6.00116,  # [BW=106.6Hz]
-        'CL_SERIES_KI': None, # 97.76,
-        'VL_SERIES_KP': None, # 0.479932, # 0.445651, # [BW=38.6522Hz] # 0.250665 # [BW=22.2Hz]
-        'VL_SERIES_KI': None, # 30.5565,
+        'CL_SERIES_KP': None,
+        'CL_SERIES_KI': None,
+        'VL_SERIES_KP': None,
+        'VL_SERIES_KI': None,
         'VL_LIMIT_OVERLOAD_FACTOR': 3.0,
-        'user_system_input_code': '''
-if ii < 1:
-    CTRL.cmd_idq[0] = 0.0
-    CTRL.cmd_rpm = 500
-elif ii <2:
-    ACM.TLoad = 0.2
-elif ii <4:
-    CTRL.cmd_rpm = -500
-''',
         'disp.Kp': 0.0,
         'disp.Ki': 0.0,
         'disp.Kd': 0.0,
@@ -1501,65 +1499,67 @@ elif ii <4:
         'disp.OutLimit': 0.0,
         'disp.IntLimit': 0.0,
     }
-    print(f'最大电流上升率 {d["DC_BUS_VOLTAGE"]/1.732/d["init_Lq"]} A/s、最大转速上升率 rpm/s')
+    print(f'最大电流上升率 {d["DC_BUS_VOLTAGE"]/1.732/d["init_Lq"]*1e-3} A/ms、最大转速上升率 rpm/s')
 
-    图 = 1 # 空载加速、加载
-    if True:
-        sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times
-        def 图1画图代码():
-            plt.style.use('bmh') # https://matplotlib.org/stable/gallery/style_sheets/style_sheets_reference.html
-            mpl.rc('font', family='Times New Roman', size=10.0)
-            mpl.rc('legend', fontsize=10)
-            mpl.rcParams['lines.linewidth'] = 0.75 # mpl.rc('lines', linewidth=4, linestyle='-.')
-            mpl.rcParams['mathtext.fontset'] = 'stix'
+    图 = 1 # 空载加速、加载、反转
+    def 图1画图代码():
+        plt.style.use('bmh') # https://matplotlib.org/stable/gallery/style_sheets/style_sheets_reference.html
+        mpl.rc('font', family='Times New Roman', size=10.0)
+        mpl.rc('legend', fontsize=10)
+        mpl.rcParams['lines.linewidth'] = 0.75 # mpl.rc('lines', linewidth=4, linestyle='-.')
+        mpl.rcParams['mathtext.fontset'] = 'stix'
 
-            fig, axes = plt.subplots(nrows=7, ncols=1, dpi=150, facecolor='w', figsize=(8,12), sharex=True)
+        fig, axes = plt.subplots(nrows=7, ncols=1, dpi=150, facecolor='w', figsize=(8,12), sharex=True)
 
-            ax = axes[0]
-            ax.plot(global_machine_times, gdd['CTRL.cmd_rpm'], label=r'$\omega_r^*$')
-            ax.plot(global_machine_times, gdd['CTRL.omega_r_mech'], label=r'$\omega_r$')
-            ax.set_ylabel(r'Speed [r/min]', multialignment='center') #) #, fontdict=font)
-            # ax.legend(loc=2, prop={'size': 6})
-            ax.legend(loc=1, fontsize=6)
+        ax = axes[0]
+        ax.plot(global_machine_times, gdd['CTRL.cmd_rpm'], label=r'$\omega_r^*$')
+        ax.plot(global_machine_times, gdd['CTRL.omega_r_mech'], label=r'$\omega_r$')
+        ax.set_ylabel(r'Speed [r/min]', multialignment='center') #) #, fontdict=font)
+        # ax.legend(loc=2, prop={'size': 6})
+        ax.legend(loc=1, fontsize=6)
 
-            ax = axes[1]
-            ax.plot(global_machine_times, gdd['CTRL.cmd_idq[0]'], label=r'$i_d^*$')
-            ax.plot(global_machine_times, gdd['CTRL.idq[0]'], label=r'$i_d$')
-            # ax.plot(global_machine_times, gdd['ACM.iD'])
-            ax.set_ylabel(r'$i_d$ [A]', multialignment='center') #, fontdict=font)
+        ax = axes[1]
+        ax.plot(global_machine_times, gdd['CTRL.cmd_idq[0]'], label=r'$i_d^*$')
+        ax.plot(global_machine_times, gdd['CTRL.idq[0]'], label=r'$i_d$')
+        # ax.plot(global_machine_times, gdd['ACM.iD'])
+        ax.set_ylabel(r'$i_d$ [A]', multialignment='center') #, fontdict=font)
 
-            ax = axes[2]
-            ax.plot(global_machine_times, gdd['CTRL.cmd_idq[1]'], label=r'$i_q^*$')
-            ax.plot(global_machine_times, gdd['CTRL.idq[1]'], label=r'$i_q$')
-            ax.set_ylabel(r'$i_q$ [A]', multialignment='center') #, fontdict=font)
+        ax = axes[2]
+        ax.plot(global_machine_times, gdd['CTRL.cmd_idq[1]'], label=r'$i_q^*$')
+        ax.plot(global_machine_times, gdd['CTRL.idq[1]'], label=r'$i_q$')
+        ax.set_ylabel(r'$i_q$ [A]', multialignment='center') #, fontdict=font)
 
-            ax = axes[3]
-            ax.plot(global_machine_times, gdd['ACM.Tem'], label=r'ACM.$T_{\rm em}$')
-            ax.plot(global_machine_times, gdd['CTRL.Tem'], label=r'CTRL.$T_{\rm em}$')
-            ax.set_ylabel(r'$T_{\rm em}$ [Nm]', multialignment='center') #, fontdict=font)
+        ax = axes[3]
+        ax.plot(global_machine_times, gdd['ACM.Tem'], label=r'ACM.$T_{\rm em}$')
+        ax.plot(global_machine_times, gdd['CTRL.Tem'], label=r'CTRL.$T_{\rm em}$')
+        ax.set_ylabel(r'$T_{\rm em}$ [Nm]', multialignment='center') #, fontdict=font)
 
-            ax = axes[4]
-            ax.plot(global_machine_times, (gdd['ACM.udq[0]']), label=r'$u_d$') # lpf1_inverter
-            ax.plot(global_machine_times, gdd['CTRL.cmd_udq[0]'], label=r'$u_d^*$')
-            ax.set_ylabel(r'$u_d$ [V]', multialignment='center') #, fontdict=font)
+        ax = axes[4]
+        ax.plot(global_machine_times, (gdd['ACM.udq[0]']), label=r'$u_d$') # lpf1_inverter
+        ax.plot(global_machine_times, gdd['CTRL.cmd_udq[0]'], label=r'$u_d^*$')
+        ax.set_ylabel(r'$u_d$ [V]', multialignment='center') #, fontdict=font)
 
-            ax = axes[5]
-            ax.plot(global_machine_times, (gdd['ACM.udq[1]']), label=r'$u_q$') # lpf1_inverter
-            ax.plot(global_machine_times, gdd['CTRL.cmd_udq[1]'], label=r'$u_q^*$')
-            ax.set_ylabel(r'$u_q$ [V]', multialignment='center') #, fontdict=font)
+        ax = axes[5]
+        ax.plot(global_machine_times, (gdd['ACM.udq[1]']), label=r'$u_q$') # lpf1_inverter
+        ax.plot(global_machine_times, gdd['CTRL.cmd_udq[1]'], label=r'$u_q^*$')
+        ax.set_ylabel(r'$u_q$ [V]', multialignment='center') #, fontdict=font)
 
-            ax = axes[6]
-            ax.plot(global_machine_times, gdd['CTRL.cmd_uab[0]'], label=r'$u_\alpha$')
-            ax.plot(global_machine_times, gdd['CTRL.cmd_uab[1]'], label=r'$u_\beta$')
-            ax.set_ylabel(r'$u_{\alpha,\beta}$ [V]', multialignment='center') #, fontdict=font)
+        ax = axes[6]
+        ax.plot(global_machine_times, gdd['CTRL.cmd_uab[0]'], label=r'$u_\alpha$')
+        ax.plot(global_machine_times, gdd['CTRL.cmd_uab[1]'], label=r'$u_\beta$')
+        ax.set_ylabel(r'$u_{\alpha,\beta}$ [V]', multialignment='center') #, fontdict=font)
 
-            for ax in axes:
-                ax.grid(True)
-                ax.legend(loc=1)
-                # for tick in ax.xaxis.get_major_ticks() + ax.yaxis.get_major_ticks():
-                #     tick.label.set_font(font)
-            axes[-1].set_xlabel('Time [s]') #, fontdict=font)
-            return fig
-        fig = 图1画图代码(); fig.savefig(f'SliceFSPM-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
+        for ax in axes:
+            ax.grid(True)
+            ax.legend(loc=1)
+            # for tick in ax.xaxis.get_major_ticks() + ax.yaxis.get_major_ticks():
+            #     tick.label.set_font(font)
+        axes[-1].set_xlabel('Time [s]') #, fontdict=font)
+        return fig
+    sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times; fig = 图1画图代码(); # fig.savefig(f'SliceFSPM-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
+
+    图 = 2 # 空载加速、加载、反转（改变母线电压）
+    d['DC_BUS_VOLTAGE'] = 20
+    sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times; fig = 图1画图代码()
 
     plt.show()
