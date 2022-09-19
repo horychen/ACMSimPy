@@ -8,3 +8,6 @@ __pycache__/
 user_input*.txt
 
 *fig*.pdf
+
+*.otf
+*.ttf

@@ -274,20 +274,6 @@ def show_dem_demo(CONSOLE):
     def _log(sender, app_data, user_data):
         print(f"sender: {sender}, \t app_data: {app_data}, \t user_data: {user_data}")
 
-    # add a font registry
-    with dpg.font_registry():
-        # first argument ids the path to the .ttf or .otf file
-        default_font = dpg.add_font("NotoSerifCJKjp-Medium.otf", 20)
-        second_font  = dpg.add_font('UbuntuMono-Regular.ttf', 20) # 'Noto_Serif_JP/NotoSerifJP-Black.otf'
-
-    # add a handler registry
-    with dpg.handler_registry():
-        def _on_press_mvKey_Control(sender, app_data):
-            if dpg.is_key_down(dpg.mvKey_A):
-                print("Ctrl + A")
-        dpg.add_key_press_handler(dpg.mvKey_Control, callback=_on_press_mvKey_Control)
-        dpg.add_key_press_handler(dpg.mvKey_Spacebar, callback=_stop_animation) # , parent="__demo_primary_window"
-
     # Primary Window
     with dpg.window(label="DEM Primary Window", height=200, width=200, tag="__demo_primary_window"):
 
@@ -421,9 +407,7 @@ def show_dem_demo(CONSOLE):
         with dpg.tree_node(label="Buttons for fun"):
 
             b1 = dpg.add_button(label="Show Debug Window", callback=lambda sender, app_data: dpg.show_debug())
-            dpg.bind_font(default_font)
             b2 = dpg.add_button(label="Secondary Font Example")
-            dpg.bind_item_font(b2, second_font) # set font of specific widget
 
         
         b3 = dpg.add_button(label="Stop/Start Animation", callback=_stop_animation)
@@ -452,6 +436,28 @@ def show_dem_demo(CONSOLE):
 
 
 
+    # add a font registry
+    try:
+        with dpg.font_registry():
+            # first argument ids the path to the .ttf or .otf file
+            default_font = dpg.add_font("NotoSerifCJKjp-Medium.otf", 20)
+            second_font  = dpg.add_font('UbuntuMono-Regular.ttf', 20) # 'Noto_Serif_JP/NotoSerifJP-Black.otf'
+            dpg.bind_font(default_font)
+            dpg.bind_item_font(b2, second_font) # set font of specific widget
+
+    except Exception as e:
+        print('kip adding font:', str(e))
+
+    # add a handler registry
+    with dpg.handler_registry():
+        def _on_press_mvKey_Control(sender, app_data):
+            if dpg.is_key_down(dpg.mvKey_A):
+                print("Ctrl + A")
+        dpg.add_key_press_handler(dpg.mvKey_Control, callback=_on_press_mvKey_Control)
+        dpg.add_key_press_handler(dpg.mvKey_Spacebar, callback=_stop_animation) # , parent="__demo_primary_window"
+
+
+
     dpg.add_texture_registry(label="Demo Texture Container", tag="__demo_texture_container")
     dpg.add_colormap_registry(label="Demo Colormap Registry", tag="__demo_colormap_registry")
 
@@ -465,7 +471,7 @@ def show_dem_demo(CONSOLE):
     _create_static_textures()
     _create_dynamic_textures()
 
-    return
+    # return
 
     with dpg.window(label="Dear PyGui Demo", width=800, height=800, on_close=_on_demo_close, pos=(100, 100), tag="__demo_id"):
 
@@ -2461,7 +2467,7 @@ def show_dem_demo(CONSOLE):
                         sindatay = []
                         for i in range(100):
                             sindatax.append(i/100)
-                            sindatay.append(0.5 + 0.5*sin(50*i/100))
+                            sindatay.append(0.5 + 0.5*math.sin(50*i/100))
 
                         with dpg.group(horizontal=True):
                             with dpg.group():
@@ -3060,12 +3066,10 @@ def show_dem_demo(CONSOLE):
                     dpg.add_text("Outputs frame buffer an mvBuffer object, creates a dynamic texture, and shows the texture registry (check final item)")
                     dpg.add_button(label="Output Framebuffer", callback=lambda:dpg.output_frame_buffer(callback=_framebuffer_callback))
 
-
-from collections import OrderedDict as OD
 from dataclasses import dataclass
 @dataclass
 class THE_CONSOLE:
-    """ User control over the mpl animation """
+    """ User control over the simulation animation """
     nsamples : int = 5000*10
     d_user_input_motor_dict: dict = None
     numba__scope_dict: dict = None
@@ -3131,7 +3135,7 @@ if __name__ == '__main__':
         'disp.IntLimit': 0.0,
     }
 
-    numba__scope_dict = OD([
+    numba__scope_dict = collections.OrderedDict([
     # Y Labels                # Signal Name of Traces
     # (r'Speed Out Limit [A]',  ( 'reg_speed.OutLimit'                             ,)),
     # (r'$q$-axis voltage [V]', ( 'ACM.udq[1]', 'CTRL.cmd_udq[1]'                  ,)),
@@ -3151,7 +3155,7 @@ if __name__ == '__main__':
     # (r'S [1]',                ( 'svgen1.S1', 'svgen1.S2', 'svgen1.S3', 'svgen1.S4', 'svgen1.S5', 'svgen1.S6',)),
     ])
 
-    import tutorials_ep6_maglev_motor_backup as acmsimpy
+    import tutorials_ep6_maglev_motor as acmsimpy
     import tuner
 
     """ Simulation Globals """
