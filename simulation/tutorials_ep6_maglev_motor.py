@@ -101,7 +101,7 @@ class The_Motor_Controller:
         self.VL_TS = VL_TS
         self.velocity_loop_ceiling = VL_TS / CL_TS
         self.velocity_loop_counter = self.velocity_loop_ceiling - 1
-        print('CTRL.velocity_loop_ceiling =', self.velocity_loop_ceiling)
+        print('\tCTRL.velocity_loop_ceiling =', self.velocity_loop_ceiling)
         # feedback / input
         self.theta_d = 0.0
         self.omega_r_elec = 0.0
@@ -967,7 +967,7 @@ def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None,
     # SVPWM
     CPU_TICK_PER_SAMPLING_PERIOD = ACM.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD
     DEAD_TIME_AS_COUNT = int(200*0.5e-4*CPU_TICK_PER_SAMPLING_PERIOD) # 200 count for 0--5000--0 counting sequence
-    print(t0, 's', 'DEAD_TIME_AS_COUNT =', DEAD_TIME_AS_COUNT, )
+    # print(t0, 's', 'DEAD_TIME_AS_COUNT =', DEAD_TIME_AS_COUNT, )
     Vdc = CTRL.DC_BUS_VOLTAGE # Vdc is assumed measured and known
     one_over_Vdc = 1/Vdc
     svgen1 = SVgen_Object(CPU_TICK_PER_SAMPLING_PERIOD)
@@ -1047,13 +1047,13 @@ def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None,
                     CTRL.CMD_SPEED_SINE_LAST_END_TIME = CTRL.CMD_SPEED_SINE_END_TIME
                     CTRL.CMD_SPEED_SINE_END_TIME += 1.0/CTRL.CMD_SPEED_SINE_HZ # 1.0 Duration for each frequency
 
-                if (CTRL.CMD_SPEED_SINE_HZ > CTRL.CMD_SPEED_SINE_HZ_CEILING):
+                if CTRL.CMD_SPEED_SINE_HZ > CTRL.CMD_SPEED_SINE_HZ_CEILING:
                     # stop
                     CTRL.cmd_rpm = 0.0
                     CTRL.cmd_idq[1] = 0.0
                 else:
-                    # speed control - closed-cloop sweep
-                    CTRL.cmd_rpm = CTRL.CMD_SPEED_SINE_RPM * np.sin(2*np.pi*CTRL.CMD_SPEED_SINE_HZ*(CTRL.timebase - CTRL.CMD_SPEED_SINE_LAST_END_TIME))
+                    # speed control - closed-loop sweep
+                    CTRL.cmd_rpm    = CTRL.CMD_SPEED_SINE_RPM      * np.sin(2*np.pi*CTRL.CMD_SPEED_SINE_HZ*(CTRL.timebase - CTRL.CMD_SPEED_SINE_LAST_END_TIME))
 
                     # speed control - open-loop sweep
                     CTRL.cmd_idq[1] = CTRL.CMD_CURRENT_SINE_AMPERE * np.sin(2*np.pi*CTRL.CMD_SPEED_SINE_HZ*(CTRL.timebase - CTRL.CMD_SPEED_SINE_LAST_END_TIME))
@@ -1299,14 +1299,17 @@ class Simulation_Benchmark:
     def __init__(self, d, tuner=None, bool_start_simulation=True):
 
         self.d = d
-
+        print('Simulation_Benchmark')
         # Auto-tuning PI
         if d['CL_SERIES_KP'] is None:
             if tuner is None:
                 # sys.path.append(os.path.join(os.path.dirname(__file__), "tuner"))
                 import tuner
             tuner.tunner_wrapper(d)
-            print(f'{d=}')
+            print('\tAuto tuning...')
+            print(f'\t{d=}\n')
+        else:
+            print('\tSkip tuning.')
 
         # 这个字典决定你要画的波形是哪些信号，具体能用的信号见：_Watch_Mapping
         # 允许信号之间进行简单的加减乘除，比如：'CTRL.cmd_rpm - CTRL.omega_r_mech'
@@ -1363,28 +1366,28 @@ class Simulation_Benchmark:
             reg_speed = The_PI_Regulator(d['VL_SERIES_KP'], d['VL_SERIES_KP']*d['VL_SERIES_KI']*CTRL.VL_TS, d['VL_LIMIT_OVERLOAD_FACTOR']*1.414*d['init_IN']) # IN 是线电流有效值，我们这边限幅是用的电流幅值。
         else:
             # Use tustin_pi codes
-            d['disp.Kp'] = d['CL_SERIES_KP']
+            local_Kp = d['CL_SERIES_KP']
             if d['CTRL.bool_apply_decoupling_voltages_to_current_regulation'] == False:
-                d['disp.Ki'] = d['CL_SERIES_KP']*d['CL_SERIES_KI'] * d['FOC_CL_KI_factor_when__bool_apply_decoupling_voltages_to_current_regulation__is_False']
-                print('Note bool_apply_decoupling_voltages_to_current_regulation is False, to improve the current regulator performance a factor of %g has been multiplied to CL KI.' % (d['FOC_CL_KI_factor_when__bool_apply_decoupling_voltages_to_current_regulation__is_False']))
+                local_Ki = d['CL_SERIES_KP']*d['CL_SERIES_KI'] * d['FOC_CL_KI_factor_when__bool_apply_decoupling_voltages_to_current_regulation__is_False']
+                print('\tNote bool_apply_decoupling_voltages_to_current_regulation is False, to improve the current regulator performance a factor of %g has been multiplied to CL KI.' % (d['FOC_CL_KI_factor_when__bool_apply_decoupling_voltages_to_current_regulation__is_False']))
             else:
-                d['disp.Ki'] = d['CL_SERIES_KP']*d['CL_SERIES_KI']
-            d['disp.Kd'] = 0.0
-            d['disp.tau'] = 0.0
-            d['disp.OutLimit'] =     d['DC_BUS_VOLTAGE']/1.732
-            d['disp.IntLimit'] = 1.0*d['DC_BUS_VOLTAGE']/1.732 # Integrator having a lower output limit makes no sense. For example, the q-axis current regulator needs to cancel back emf using the integrator output for almost full dc bus voltage at maximum speed.
-            reg_id    = The_PID_Regulator(d['disp.Kp'], d['disp.Ki'], d['disp.Kd'], d['disp.tau'], d['disp.OutLimit'], d['disp.IntLimit'], d['CL_TS'])
-            reg_iq    = The_PID_Regulator(d['disp.Kp'], d['disp.Ki'], d['disp.Kd'], d['disp.tau'], d['disp.OutLimit'], d['disp.IntLimit'], d['CL_TS'])
-            print(reg_id.OutLimit, 'V')
+                local_Ki = d['CL_SERIES_KP']*d['CL_SERIES_KI']
+            local_Kd = 0.0
+            local_tau = 0.0
+            local_OutLimit =     d['DC_BUS_VOLTAGE']/1.732
+            local_IntLimit = 1.0*d['DC_BUS_VOLTAGE']/1.732 # Integrator having a lower output limit makes no sense. For example, the q-axis current regulator needs to cancel back emf using the integrator output for almost full dc bus voltage at maximum speed.
+            reg_id    = The_PID_Regulator(local_Kp, local_Ki, local_Kd, local_tau, local_OutLimit, local_IntLimit, d['CL_TS'])
+            reg_iq    = The_PID_Regulator(local_Kp, local_Ki, local_Kd, local_tau, local_OutLimit, local_IntLimit, d['CL_TS'])
+            print('\t', reg_id.OutLimit, 'V')
 
-            d['disp.Kp'] = d['VL_SERIES_KP']
-            d['disp.Ki'] = d['VL_SERIES_KP']*d['VL_SERIES_KI']
-            d['disp.Kd'] = 0.0
-            d['disp.tau'] = 0.0
-            d['disp.OutLimit'] =     d['VL_LIMIT_OVERLOAD_FACTOR']*1.414*d['init_IN']
-            d['disp.IntLimit'] = 1.0*d['VL_LIMIT_OVERLOAD_FACTOR']*1.414*d['init_IN']
-            reg_speed = The_PID_Regulator(d['disp.Kp'], d['disp.Ki'], d['disp.Kd'], d['disp.tau'], d['disp.OutLimit'], d['disp.IntLimit'], CTRL.VL_TS)
-            print(reg_speed.OutLimit, 'A')
+            local_Kp = d['VL_SERIES_KP']
+            local_Ki = d['VL_SERIES_KP']*d['VL_SERIES_KI']
+            local_Kd = 0.0
+            local_tau = 0.0
+            local_OutLimit =     d['VL_LIMIT_OVERLOAD_FACTOR']*1.414*d['init_IN']
+            local_IntLimit = 1.0*d['VL_LIMIT_OVERLOAD_FACTOR']*1.414*d['init_IN']
+            reg_speed = The_PID_Regulator(local_Kp, local_Ki, local_Kd, local_tau, local_OutLimit, local_IntLimit, CTRL.VL_TS)
+            print('\t', reg_speed.OutLimit, 'A')
 
         return CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY
 

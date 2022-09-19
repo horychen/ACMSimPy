@@ -3,7 +3,7 @@ import dearpygui.dearpygui as dpg
 # from dearpygui_ext import logger
 import math, random, webbrowser
 import threading, time, collections
-
+import concurrent.futures
 
 
 def _help(message):
@@ -173,6 +173,7 @@ def _update_dynamic_textures(sender, app_data, user_data):
 
 def _on_demo_close(sender, app_data, user_data):
     dpg.delete_item(sender)
+    dpg.delete_item("__demo_primary_window")
     dpg.delete_item("__demo_texture_container")
     dpg.delete_item("__demo_colormap_registry")
     dpg.delete_item("__demo_hyperlinkTheme")
@@ -205,25 +206,60 @@ def _on_demo_close(sender, app_data, user_data):
         dpg.delete_item("__demo_item_reg5_"+str(i))
 
 
+from dataclasses import dataclass
+@dataclass
+class THE_CONSOLE:
+    """ User control over the simulation animation """
+    nsamples : int = 5000*50
+    d_user_input_motor_dict: dict = None
+    numba__scope_dict: dict = None
+    _pause : int = False
+    counter: int = 0
+    reset : int = False
+    bool_exit : int = False
+    ii_list : list = None
+    name : str = ''
+    sleep_time : float=0.02
+    def __post_init__(self):
+        self.TIME_SLICE = self.d_user_input_motor_dict['TIME_SLICE']
+        self.NUMBER_OF_TIME_SLICE_TO_SHOW = self.d_user_input_motor_dict['NUMBER_OF_SLICES']
+        self.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD = self.d_user_input_motor_dict['MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD']
+        self.CL_TS = self.d_user_input_motor_dict['CL_TS']
+        self.SAMPLING_RATE = 1/self.CL_TS
+        self.MACHINE_TS = self.CL_TS / self.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD
+        self.NUMBER_OF_SAMPLE_TO_SHOW = int(self.NUMBER_OF_TIME_SLICE_TO_SHOW * self.TIME_SLICE * self.SAMPLING_RATE * self.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD) # new
 
-def realtime_update_data():
-    global data_x, data_y
-    global CONSOLE, CTRL, ACM, reg_id, reg_iq, reg_speed, reg_speed, reg_dispX, reg_dispY
+        self.init_global_data()
+
+        self.acmsimpy_globals = self.CTRL, self.ACM, self.reg_id, self.reg_iq, self.reg_speed, self.reg_dispX, self.reg_dispY \
+            = acmsimpy.Simulation_Benchmark(self.d_user_input_motor_dict, tuner=tuner, bool_start_simulation=False).get_global_objects()
+
+    def init_global_data(self):
+
+        self.data_dict = dict()
+        self.data_sim_times = collections.deque([0.0, 0.0], maxlen=self.nsamples)
+        for k, v in self.numba__scope_dict.items():
+            self.data_dict[k] = []
+            for trace_name in v:
+                self.data_dict[k].append(collections.deque([0.0, 0.0], maxlen=self.nsamples))
+                # print(k, len(self.data_dict[k]))
+
+def realtime_update_data(CONSOLE: THE_CONSOLE, n_CONSOLES: int):
+
+    CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY = CONSOLE.acmsimpy_globals
 
     CONSOLE.counter = 0
-    print('Numba JIT compiling... (which typically lasts about 8 seconds)')
+    print(CONSOLE.name)
     t0 = time.time()
     while True:
         if not CONSOLE._pause:
             start = time.time()
 
-            # Get new data sample. Note we need both x and y values
-            # if we want a meaningful axis unit.
+            global data_x, data_y
             t = time.time() - t0
             y = math.sin(2.0 * math.pi * t)
             data_x.append(t)
             data_y.append(y)
-
             # Set the series x and y to the last nsamples (using collections.deque)
             dpg.set_value('tag_realtime_plot1', [list(data_x), list(data_y)])
             dpg.fit_axis_data('tag_x_axis')
@@ -243,40 +279,50 @@ def realtime_update_data():
                 reg_iq=reg_iq,
                 reg_speed=reg_speed,
             )
-            global data_sim_times, data_dict
-            data_sim_times.extend(list(machine_times))
 
+            # update individual plot
+            CONSOLE.data_sim_times.extend(list(machine_times))
             for label_index, ylabel in enumerate(CONSOLE.numba__scope_dict.keys()):
                 for trace_index, local_trace_data in enumerate(numba__waveforms_dict[ylabel]):
-                    data_dict[ylabel][trace_index].extend(local_trace_data)
-                    dpg.set_value(f'tag_realtime_subplots_{label_index}_{trace_index}', [list(data_sim_times), list(data_dict[ylabel][trace_index])])
-                    dpg.fit_axis_data(f'tag_x_axis_{label_index}')
-                    dpg.fit_axis_data(f'tag_y_axis_{label_index}')
+                    CONSOLE.data_dict[ylabel][trace_index].extend(local_trace_data)
+                    dpg.set_value(f'tag_realtime_subplots_{CONSOLE.name}_{label_index}_{trace_index}', [list(CONSOLE.data_sim_times), list(CONSOLE.data_dict[ylabel][trace_index])])
+                    dpg.fit_axis_data(f'tag_x_axis_{CONSOLE.name}_{label_index}')
+                    dpg.fit_axis_data(f'tag_y_axis_{CONSOLE.name}_{label_index}')
 
+            if n_CONSOLES > 1:
+                # update main plot
+                dpg.set_value(f'tag_main_subplots_SPEED({CONSOLE.name})',  [list(CONSOLE.data_sim_times), list(CONSOLE.data_dict['Speed [rpm]'][1])])
+                dpg.set_value(f'tag_main_subplots_TORQUE({CONSOLE.name})', [list(CONSOLE.data_sim_times), list(CONSOLE.data_dict['Torque [Nm]'][0])])
+                # if CONSOLE.name == 'B':
+                dpg.fit_axis_data(f'tag_x_axis_SPEED')
+                dpg.fit_axis_data(f'tag_y_axis_SPEED')
+                dpg.fit_axis_data(f'tag_x_axis_TORQUE')
+                dpg.fit_axis_data(f'tag_y_axis_TORQUE')
 
             end = time.time()
-            print(CONSOLE.counter, f"Time taken: {(end-start)*10**3:.03f} ms per simulation slice.")
             CONSOLE.counter=CONSOLE.counter+1
 
-            if CONSOLE.counter<3:
+            if CONSOLE.counter<5:
+                print(f"|{CONSOLE.name}: {CONSOLE.counter}, {(end-start)*10**3:.03f} ms", machine_times[0], 's') # per simulation slice.")
                 if len(machine_times) > CONSOLE.nsamples:
+                    print('[Error] slice data len:', len(machine_times), f'{CONSOLE.nsamples=}')
                     raise Exception('Slice data are more than enough to plot. Update CONSOLE.nsamples', len(machine_times), CONSOLE.nsamples)
-                print('slice data len:', len(machine_times), f'{CONSOLE.nsamples=}')
 
-            time.sleep(0.01) # limit resource usage
+            time.sleep(CONSOLE.sleep_time) # limit resource usage
         else:
-            time.sleep(0.1)
+            time.sleep(0.2)
 
-def show_dem_demo(CONSOLE):
+def show_dem_demo(list_CONSOLE: list):
 
-    def _stop_animation(sender, app_data): CONSOLE._pause ^= True
+    def _stop_animation(sender, app_data): 
+        for C in list_CONSOLE:
+            C._pause ^= True
 
     def _log(sender, app_data, user_data):
         print(f"sender: {sender}, \t app_data: {app_data}, \t user_data: {user_data}")
 
     # Primary Window
     with dpg.window(label="DEM Primary Window", height=200, width=200, tag="__demo_primary_window"):
-
 
         with dpg.menu_bar(label="DEM Menu"):
 
@@ -323,6 +369,7 @@ def show_dem_demo(CONSOLE):
 
                 dpg.add_menu_item(label="Wait For Input", check=True, callback=lambda s, a: dpg.configure_app(wait_for_input=a))
                 dpg.add_menu_item(label="Toggle Fullscreen", callback=lambda:dpg.toggle_viewport_fullscreen())
+
         # enable menubar of window 
         print(dpg.get_item_configuration("__demo_primary_window")["menubar"])
         print(dpg.get_item_configuration("__demo_primary_window")["no_background"])
@@ -331,14 +378,13 @@ def show_dem_demo(CONSOLE):
         dpg.configure_item("__demo_primary_window", **{"no_background": True})
         dpg.configure_item("__demo_primary_window", **{"no_bring_to_front_on_focus": True})
         print(dpg.get_item_configuration("__demo_primary_window")["menubar"])
-        print(dpg.get_item_configuration("__demo_primary_window")["no_background"])
-        print(dpg.get_item_configuration("__demo_primary_window")["no_bring_to_front_on_focus"])
+        print(dpg.get_item_configuration("__demo_primary_window")["no_background"]) # no effect for primary window
+        print(dpg.get_item_configuration("__demo_primary_window")["no_bring_to_front_on_focus"]) # no effect for primary window
 
         with dpg.tree_node(label="Colors"):
 
             dpg.add_text("Highlighting Rows, Columns, Cells:")
-            with dpg.table(header_row=False, row_background=True,
-                         delay_search=True) as table_id:
+            with dpg.table(header_row=False, row_background=True, delay_search=True) as table_id:
 
                 dpg.add_table_column()
                 dpg.add_table_column()
@@ -351,7 +397,7 @@ def show_dem_demo(CONSOLE):
                     with dpg.table_row():
                         for j in range(6):
                             dpg.add_text(f"R{i} C{j}")
-
+                            # CONSOLE.numba__scope_dict
                 for i in range(6):
                     dpg.highlight_table_row(table_id, i, [255, 0, 0, 100])
                     
@@ -365,8 +411,7 @@ def show_dem_demo(CONSOLE):
             _add_config_options(table_id, 1, "row_background", before=table_id)
 
             dpg.add_text("Coloring rows:")
-            with dpg.table(header_row=False, row_background=True,
-                         delay_search=True) as table_id:
+            with dpg.table(header_row=False, row_background=True, delay_search=True) as table_id:
 
                 dpg.add_table_column()
                 dpg.add_table_column()
@@ -398,37 +443,53 @@ def show_dem_demo(CONSOLE):
                 x_axis = dpg.add_plot_axis(dpg.mvXAxis, label='x', tag='tag_x_axis')
                 y_axis = dpg.add_plot_axis(dpg.mvYAxis, label='y', tag='tag_y_axis')
 
-
                 # series belong to a y axis. Note the tag name is used in the update function realtime_update_data
-                dpg.add_line_series(x=list(data_x),y=list(data_y), 
-                                    label='Temp', parent='tag_y_axis', 
-                                    tag='tag_realtime_plot1')
+                dpg.add_line_series(x=list(data_x),y=list(data_y), label='Temp', parent='tag_y_axis', tag='tag_realtime_plot1')
 
         with dpg.tree_node(label="Buttons for fun"):
 
             b1 = dpg.add_button(label="Show Debug Window", callback=lambda sender, app_data: dpg.show_debug())
             b2 = dpg.add_button(label="Secondary Font Example")
 
-        
         b3 = dpg.add_button(label="Stop/Start Animation", callback=_stop_animation)
 
+        def _add_subplots_per_CONSOLE(CONSOLE):
+            CONSOLE.y_labels = list(CONSOLE.numba__scope_dict.keys())
+            CONSOLE.no_axes  = len(CONSOLE.y_labels)
+            with dpg.subplots(CONSOLE.no_axes//2 + CONSOLE.no_axes%2, 2, label=CONSOLE.name, width=-1, height=-1) as my_subplot_id:
+                dpg.add_plot_legend()
+                for i, (k, v) in enumerate(CONSOLE.numba__scope_dict.items()):
+                    with dpg.plot(no_title=True):
+                        dpg. add_plot_axis(dpg.mvXAxis, tag=f'tag_x_axis_{CONSOLE.name}_{i}') # label=f"x{i}", 
+                        with dpg.plot_axis(dpg.mvYAxis, label=CONSOLE.y_labels[i], tag=f'tag_y_axis_{CONSOLE.name}_{i}') as y_axis:
+                            for j, trace_name in enumerate(v):
+                                dpg.add_line_series(x=list(data_x), y=list(data_y), label=trace_name, tag=f'tag_realtime_subplots_{CONSOLE.name}_{i}_{j}') # f"data_{i}_{j}" # parent=f'y_axis_{i}', 
+                                print(f'tag_realtime_subplots_{CONSOLE.name}_{i}_{j} is', trace_name)
+            # _add_config_options(my_subplot_id, 2, "no_align", "link_rows", "link_columns", "link_all_x", "link_all_y", before=my_subplot_id)
 
-        CONSOLE.y_labels = list(CONSOLE.numba__scope_dict.keys())
-        CONSOLE.no_axes  = len(CONSOLE.y_labels)
+        if len(list_CONSOLE) == 1:
+            _add_subplots_per_CONSOLE(list_CONSOLE[0])
+        else:
+            # individual plot
+            for C in list_CONSOLE:
+                with dpg.tree_node(label=C.name):
+                    _add_subplots_per_CONSOLE(C)
 
-        with dpg.subplots(CONSOLE.no_axes//2 + CONSOLE.no_axes%2, 2, label="Realtime Subplots", width=-1, height=-1) as my_subplot_id:
-
-            dpg.add_plot_legend()
-
-            for i, (k, v) in enumerate(CONSOLE.numba__scope_dict.items()):
+            # main plot
+            with dpg.subplots(2, 1, label='main_subplots', width=-1, height=-1) as main_subplot_id:
+                dpg.add_plot_legend()
                 with dpg.plot(no_title=True):
-                    dpg. add_plot_axis(dpg.mvXAxis, tag=f'tag_x_axis_{i}') # label=f"x{i}", 
-                    with dpg.plot_axis(dpg.mvYAxis, label=CONSOLE.y_labels[i], tag=f'tag_y_axis_{i}') as y_axis:
-                        for j, trace_name in enumerate(v):
-                            dpg.add_line_series(x=list(data_x), y=list(data_y), label=trace_name, parent=f'y_axis_{i}', tag=f'tag_realtime_subplots_{i}_{j}') # f"data_{i}_{j}"
-                            print(f'tag_realtime_subplots_{i}_{j} is', trace_name)
+                    dpg. add_plot_axis(dpg.mvXAxis,                        tag=f'tag_x_axis_SPEED')
+                    with dpg.plot_axis(dpg.mvYAxis, label='Speed [r/min]', tag=f'tag_y_axis_SPEED') as y_axis:
+                        for CONSOLE in list_CONSOLE:
+                            dpg.add_line_series(x=list(data_x), y=list(data_y), label=f'CTRL.omega_r_mech({CONSOLE.name})', tag=f'tag_main_subplots_SPEED({CONSOLE.name})')
+                with dpg.plot(no_title=True):
+                    dpg. add_plot_axis(dpg.mvXAxis,                      tag=f'tag_x_axis_TORQUE')
+                    with dpg.plot_axis(dpg.mvYAxis, label='Torque [Nm]', tag=f'tag_y_axis_TORQUE') as y_axis:
+                        for CONSOLE in list_CONSOLE:
+                            dpg.add_line_series(x=list(data_x), y=list(data_y), label=f'ACM.Tem({CONSOLE.name})', tag=f'tag_main_subplots_TORQUE({CONSOLE.name})')
 
-        # _add_config_options(my_subplot_id, 2, "no_align", "link_rows", "link_columns", "link_all_x", "link_all_y", before=my_subplot_id)
+
     # dpg.show_font_manager()
     # dpg.show_implot_demo()
     # dpg.show_debug()
@@ -471,7 +532,7 @@ def show_dem_demo(CONSOLE):
     _create_static_textures()
     _create_dynamic_textures()
 
-    # return
+    return
 
     with dpg.window(label="Dear PyGui Demo", width=800, height=800, on_close=_on_demo_close, pos=(100, 100), tag="__demo_id"):
 
@@ -3066,34 +3127,17 @@ def show_dem_demo(CONSOLE):
                     dpg.add_text("Outputs frame buffer an mvBuffer object, creates a dynamic texture, and shows the texture registry (check final item)")
                     dpg.add_button(label="Output Framebuffer", callback=lambda:dpg.output_frame_buffer(callback=_framebuffer_callback))
 
-from dataclasses import dataclass
-@dataclass
-class THE_CONSOLE:
-    """ User control over the simulation animation """
-    nsamples : int = 5000*10
-    d_user_input_motor_dict: dict = None
-    numba__scope_dict: dict = None
-    _pause : int = False
-    counter: int = 0
-    reset : int = False
-    bool_exit : int = False
-    ii_list: list = None
-    def __post_init__(self):
-        self.TIME_SLICE = self.d_user_input_motor_dict['TIME_SLICE']
-        self.NUMBER_OF_TIME_SLICE_TO_SHOW = self.d_user_input_motor_dict['NUMBER_OF_SLICES']
-        self.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD = self.d_user_input_motor_dict['MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD']
-        self.CL_TS = self.d_user_input_motor_dict['CL_TS']
-        self.SAMPLING_RATE = 1/self.CL_TS
-        self.MACHINE_TS = self.CL_TS / self.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD
-        self.NUMBER_OF_SAMPLE_TO_SHOW = int(self.NUMBER_OF_TIME_SLICE_TO_SHOW * self.TIME_SLICE * self.SAMPLING_RATE * self.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD) # new
 
 if __name__ == '__main__':
 
-    d_user_input_motor_dict = {
+    d = d_user_input_motor_dict = {
+        # Timing
         'CL_TS': 1e-4,
         'TIME_SLICE': 5e-1,
+        'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 1,
         'NUMBER_OF_SLICES': 10,
-        'VL_EXE_PER_CL_EXE': 1,
+        'VL_EXE_PER_CL_EXE': 5,
+        # Motor data
         'init_npp': 4,
         'init_IN': 4,
         'init_R': 1.1,
@@ -3102,31 +3146,33 @@ if __name__ == '__main__':
         'init_KE': 0.1,
         'init_Rreq': 0.0,
         'init_Js': 0.008,
+        'DC_BUS_VOLTAGE': 200,
+        'user_system_input_code': '''if True: 
+                                ii = CONSOLE.counter
+                                # if ii < 200:
+                                #     CTRL.cmd_idq[0] = 0.0
+                                #     CTRL.cmd_rpm = 500 * math.sin(0.1*2*math.pi*ii*CONSOLE.TIME_SLICE)
+                                # elif ii <500:
+                                #     ACM.TLoad = 1.27 * math.sin(0.1*2*math.pi*ii*CONSOLE.TIME_SLICE)
+                                # elif ii <2000:
+                                #     CTRL.cmd_rpm = -200
+                                if CONSOLE.CTRL.timebase > 6:
+                                    CONSOLE._pause = True
+                                ''',
+        # Controller config
         'CTRL.bool_apply_speed_closed_loop_control': True,
         'CTRL.bool_apply_decoupling_voltages_to_current_regulation': False,
         'CTRL.bool_apply_sweeping_frequency_excitation': False,
         'CTRL.bool_overwrite_speed_commands': True,
         'CTRL.bool_zero_id_control': True,
-        'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 1,
-        'DC_BUS_VOLTAGE': 200,
         'FOC_delta': 6.5,
         'FOC_desired_VLBW_HZ': 20, # 60
         'FOC_CL_KI_factor_when__bool_apply_decoupling_voltages_to_current_regulation__is_False': 10,
-        'CL_SERIES_KP': None, # 1.61377, # 11.49, # [BW=207.316Hz] # 6.00116,  # [BW=106.6Hz]
-        'CL_SERIES_KI': None, # 97.76,
-        'VL_SERIES_KP': None, # 0.479932, # 0.445651, # [BW=38.6522Hz] # 0.250665 # [BW=22.2Hz]
-        'VL_SERIES_KI': None, # 30.5565,
+        'CL_SERIES_KP': None,
+        'CL_SERIES_KI': None,
+        'VL_SERIES_KP': None,
+        'VL_SERIES_KI': None,
         'VL_LIMIT_OVERLOAD_FACTOR': 3.0,
-        'user_system_input_code': '''if True: 
-                                ii = CONSOLE.counter
-                                if ii < 200:
-                                    CTRL.cmd_idq[0] = 0.0
-                                    CTRL.cmd_rpm = 500 * math.sin(0.1*2*math.pi*ii*CONSOLE.TIME_SLICE)
-                                elif ii <500:
-                                    ACM.TLoad = 1.27 * math.sin(0.1*2*math.pi*ii*CONSOLE.TIME_SLICE)
-                                # elif ii <2000:
-                                #     CTRL.cmd_rpm = -200
-                                ''',
         'disp.Kp': 0.0,
         'disp.Ki': 0.0,
         'disp.Kd': 0.0,
@@ -3136,54 +3182,119 @@ if __name__ == '__main__':
     }
 
     numba__scope_dict = collections.OrderedDict([
-    # Y Labels                # Signal Name of Traces
-    # (r'Speed Out Limit [A]',  ( 'reg_speed.OutLimit'                             ,)),
-    # (r'$q$-axis voltage [V]', ( 'ACM.udq[1]', 'CTRL.cmd_udq[1]'                  ,)),
-    # (r'$d$-axis voltage [V]', ( 'ACM.udq[0]', 'CTRL.cmd_udq[0]'                  ,)),
-    (r'Torque [Nm]',          ( 'ACM.Tem', 'CTRL.Tem'                            ,)),
-    (r'Speed [rpm]',          ( 'CTRL.cmd_rpm', 'CTRL.omega_r_mech', 'CTRL.xS[1]',)),
-    # (r'Speed Error [rpm]',    ( 'CTRL.cmd_rpm - CTRL.omega_r_mech'               ,)),
-    # (r'Position [rad]',       ( 'ACM.theta_d', 'CTRL.theta_d', 'CTRL.xS[0]'      ,)),
-    # (r'Position mech [rad]',  ( 'ACM.theta_d'                                    ,)),
-    (r'$q$-axis current [A]', ( 'ACM.iQ', 'CTRL.cmd_idq[1]'                      ,)),
-    (r'$d$-axis current [A]', ( 'ACM.iD', 'CTRL.cmd_idq[0]'                      ,)),
-    # (r'K_{\rm Active} [A]',   ( 'ACM.KA', 'CTRL.KA'                              ,)),
-    # (r'Load torque [Nm]',     ( 'ACM.TLoad', 'CTRL.xS[2]'                        ,)),
-    (r'CTRL.iD [A]',          ( 'CTRL.cmd_idq[0]', 'CTRL.idq[0]'                 ,)),
-    (r'CTRL.iQ [A]',          ( 'CTRL.cmd_idq[1]', 'CTRL.idq[1]'                 ,)),
-    (r'CTRL.uab [V]',         ( 'CTRL.cmd_uab[0]', 'CTRL.cmd_uab[1]'             ,)),
-    # (r'S [1]',                ( 'svgen1.S1', 'svgen1.S2', 'svgen1.S3', 'svgen1.S4', 'svgen1.S5', 'svgen1.S6',)),
+        # Y Labels                # Signal Name of Traces
+        # (r'Speed Out Limit [A]',  ( 'reg_speed.OutLimit'                             ,)),
+        # (r'$q$-axis voltage [V]', ( 'ACM.udq[1]', 'CTRL.cmd_udq[1]'                  ,)),
+        # (r'$d$-axis voltage [V]', ( 'ACM.udq[0]', 'CTRL.cmd_udq[0]'                  ,)),
+        (r'Torque [Nm]',          ( 'ACM.Tem', 'CTRL.Tem'                            ,)),
+        (r'Speed [rpm]',          ( 'CTRL.cmd_rpm', 'CTRL.omega_r_mech', 'CTRL.xS[1]',)),
+        # (r'Speed Error [rpm]',    ( 'CTRL.cmd_rpm - CTRL.omega_r_mech'               ,)),
+        # (r'Position [rad]',       ( 'ACM.theta_d', 'CTRL.theta_d', 'CTRL.xS[0]'      ,)),
+        # (r'Position mech [rad]',  ( 'ACM.theta_d'                                    ,)),
+        (r'$q$-axis current [A]', ( 'ACM.iQ', 'CTRL.cmd_idq[1]'                      ,)),
+        (r'$d$-axis current [A]', ( 'ACM.iD', 'CTRL.cmd_idq[0]'                      ,)),
+        # (r'K_{\rm Active} [A]',   ( 'ACM.KA', 'CTRL.KA'                              ,)),
+        # (r'Load torque [Nm]',     ( 'ACM.TLoad', 'CTRL.xS[2]'                        ,)),
+        (r'CTRL.iD [A]',          ( 'CTRL.cmd_idq[0]', 'CTRL.idq[0]'                 ,)),
+        (r'CTRL.iQ [A]',          ( 'CTRL.cmd_idq[1]', 'CTRL.idq[1]'                 ,)),
+        (r'CTRL.uab [V]',         ( 'CTRL.cmd_uab[0]', 'CTRL.cmd_uab[1]'             ,)),
+        # (r'S [1]',                ( 'svgen1.S1', 'svgen1.S2', 'svgen1.S3', 'svgen1.S4', 'svgen1.S5', 'svgen1.S6',)),
     ])
 
     import tutorials_ep6_maglev_motor as acmsimpy
     import tuner
+    import copy
 
     """ Simulation Globals """
-    global CONSOLE, CTRL, ACM, reg_id, reg_iq, reg_speed, reg_speed, reg_dispX, reg_dispY
-    CONSOLE = THE_CONSOLE(d_user_input_motor_dict=d_user_input_motor_dict, numba__scope_dict=numba__scope_dict)
-    CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY = acmsimpy.Simulation_Benchmark(CONSOLE.d_user_input_motor_dict, tuner=tuner, bool_start_simulation=False).get_global_objects()
+    if False:
+        # Sweeping freuqency
+        d['CTRL.bool_apply_sweeping_frequency_excitation'] = True
+
+        d['FOC_desired_VLBW_HZ'] = 20
+        d['CL_SERIES_KP'] = None
+        CONSOLE1 = THE_CONSOLE(name='A', d_user_input_motor_dict=copy.deepcopy(d), numba__scope_dict=numba__scope_dict)
+        d['FOC_desired_VLBW_HZ'] = 40
+        d['CL_SERIES_KP'] = None
+        CONSOLE2 = THE_CONSOLE(name='B', d_user_input_motor_dict=copy.deepcopy(d), numba__scope_dict=numba__scope_dict)
+        d['FOC_desired_VLBW_HZ'] = 100
+        d['CL_SERIES_KP'] = None
+        CONSOLE3 = THE_CONSOLE(name='C', d_user_input_motor_dict=copy.deepcopy(d), numba__scope_dict=numba__scope_dict)
+    else:
+        d['MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD'] = 1
+        d['TIME_SLICE'] = 5e-1
+
+        # 小电感电机
+        d['init_npp'] = 22
+        d['init_IN'] = 1.3*6/1.414
+        d['init_R'] = 0.035
+        d['init_Ld'] = 1*0.036*1e-3
+        d['init_Lq'] = 1*0.036*1e-3
+        d['init_KE'] = 0.0125
+        d['init_Rreq'] = 0.0
+        d['init_Js'] = 0.44*1e-4
+        d['DC_BUS_VOLTAGE'] = 10
+        d['user_system_input_code'] = '''t=CTRL.timebase\nif t < 1: CTRL.cmd_idq[0] = 0.0; CTRL.cmd_rpm = 150 \nelif t<5: ACM.TLoad=0.2 \nelif t<10: CTRL.cmd_rpm = -150\nelse: CONSOLE._pause=True'''
+        d['FOC_delta'] = 10
+        d['FOC_desired_VLBW_HZ'] = 120
+        d['CL_SERIES_KP'] = None # activate auto-tuner
+        CONSOLE1 = THE_CONSOLE(name='A', d_user_input_motor_dict=copy.deepcopy(d), numba__scope_dict=numba__scope_dict)
+
+        # 普通伺服电机
+        d['init_npp'] = 4
+        d['init_IN'] = 4
+        d['init_R'] = 1.1
+        d['init_Ld'] = 5e-3
+        d['init_Lq'] = 6e-3
+        d['init_KE'] = 0.1
+        d['init_Rreq'] = 0.0
+        d['init_Js'] = 0.008
+        d['DC_BUS_VOLTAGE'] = 80
+        d['user_system_input_code'] = '''t=CTRL.timebase\nif t < 1: CTRL.cmd_idq[0] = 0.0; CTRL.cmd_rpm = 150 \nelif t<5: ACM.TLoad=1.27 \nelif t<10: CTRL.cmd_rpm = -150\nelse: CONSOLE._pause=True'''
+        d['FOC_delta'] = 10
+        d['FOC_desired_VLBW_HZ'] = 60
+        d['CL_SERIES_KP'] = None # activate auto-tuner
+        CONSOLE2 = THE_CONSOLE(name='B', d_user_input_motor_dict=copy.deepcopy(d), numba__scope_dict=numba__scope_dict)
+
+        # # 大电感电机
+        d['init_npp'] = 24
+        d['init_IN'] = 4.93
+        d['init_R'] =  1.97
+        d['init_Ld'] = 0.1035
+        d['init_Lq'] = 0.1063
+        d['init_KE'] = 0.0745
+        d['init_Rreq'] = 0.0
+        d['init_Js'] = 1.5*0.051
+        d['DC_BUS_VOLTAGE'] = 800
+        d['user_system_input_code'] = '''t=CTRL.timebase\nif t < 1: CTRL.cmd_idq[0] = 0.0; CTRL.cmd_rpm = 150 \nelif t<5: ACM.TLoad=20 \nelif t<10: CTRL.cmd_rpm = -150\nelse: CONSOLE._pause=True'''
+        d['FOC_delta'] = 6.5
+        d['FOC_desired_VLBW_HZ'] = 40
+        d['CL_SERIES_KP'] = None # activate auto-tuner
+        CONSOLE3 = THE_CONSOLE(name='C', d_user_input_motor_dict=copy.deepcopy(d), numba__scope_dict=numba__scope_dict)
+    # list_CONSOLE = [CONSOLE2,]
+    # list_CONSOLE = [CONSOLE1, CONSOLE2]
+    list_CONSOLE = [CONSOLE1, CONSOLE2, CONSOLE3]
+    # for CONSOLE  in list_CONSOLE:
+    #     CONSOLE.nsamples = 10000 * 50
+
 
     global data_x, data_y
     # Can use collections if you only need the last 100 samples
-    data_x = collections.deque([0.0, 0.0], maxlen=CONSOLE.nsamples)
-    data_y = collections.deque([0.0, 0.0], maxlen=CONSOLE.nsamples)
-
-    global data_dict, data_sim_times
-    data_dict = dict()
-    data_sim_times = collections.deque([0.0, 0.0], maxlen=CONSOLE.nsamples)
-    for k, v in CONSOLE.numba__scope_dict.items():
-        data_dict[k] = []
-        for trace_name in v:
-            data_dict[k].append(collections.deque([0.0, 0.0], maxlen=CONSOLE.nsamples))
-            print(k, len(data_dict[k]))
+    data_x = collections.deque([0.0, 0.0], maxlen=list_CONSOLE[0].nsamples)
+    data_y = collections.deque([0.0, 0.0], maxlen=list_CONSOLE[0].nsamples)
 
     dpg.create_context()
     dpg.create_viewport(title='Dear Electric Machines', width=1200, height=900)
-    show_dem_demo(CONSOLE)
+    show_dem_demo(list_CONSOLE)
     dpg.setup_dearpygui()
     dpg.show_viewport()
-    thread = threading.Thread(target=realtime_update_data)
-    thread.start()
+
+    # compile numba codes
+    print('Numba JIT compiling... (which typically lasts about 8 seconds)')
+
+    list_thread = [threading.Thread(target=realtime_update_data, args=(CONSOLE, len(list_CONSOLE))) for CONSOLE in list_CONSOLE]
+    for thread in list_thread: thread.start()
+
     dpg.start_dearpygui()
     dpg.destroy_context()
+
 
