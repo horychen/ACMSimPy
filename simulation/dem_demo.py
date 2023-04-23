@@ -3234,7 +3234,7 @@ if __name__ == '__main__':
     import copy
 
     """ Simulation Globals """
-    if False:
+    if True:
         # Sweeping freuqency
         d['CTRL.bool_apply_sweeping_frequency_excitation'] = True
 

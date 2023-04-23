@@ -16,10 +16,16 @@ plt.style.use('ggplot')
             ('velocity_loop_ceiling', float64),
             # feedback / input
             ('theta_d', float64),
+            ('theta_m', float64),
             ('omega_r_elec', float64),
             ('omega_syn', float64),
             ('omega_slip', float64),
             ('uab', float64[:]),
+            ('psi_stator_MT_fb', float64[:]),
+            ('psi_stator_ab_fb', float64[:]),
+            ('kPFL', float64),
+            ('kPCL', float64),
+            ('Intergral_of_it_error', float64),
             # ('uab_prev', float64[:]),
             # ('uab_curr', float64[:]),
             ('iab', float64[:]),
@@ -27,20 +33,26 @@ plt.style.use('ggplot')
             ('iab_curr', float64[:]),
             # states
             ('timebase', float64),
-            ('KA', float64),
             ('Tem', float64),
             ('cosT', float64),
             ('sinT', float64),
+            ('cosT_MT', float64),
+            ('sinT_MT', float64),
             # commands
+            ('cmd_iMT',float64[:]),
+            ('cmd_uMT', float64[:]),
             ('cmd_idq', float64[:]),
             ('cmd_udq', float64[:]),
             ('cmd_uab', float64[:]),
             ('cmd_rpm', float64),
+            ('cmd_KA',  float64),
+            ('cmd_psi_Ms', float64),
             ('index_separate_speed_estimation', int32),
             ('use_disturbance_feedforward_rejection', int32),
             ('bool_apply_decoupling_voltages_to_current_regulation', int32),
             ('bool_apply_speed_closed_loop_control', int32),
             ('bool_zero_id_control', int32),
+            ('bool_use_FOC_or_SFOC', int32),
             # commands (sweep freuqency)
             ('bool_apply_sweeping_frequency_excitation', int32),
             ('bool_overwrite_speed_commands', int32),
@@ -61,12 +73,16 @@ plt.style.use('ggplot')
             ('Ld',  float64),
             ('Lq',  float64),
             ('KE',  float64),
+            ('KA',  float64),
             ('Rreq',float64),
+            ('Lsigma', float64),
             # mechanical parameters
             ('Js',  float64),
         # OBSERVER
             # feedback / inputs
             ('idq', float64[:]),
+            ('iMT', float64[:]),
+            ('emf_stator', float64[:]),
             # states
             ('NS', int32),
             ('xS', float64[:]),
@@ -91,6 +107,7 @@ class The_Motor_Controller:
         init_Ld = 5e-3,
         init_Lq = 6e-3,
         init_KE = 0.095,
+        init_KA = 0.095,
         init_Rreq = -1, # note division by 0 is equal to infinity
         init_Js = 0.0006168,
         DC_BUS_VOLTAGE = 300,
@@ -104,10 +121,16 @@ class The_Motor_Controller:
         print('\tCTRL.velocity_loop_ceiling =', self.velocity_loop_ceiling)
         # feedback / input
         self.theta_d = 0.0
+        self.theta_m = 0.0
         self.omega_r_elec = 0.0
         self.omega_syn = 0.0
         self.omega_slip = 0.0
         self.uab      = np.zeros(2, dtype=np.float64)
+        self.psi_stator_MT_fb = np.zeros(2, dtype=np.float64)
+        self.psi_stator_ab_fb = np.zeros(2, dtype=np.float64)
+        self.kPFL = 10
+        self.kPCL = 200
+        self.Intergral_of_it_error = 0.0
         # self.uab_prev = np.zeros(2, dtype=np.float64)
         # self.uab_curr = np.zeros(2, dtype=np.float64)
         self.iab      = np.zeros(2, dtype=np.float64)
@@ -115,20 +138,24 @@ class The_Motor_Controller:
         self.iab_curr = np.zeros(2, dtype=np.float64)
         # states
         self.timebase = 0.0
-        self.KA = init_KE
         self.Tem = 0.0
         self.cosT = 1.0
         self.sinT = 0.0
         # commands
+        self.cmd_iMT = np.zeros(2, dtype=np.float64)
+        self.cmd_uMT = np.zeros(2, dtype=np.float64)
         self.cmd_idq = np.zeros(2, dtype=np.float64)
         self.cmd_udq = np.zeros(2, dtype=np.float64)
         self.cmd_uab = np.zeros(2, dtype=np.float64)
         self.cmd_rpm = 0.0
+        self.cmd_KA  = init_KA
+        self.cmd_psi_Ms = init_KA
         self.index_separate_speed_estimation = 0
         self.use_disturbance_feedforward_rejection = 0
         self.bool_apply_decoupling_voltages_to_current_regulation = False
         self.bool_apply_speed_closed_loop_control = True
         self.bool_zero_id_control = True
+        self.bool_use_FOC_or_SFOC = True
         # sweep frequency
         self.bool_apply_sweeping_frequency_excitation = False
         self.bool_overwrite_speed_commands = False
@@ -146,13 +173,17 @@ class The_Motor_Controller:
         self.Ld   = init_Ld
         self.Lq   = init_Lq
         self.KE   = init_KE
+        self.KA   = init_KA
         self.Rreq = init_Rreq
         self.Js   = init_Js
         self.DC_BUS_VOLTAGE = DC_BUS_VOLTAGE
+        self.Lsigma = 22*1e-3
 
         ''' OBSERVER '''
         # feedback / input
         self.idq = np.zeros(2, dtype=np.float64)
+        self.iMT = np.zeros(2, dtype=np.float64)
+        self.emf_stator = np.zeros(2, dtype=np.float64)
         # state
         self.NS   = 6 # = max(NS_SPEED, NS_FLUX)
         self.xS   = np.zeros(self.NS, dtype=np.float64) # the internal states of speed estimator
@@ -197,6 +228,7 @@ class The_Motor_Controller:
         ('Ld',  float64),
         ('Lq',  float64),
         ('KE',  float64),
+        ('KA', float64),
         ('Rreq',float64),
         # mechanical parameters
         ('Js',  float64),
@@ -215,7 +247,6 @@ class The_Motor_Controller:
         ('omega_syn', float64),
         ('theta_d', float64),
         ('theta_d_mech', float64),
-        ('KA', float64),
         ('iD', float64),
         ('iQ', float64),
         ('iAlfa', float64),
@@ -240,8 +271,11 @@ class The_AC_Machine:
         self.R   = CTRL.R
         self.Ld  = CTRL.Ld
         self.Lq  = CTRL.Lq
-        self.KE  = CTRL.KE
         self.Rreq  = CTRL.Rreq
+        if self.Rreq >0:
+            if CTRL.KE>0:
+                raise Exception('KE should be zero for induction machine.')
+        self.KA  = CTRL.KA
         # mechanical parameters
         self.Js  = CTRL.Js # kg.m^2
         self.Js_inv = 1.0/self.Js
@@ -260,7 +294,6 @@ class The_AC_Machine:
         self.omega_syn = 0.0
         self.theta_d = 0.0
         self.theta_d_mech = 0.0
-        self.KA = CTRL.KA
         self.iD = 0.0
         self.iQ = 0.0
         self.iAlfa = 0.0
@@ -626,6 +659,20 @@ def tustin_pid(reg):
 
 @njit(nogil=True)
 def FOC(CTRL, reg_speed, reg_id, reg_iq):
+
+    """ Park Transformation Essentials """
+    # do this once per control interrupt
+    CTRL.cosT = np.cos(CTRL.theta_d)
+    CTRL.sinT = np.sin(CTRL.theta_d)
+    # Park transformation
+    CTRL.idq[0] = CTRL.iab[0] * CTRL.cosT + CTRL.iab[1] * CTRL.sinT
+    CTRL.idq[1] = CTRL.iab[0] *-CTRL.sinT + CTRL.iab[1] * CTRL.cosT
+
+    # now we are ready to calculate torque using dq-currents
+    CTRL.KA = (CTRL.Ld - CTRL.Lq) * CTRL.idq[0] + CTRL.KE # 有功磁链计算
+    CTRL.Tem =     1.5 * CTRL.npp * CTRL.idq[1] * CTRL.KA # 电磁转矩计算
+
+    # Speed regulation (FOC)
     reg_speed.setpoint = CTRL.cmd_rpm / 60 * 2*np.pi * CTRL.npp # [elec.rad/s]
     reg_speed.measurement = CTRL.omega_r_elec # [elec.rad/s]
     CTRL.velocity_loop_counter += 1
@@ -641,7 +688,7 @@ def FOC(CTRL, reg_speed, reg_id, reg_iq):
 
     # slip and syn frequencies
     if CTRL.Rreq>0: # IM
-        CTRL.cmd_idq[0] = 0.9 / (CTRL.Ld - CTRL.Lq) # [Wb] / [H]
+        CTRL.cmd_idq[0] = CTRL.cmd_KA / (CTRL.Ld - CTRL.Lq) # [Wb] / [H]
         CTRL.omega_slip = CTRL.Rreq * CTRL.cmd_idq[1] / CTRL.KA # Use commands for calculation (base off Harnefors recommendations)
     else:
         CTRL.omega_slip = 0.0
@@ -711,9 +758,47 @@ def FOC(CTRL, reg_speed, reg_id, reg_iq):
 
 @njit(nogil=True)
 def SFOC_Dynamic(CTRL, reg_speed, reg_id, reg_iq):
-    pass
 
-    CTRL.cmd_udq[1] = reg_iq.Out
+    """ Park Transformation Essentials """
+    # Park transformation
+    CTRL.iMT[0] = CTRL.iab[0] * CTRL.cosT_MT + CTRL.iab[1] * CTRL.sinT_MT
+    CTRL.iMT[1] = CTRL.iab[0] *-CTRL.sinT_MT + CTRL.iab[1] * CTRL.cosT_MT
+
+    # Speed regulation (SFOC)
+    reg_speed.Kp = 0.1
+    reg_speed.Ki = 0.0005
+    reg_speed.setpoint = CTRL.cmd_rpm / 60 * 2*np.pi * CTRL.npp # [elec.rad/s]
+    reg_speed.measurement = CTRL.omega_r_elec # [elec.rad/s]
+    CTRL.velocity_loop_counter += 1
+    if CTRL.velocity_loop_counter >= CTRL.velocity_loop_ceiling:
+        CTRL.velocity_loop_counter = 0
+        # incremental_pi(reg_speed)
+        tustin_pid(reg_speed)
+
+    # dq-frame current commands
+    if CTRL.bool_apply_speed_closed_loop_control == True:
+        CTRL.cmd_iMT[1] = reg_speed.Out
+        # CTRL.cmd_idq[0] = 0.0 # for user specifying
+    else:
+        CTRL.cmd_iMT[1] = 0.5
+
+
+    if True:
+        # constant stator flux linkage
+        CTRL.cmd_psi_Ms = 1.0
+    else:
+        CTRL.cmd_idq[0] = 1.5
+        # CTRL.cmd_psi_Ms = np.sqrt( (CTRL.Ld*CTRL.cmd_i??[0])**2 + (CTRL.Lq * CTRL.cmd_i??[1])**2 )
+
+    CTRL.cmd_uMT[0] = CTRL.kPFL*( CTRL.cmd_psi_Ms - CTRL.psi_stator_MT_fb[0] ) + CTRL.R*CTRL.iMT[0] + 0
+
+    CTRL.emf_stator[0] = CTRL.cmd_uab[0] - CTRL.R * CTRL.iab[0]
+    CTRL.emf_stator[1] = CTRL.cmd_uab[1] - CTRL.R * CTRL.iab[1]
+    CTRL.omega_syn = - (CTRL.psi_stator_ab_fb[0]*-CTRL.emf_stator[1] + CTRL.psi_stator_ab_fb[1]*CTRL.emf_stator[0]) / (CTRL.psi_stator_MT_fb[0]*CTRL.psi_stator_MT_fb[0])
+    CTRL.omega_slip = CTRL.omega_syn - CTRL.omega_r_elec
+
+    CTRL.Intergral_of_it_error += CTRL.CL_TS * CTRL.kPCL * (CTRL.cmd_iMT[1] - CTRL.iMT[1])
+    CTRL.cmd_uMT[1] = CTRL.R * (CTRL.Intergral_of_it_error - CTRL.cmd_iMT[1]) + CTRL.omega_syn*CTRL.psi_stator_MT_fb[0]
 
 ############################################# DSP SECTION
 @njit(nogil=True)
@@ -725,17 +810,20 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq):
     CTRL.iab[1] = ACM.iBeta
     CTRL.theta_d = ACM.theta_d
 
-    """ Park Transformation Essentials """
-    # do this once per control interrupt
-    CTRL.cosT = np.cos(CTRL.theta_d)
-    CTRL.sinT = np.sin(CTRL.theta_d)
-    # Park transformation
-    CTRL.idq[0] = CTRL.iab[0] * CTRL.cosT + CTRL.iab[1] * CTRL.sinT
-    CTRL.idq[1] = CTRL.iab[0] *-CTRL.sinT + CTRL.iab[1] * CTRL.cosT
-
-    # now we are ready to calculate torque using dq-currents
-    CTRL.KA = (CTRL.Ld - CTRL.Lq) * CTRL.idq[0] + CTRL.KE # 有功磁链计算
-    CTRL.Tem =     1.5 * CTRL.npp * CTRL.idq[1] * CTRL.KA # 电磁转矩计算
+    # STATOR FLXU MEASUREMENT FOR SFOC
+    CTRL.psi_stator_ab_fb[0] = ACM.KA*np.cos(ACM.theta_d) + CTRL.Lq*CTRL.iab[0]
+    CTRL.psi_stator_ab_fb[1] = ACM.KA*np.sin(ACM.theta_d) + CTRL.Lq*CTRL.iab[1]
+    # CTRL.theta_m = np.atan2(CTRL.psi_stator_ab_fb[1], CTRL.psi_stator_ab_fb[0])
+    CTRL.psi_stator_MT_fb[0] = np.sqrt(CTRL.psi_stator_ab_fb[0]**2 + CTRL.psi_stator_ab_fb[1]**2)
+    CTRL.psi_stator_MT_fb[1] = 0.0
+    if CTRL.psi_stator_MT_fb[0] > 0:
+        inverse = 1.0 / CTRL.psi_stator_MT_fb[0]
+        CTRL.cosT_MT = CTRL.psi_stator_ab_fb[0] * inverse
+        CTRL.sinT_MT = CTRL.psi_stator_ab_fb[1] * inverse
+    else:
+        CTRL.cosT_MT = 1.0
+        CTRL.sinT_MT = 0.0
+    CTRL.omega_syn = ACM.omega_syn
 
     """ Speed Estimation """
     if CTRL.index_separate_speed_estimation == 0:
@@ -763,11 +851,20 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq):
     """ (Optional) Do Park transformation again using the position estimate from the speed observer """
 
     """ Speed and Current Controller (two cascaded closed loops) """
-    FOC(CTRL, reg_speed, reg_id, reg_iq)
+    if CTRL.bool_use_FOC_or_SFOC == True:
+        FOC(CTRL, reg_speed, reg_id, reg_iq)
 
-    # [$] Inverse Park transformation: get voltage commands in alpha-beta frame as SVPWM input
-    CTRL.cmd_uab[0] = CTRL.cmd_udq[0] * CTRL.cosT + CTRL.cmd_udq[1] *-CTRL.sinT
-    CTRL.cmd_uab[1] = CTRL.cmd_udq[0] * CTRL.sinT + CTRL.cmd_udq[1] * CTRL.cosT
+        # [$] Inverse Park transformation: get voltage commands in alpha-beta frame as SVPWM input
+        CTRL.cmd_uab[0] = CTRL.cmd_udq[0] * CTRL.cosT + CTRL.cmd_udq[1] *-CTRL.sinT
+        CTRL.cmd_uab[1] = CTRL.cmd_udq[0] * CTRL.sinT + CTRL.cmd_udq[1] * CTRL.cosT
+
+    else:
+        SFOC_Dynamic(CTRL, reg_speed, reg_id, reg_iq)
+
+        # [$] Inverse Park transformation: get voltage commands in alpha-beta frame as SVPWM input
+        CTRL.cmd_uab[0] = CTRL.cmd_uMT[0] * CTRL.cosT_MT + CTRL.cmd_uMT[1] *-CTRL.sinT_MT
+        CTRL.cmd_uab[1] = CTRL.cmd_uMT[0] * CTRL.sinT_MT + CTRL.cmd_uMT[1] * CTRL.cosT_MT
+
 
 ############################################# Inverter and PWM
 @njit(nogil=True)
@@ -984,7 +1081,7 @@ def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None,
 
     # watch variabels
     machine_times = np.arange(t0, t0+TIME, MACHINE_TS)
-    watch_data    = np.zeros( (50, len(machine_times)) ) # new
+    watch_data    = np.zeros( (100, len(machine_times)) ) # new
     # control_times = np.arange(t0, t0+TIME, CTRL.CL_TS)
     # watch_data = np.zeros( (40, len(control_times)) ) # old
 
@@ -1194,6 +1291,16 @@ def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None,
 
         watch_data[41][watch_index] = ACM.TLoad
 
+        watch_data[42][watch_index] = CTRL.omega_syn
+        watch_data[43][watch_index] = CTRL.cmd_uMT[0]
+        watch_data[44][watch_index] = CTRL.cmd_uMT[1]
+
+        watch_data[45][watch_index] = CTRL.cmd_iMT[1]
+        watch_data[46][watch_index] = CTRL.iMT[1]
+
+        watch_data[47][watch_index] = CTRL.cmd_psi_Ms
+        watch_data[48][watch_index] = CTRL.psi_stator_MT_fb[0]
+
         watch_index += 1
 
     # return machine_times, watch_data # old
@@ -1246,6 +1353,11 @@ _Unit_Watch_Mapping = [
     '[V]=CTRL.cmd_udq[1]',
     '[A]=reg_speed.OutLimit',
     '[Nm]=ACM.TLoad',
+    '[rad/s]=CTRL.omega_syn',
+    '[V]=CTRL.cmd_uMT[0]',
+    '[V]=CTRL.cmd_uMT[1]',
+    '[A]=CTRL.cmd_iMT[1]',
+    '[A]=CTRL.iMT[1]',
 ]
 Watch_Mapping = [el[el.find('=')+1:] for el in _Unit_Watch_Mapping] # remove units before "="
 
@@ -1340,6 +1452,10 @@ class Simulation_Benchmark:
             (r'CTRL.iQ [A]',                  ( 'CTRL.cmd_idq[1]', 'CTRL.idq[1]'                    ,) ),
             (r'CTRL.uab [V]',                 ( 'CTRL.cmd_uab[0]', 'CTRL.cmd_uab[1]'                ,) ),
             (r'S [1]',                        ( 'svgen1.S1', 'svgen1.S2', 'svgen1.S3', 'svgen1.S4', 'svgen1.S5', 'svgen1.S6' ,) ),
+            (r'$M$-axis voltage [V]',         ( 'CTRL.cmd_uMT[0]'                                   ,) ),
+            (r'$T$-axis voltage [V]',         ( 'CTRL.cmd_uMT[1]'                                   ,) ),
+            (r'omega_syn [rad/s]',            ( 'CTRL.omega_syn'                                    ,) ),
+            (r'A',            ( 'CTRL.cmd_iMT[1]', 'CTRL.iMT[1]'                                     ,) ),
         ])
 
         if bool_start_simulation:
@@ -1356,6 +1472,7 @@ class Simulation_Benchmark:
                                     init_Ld = d['init_Ld'],
                                     init_Lq = d['init_Lq'],
                                     init_KE = d['init_KE'],
+                                    init_KA = d['init_KA'],
                                     init_Rreq = d['init_Rreq'],
                                     init_Js = d['init_Js'],
                                     DC_BUS_VOLTAGE = d['DC_BUS_VOLTAGE'])
@@ -1363,6 +1480,9 @@ class Simulation_Benchmark:
         CTRL.bool_apply_sweeping_frequency_excitation = d['CTRL.bool_apply_sweeping_frequency_excitation']
         CTRL.bool_overwrite_speed_commands = d['CTRL.bool_overwrite_speed_commands']
         CTRL.bool_zero_id_control = d['CTRL.bool_zero_id_control']
+        CTRL.bool_use_FOC_or_SFOC = d['CTRL.bool_use_FOC_or_SFOC']
+        CTRL.omega_syn = 50
+
         ACM       = The_AC_Machine(CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=d['MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD'])
 
         reg_dispX = The_PID_Regulator(d['disp.Kp'], d['disp.Ki'], d['disp.Kd'], d['disp.tau'], d['disp.OutLimit'], d['disp.IntLimit'], d['CL_TS'])
@@ -1475,29 +1595,41 @@ if __name__ == '__main__':
     d = d_user_input_motor_dict = {
         # Timing
         'CL_TS': 1e-4,
-        'VL_EXE_PER_CL_EXE': 5,
-        'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 500,
+        'VL_EXE_PER_CL_EXE': 1,
+        'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 1, # 500,
         'TIME_SLICE': 0.2,
         'NUMBER_OF_SLICES': 6,
         # Motor data
-        'init_npp': 22,
-        'init_IN': 1.3*6/1.414,
-        'init_R': 0.035,
-        'init_Ld': 1*0.036*1e-3,
-        'init_Lq': 1*0.036*1e-3,
-        'init_KE': 0.0125,
-        'init_Rreq': 0.0,
-        'init_Js': 0.44*1e-4,
-        'DC_BUS_VOLTAGE': 5,
+        'init_npp': 2,
+        'init_IN': 4.6,
+        'init_R': 5.5,
+        'init_Ld': 602*1e-3,
+        'init_Lq':  22*1e-3,
+        'init_KE': 0,
+        'init_KA': 580*1e-3*1.5, # Lmu * ids_rated
+        'init_Rreq': 2.1,
+        'init_Js': 0.044,
+        # Motor data
+        # 'init_npp': 22,
+        # 'init_IN': 1.3*6/1.414,
+        # 'init_R': 0.035,
+        # 'init_Ld': 1*0.036*1e-3,
+        # 'init_Lq': 1*0.036*1e-3,
+        # 'init_KE': 0.0125,
+        # 'init_Rreq': 0.0,
+        # 'init_Js': 0.44*1e-4,
+        ##########################
+        'DC_BUS_VOLTAGE': 48,
         'user_system_input_code': '''if ii < 1: CTRL.cmd_idq[0] = 0.0; CTRL.cmd_rpm = 50 \nelif ii <5: ACM.TLoad = 0.2 \nelif ii <100: CTRL.cmd_rpm = -50''',
         # Controller config
-        'CTRL.bool_apply_speed_closed_loop_control': True,
+        'CTRL.bool_apply_speed_closed_loop_control': False,
         'CTRL.bool_apply_decoupling_voltages_to_current_regulation': False,
         'CTRL.bool_apply_sweeping_frequency_excitation': False,
         'CTRL.bool_overwrite_speed_commands': True,
         'CTRL.bool_zero_id_control': True,
-        'FOC_delta': 15, # 25, # 6.5
-        'FOC_desired_VLBW_HZ': 120, # 60
+        'CTRL.bool_use_FOC_or_SFOC': False,
+        'FOC_delta': 10, # 25, # 6.5
+        'FOC_desired_VLBW_HZ': 20, # 60
         'FOC_CL_KI_factor_when__bool_apply_decoupling_voltages_to_current_regulation__is_False': 10,
         'CL_SERIES_KP': None,
         'CL_SERIES_KI': None,
@@ -1530,15 +1662,24 @@ if __name__ == '__main__':
         # ax.legend(loc=2, prop={'size': 6})
         ax.legend(loc=1, fontsize=6)
 
+        # ax = axes[1]
+        # ax.plot(global_machine_times, gdd['CTRL.cmd_idq[0]'], label=r'$i_d^*$')
+        # ax.plot(global_machine_times, gdd['CTRL.idq[0]'], label=r'$i_d$')
+        # # ax.plot(global_machine_times, gdd['ACM.iD'])
+        # ax.set_ylabel(r'$i_d$ [A]', multialignment='center') #, fontdict=font)
+
+        # ax = axes[2]
+        # ax.plot(global_machine_times, gdd['CTRL.cmd_idq[1]'], label=r'$i_q^*$')
+        # ax.plot(global_machine_times, gdd['CTRL.idq[1]'], label=r'$i_q$')
+        # ax.set_ylabel(r'$i_q$ [A]', multialignment='center') #, fontdict=font)
+
         ax = axes[1]
-        ax.plot(global_machine_times, gdd['CTRL.cmd_idq[0]'], label=r'$i_d^*$')
-        ax.plot(global_machine_times, gdd['CTRL.idq[0]'], label=r'$i_d$')
-        # ax.plot(global_machine_times, gdd['ACM.iD'])
+        ax.plot(global_machine_times, gdd['CTRL.cmd_uMT[0]'], label=r'$u_{M}$')
+        ax.plot(global_machine_times, gdd['CTRL.cmd_uMT[1]'], label=r'$u_{T}$')
         ax.set_ylabel(r'$i_d$ [A]', multialignment='center') #, fontdict=font)
 
         ax = axes[2]
-        ax.plot(global_machine_times, gdd['CTRL.cmd_idq[1]'], label=r'$i_q^*$')
-        ax.plot(global_machine_times, gdd['CTRL.idq[1]'], label=r'$i_q$')
+        ax.plot(global_machine_times, gdd['CTRL.omega_syn'], label=r'$\omega_{\rm syn}$')
         ax.set_ylabel(r'$i_q$ [A]', multialignment='center') #, fontdict=font)
 
         ax = axes[3]
@@ -1547,9 +1688,14 @@ if __name__ == '__main__':
         ax.set_ylabel(r'$T_{\rm em}$ [Nm]', multialignment='center') #, fontdict=font)
 
         ax = axes[4]
-        ax.plot(global_machine_times, (gdd['ACM.udq[0]']), label=r'$u_d$') # lpf1_inverter
-        ax.plot(global_machine_times, gdd['CTRL.cmd_udq[0]'], label=r'$u_d^*$')
-        ax.set_ylabel(r'$u_d$ [V]', multialignment='center') #, fontdict=font)
+        ax.plot(global_machine_times, (gdd['CTRL.cmd_iMT[1]']), label=r'$1$')
+        ax.plot(global_machine_times, (gdd['CTRL.iMT[1]']), label=r'$2$')
+        ax.set_ylabel(r'$u_T$ [V]', multialignment='center')
+
+        # ax = axes[4]
+        # ax.plot(global_machine_times, (gdd['ACM.udq[0]']), label=r'$u_d$') # lpf1_inverter
+        # ax.plot(global_machine_times, gdd['CTRL.cmd_udq[0]'], label=r'$u_d^*$')
+        # ax.set_ylabel(r'$u_d$ [V]', multialignment='center') #, fontdict=font)
 
         ax = axes[5]
         ax.plot(global_machine_times, (gdd['ACM.udq[1]']), label=r'$u_q$') # lpf1_inverter
@@ -1569,9 +1715,5 @@ if __name__ == '__main__':
         axes[-1].set_xlabel('Time [s]') #, fontdict=font)
         return fig
     sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times; fig = 图1画图代码(); # fig.savefig(f'SliceFSPM-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
-
-    图 = 2 # 空载加速、加载、反转（改变母线电压）
-    d['DC_BUS_VOLTAGE'] = 20
-    sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times; fig = 图1画图代码()
 
     plt.show()

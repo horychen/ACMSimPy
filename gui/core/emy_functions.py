@@ -13,7 +13,8 @@ import pandas as pd
     # import simulation.tutorials as acmsimpy2
     # import simulation.tutorials_ep2_full_dynamics as acmsimpy # note the slip error with Rreq=-1 exists here
     # import simulation.tutorials_ep3_svpwm as acmsimpy
-import simulation.tutorials_ep4_batch_generating_figures as acmsimpy
+    # import simulation.tutorials_ep4_batch_generating_figures as acmsimpy
+import simulation.tutorials_ep8_SFOC_Dynamic as acmsimpy
 import simulation.tuner as tuner
 
 # 后端
@@ -257,7 +258,14 @@ class EmyFunctions(object):
         CONSOLE = mainWindowObject.CONSOLE
 
         """ Simulation Globals """
-        CTRL, ACM, reg_id, reg_iq, reg_speed = mainWindowObject.CTRL, mainWindowObject.ACM, mainWindowObject.reg_id, mainWindowObject.reg_iq, mainWindowObject.reg_speed = acmsimpy.Simulation_Benchmark(CONSOLE.d_user_input_motor_dict, tuner=tuner, bool_start_simulation=False).get_global_objects()
+        try:
+            CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY = \
+                mainWindowObject.CTRL, mainWindowObject.ACM, mainWindowObject.reg_id, mainWindowObject.reg_iq, mainWindowObject.reg_speed, mainWindowObject.reg_dispX, mainWindowObject.reg_dispY \
+                    = acmsimpy.Simulation_Benchmark(CONSOLE.d_user_input_motor_dict, tuner=tuner, bool_start_simulation=False).get_global_objects()
+        except:
+            CTRL, ACM, reg_id, reg_iq, reg_speed = \
+                mainWindowObject.CTRL, mainWindowObject.ACM, mainWindowObject.reg_id, mainWindowObject.reg_iq, mainWindowObject.reg_speed \
+                    = acmsimpy.Simulation_Benchmark(CONSOLE.d_user_input_motor_dict, tuner=tuner, bool_start_simulation=False).get_global_objects()
 
         """ Simulation Globals Access from Console """
         if mainWindowObject.console_window is not None:

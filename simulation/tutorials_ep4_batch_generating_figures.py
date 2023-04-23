@@ -1,5 +1,6 @@
 # %%
 ############################################# PACKAGES
+from matplotlib import font_manager
 from numba.experimental import jitclass
 from numba import njit, int32, float64
 from pylab import np, plt, mpl
@@ -1635,16 +1636,41 @@ print(f'{reg_speed.OutLimit=}')
     sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times
     def 图5画图代码():
         plt.style.use('classic')
-        plt.rcParams['mathtext.fontset'] = 'stix'
+        # plt.rcParams['mathtext.fontset'] = 'stix'
+        mpl.rc('mathtext', fontset="stix")
         mpl.rc('font', family='Times New Roman', size=14.0)
         mpl.rc('legend', fontsize=8)
+
+        # for font in font_manager.fontManager.ttflist:
+        #     print('font available:', font)
+
+        mpl.rc('font', family='serif', serif=["SimHei"])
+        mpl.rc('axes', unicode_minus=False) # 该语句解决图像中的“-”负号的乱码问题
+
+        # mpl.rcParams["font.sans-serif"]=["SimHei"] #设置字体
+        # https://blog.csdn.net/weixin_43958105/article/details/123816865
+        # config = {
+        #     "font.family": "serif",
+        #     "font.serif": ["SimHei"],
+        #     "font.size": 14,
+        #     "axes.unicode_minus": False,
+        #     "mathtext.fontset": "stix",
+        # }
+        # mpl.rcParams.update(config)
+        ticklabels_style = {
+            "fontname": "Times New Roman",
+            "fontsize": 12,
+        }
+        # plt.xticks(**ticklabels_style)
+        # plt.yticks(**ticklabels_style)
+
 
         fig, axes = plt.subplots(nrows=7, ncols=1, dpi=150, facecolor='w', figsize=(8,6), sharex=True)
 
         ax = axes[0]
         ax.plot(global_machine_times, gdd['CTRL.cmd_rpm'], label=r'$\omega_r^*$')
         ax.plot(global_machine_times, gdd['CTRL.omega_r_mech'], label=r'$\omega_r$')
-        ax.set_ylabel(r'Speed [r/min]', multialignment='center') #) #, fontdict=font)
+        ax.set_ylabel(r'$\rm Speed~[r/min]$', multialignment='center') #) #, fontdict=font)
         # ax.legend(loc=2, prop={'size': 6})
         # ax.legend(loc=2, fontsize=6)
 
@@ -1676,7 +1702,7 @@ print(f'{reg_speed.OutLimit=}')
         ax = axes[5]
         ax.plot(global_machine_times, lpf1_inverter(gdd['ACM.udq[1]']), label='ACM.uQ') # 
         ax.plot(global_machine_times, gdd['CTRL.cmd_udq[1]'], label='CTRL.uQ')
-        ax.set_ylabel(r'q-axis votages [V]', multialignment='center') #, fontdict=font)
+        ax.set_ylabel(r'$\rm q$轴电压 q-axis votages [V]', multialignment='center') #, fontdict=font)
         ax.legend(loc=1)
 
         ax = axes[6]
@@ -1692,6 +1718,9 @@ print(f'{reg_speed.OutLimit=}')
             ax.grid(True)
             # for tick in ax.xaxis.get_major_ticks() + ax.yaxis.get_major_ticks():
             #     tick.label.set_font(font)
+            plt.xticks(**ticklabels_style)
+            plt.yticks(**ticklabels_style)
+
         axes[-1].set_xlabel('Time [s]') #, fontdict=font)
         return fig
     fig = 图5画图代码(); fig.savefig(f'Shizhou-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)

@@ -8,9 +8,9 @@ def get_coeffs_dc_motor_current_regulator(R, L, Bandwidth_Hz):
     # print('DEBUG', Ki, R, L)
     return Kp, Ki
 
-def get_coeffs_dc_motor_SPEED_regulator(J_s, n_pp, KE, delta, currentBandwidth_radPerSec):
+def get_coeffs_dc_motor_SPEED_regulator(J_s, n_pp, KA, delta, currentBandwidth_radPerSec):
     speedKi = currentBandwidth_radPerSec / delta**2
-    speedKp = J_s/n_pp / (1.5*n_pp*KE) * delta * speedKi
+    speedKp = J_s/n_pp / (1.5*n_pp*KA) * delta * speedKi
     return speedKp, speedKi
 
 def 逆上位机速度PI系数转换CODE(iSMC_speedKp, iSMC_speedKiCode, VL_TS, J_s):
@@ -66,7 +66,7 @@ def c2c_design(R, L, CLBW_Hz=1000, CL_TS=1/20e3):
             (mag, phase, omega)
 
 # current reference to velocity measaurement (this is not velocity open loop, because speed PI is not considered)
-def c2v_design(R, L, n_pp, J_s, KE, B=0, CLBW_Hz=1000, CL_TS=1/20e3, fignum=5):
+def c2v_design(R, L, n_pp, J_s, KA, B=0, CLBW_Hz=1000, CL_TS=1/20e3, fignum=5):
 
     currentKp, currentKi = get_coeffs_dc_motor_current_regulator(R, L, CLBW_Hz)
     currentKiCode = currentKi * currentKp * CL_TS
@@ -88,7 +88,7 @@ def c2v_design(R, L, n_pp, J_s, KE, B=0, CLBW_Hz=1000, CL_TS=1/20e3, fignum=5):
     Gi_closed = control.tf([1], [L/currentKp, 1]) # current loop zero-pole cancelled already
     currentBandwidth_radPerSec = currentKp/L
 
-    KT = 1.5*n_pp*KE
+    KT = 1.5*n_pp*KA
     dc_motor_motion = control.tf([KT], [J_s/n_pp, B]) # [Apk] to [elec.rad/s]
     print(dc_motor_motion)
     # quit()
@@ -115,6 +115,10 @@ def iterate_for_desired_bandwidth( delta, desired_VLBW_Hz, motor_dict, CLBW_Hz_i
     JLoadRatio = motor_dict['JLoadRatio']
     n_pp       = motor_dict['n_pp']
     KE         = motor_dict['KE']
+    if KE != 0:
+        KA = KE
+    else:
+        KA = motor_dict['KA']
     CL_TS      = motor_dict['CL_TS']
     VL_TS      = motor_dict['VL_TS']
     J_total    = J_s*(1+JLoadRatio) 
@@ -158,9 +162,9 @@ def iterate_for_desired_bandwidth( delta, desired_VLBW_Hz, motor_dict, CLBW_Hz_i
         currentBandwidth_radPerSec = currentKp/L
 
         # Speed loop
-        KT = 1.5*n_pp*KE
+        KT = 1.5*n_pp*KA
         dc_motor_motion = control.tf([KT*n_pp/J_total], [1, 0])
-        speedKp, speedKi = get_coeffs_dc_motor_SPEED_regulator(J_total, n_pp, KE, delta, currentBandwidth_radPerSec)
+        speedKp, speedKi = get_coeffs_dc_motor_SPEED_regulator(J_total, n_pp, KA, delta, currentBandwidth_radPerSec)
         speedKiCode = speedKi * speedKp * VL_TS
         if True:
             # 这里打印的用于实验中TI的debug窗口检查系数
@@ -215,6 +219,7 @@ def tunner_wrapper(d):
     motor_dict['JLoadRatio'] = 0.0
     motor_dict['n_pp'] =       d['init_npp']
     motor_dict['KE'] =         d['init_KE']
+    motor_dict['KA'] =         d['init_KA']
     motor_dict['CL_TS'] =      d['CL_TS']
     motor_dict['VL_TS'] =      d['CL_TS'] * d['VL_EXE_PER_CL_EXE']
     delta = d['FOC_delta']
