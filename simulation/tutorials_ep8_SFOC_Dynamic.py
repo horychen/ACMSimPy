@@ -38,6 +38,7 @@ plt.style.use('ggplot')
             ('sinT', float64),
             ('cosT_MT', float64),
             ('sinT_MT', float64),
+            ('lastcomplex', float64[:]),
             # commands
             ('cmd_iMT',float64[:]),
             ('cmd_uMT', float64[:]),
@@ -128,8 +129,8 @@ class The_Motor_Controller:
         self.uab      = np.zeros(2, dtype=np.float64)
         self.psi_stator_MT_fb = np.zeros(2, dtype=np.float64)
         self.psi_stator_ab_fb = np.zeros(2, dtype=np.float64)
-        self.kPFL = 10
-        self.kPCL = 200
+        self.kPFL = 2 # 10 
+        self.kPCL = 20 # 200
         self.Intergral_of_it_error = 0.0
         # self.uab_prev = np.zeros(2, dtype=np.float64)
         # self.uab_curr = np.zeros(2, dtype=np.float64)
@@ -141,6 +142,7 @@ class The_Motor_Controller:
         self.Tem = 0.0
         self.cosT = 1.0
         self.sinT = 0.0
+        self.lastcomplex = np.zeros(2, dtype=np.float64)
         # commands
         self.cmd_iMT = np.zeros(2, dtype=np.float64)
         self.cmd_uMT = np.zeros(2, dtype=np.float64)
@@ -756,6 +758,20 @@ def FOC(CTRL, reg_speed, reg_id, reg_iq):
         elif CTRL.cmd_udq[1] < -reg_iq.OutLimit:
             CTRL.cmd_udq[1]  = -reg_iq.OutLimit
 
+# @njit(nogil=True)
+# def get_angular_frequency_of_psi_ab(CTRL):
+#     x = CTRL.psi_stator_ab_fb[0]
+#     y = CTRL.psi_stator_ab_fb[1]
+#     # xdot = (x - CTRL.lastcomplex[0])/CTRL.CLTS #需要低通滤波
+#     # ydot = (y - CTRL.lastcomplex[1])/CTRL.CLTS
+#     xdot = CTRL.cmd_uab[0] - CTRL.iab[0]*CTRL.R 
+#     ydot = CTRL.cmd_uab[1]] - CTRL.iab[1]*CTRL.R
+#     den = np.sqrt(x**2 - y**2)
+#     CTRL.omega_syn = (ydot*x - xdot*y) /den
+
+#     # CTRL.lastcomplex[0] = CTRL.psi_stator_ab_fb[0]
+#     # CTRL.lastcomplex[1] = CTRL.psi_stator_ab_fb[1]
+
 @njit(nogil=True)
 def SFOC_Dynamic(CTRL, reg_speed, reg_id, reg_iq):
 
@@ -765,8 +781,6 @@ def SFOC_Dynamic(CTRL, reg_speed, reg_id, reg_iq):
     CTRL.iMT[1] = CTRL.iab[0] *-CTRL.sinT_MT + CTRL.iab[1] * CTRL.cosT_MT
 
     # Speed regulation (SFOC)
-    reg_speed.Kp = 0.1
-    reg_speed.Ki = 0.0005
     reg_speed.setpoint = CTRL.cmd_rpm / 60 * 2*np.pi * CTRL.npp # [elec.rad/s]
     reg_speed.measurement = CTRL.omega_r_elec # [elec.rad/s]
     CTRL.velocity_loop_counter += 1
@@ -785,17 +799,27 @@ def SFOC_Dynamic(CTRL, reg_speed, reg_id, reg_iq):
 
     if True:
         # constant stator flux linkage
-        CTRL.cmd_psi_Ms = 1.0
+        # CTRL.cmd_psi_Ms = 0.0
+        pass
     else:
         CTRL.cmd_idq[0] = 1.5
         # CTRL.cmd_psi_Ms = np.sqrt( (CTRL.Ld*CTRL.cmd_i??[0])**2 + (CTRL.Lq * CTRL.cmd_i??[1])**2 )
 
-    CTRL.cmd_uMT[0] = CTRL.kPFL*( CTRL.cmd_psi_Ms - CTRL.psi_stator_MT_fb[0] ) + CTRL.R*CTRL.iMT[0] + 0
+    CTRL.cmd_uMT[0] = CTRL.kPFL*( CTRL.cmd_psi_Ms - CTRL.psi_stator_MT_fb[0] ) + 0.8*CTRL.R*CTRL.iMT[0] + 0
 
-    CTRL.emf_stator[0] = CTRL.cmd_uab[0] - CTRL.R * CTRL.iab[0]
-    CTRL.emf_stator[1] = CTRL.cmd_uab[1] - CTRL.R * CTRL.iab[1]
-    CTRL.omega_syn = - (CTRL.psi_stator_ab_fb[0]*-CTRL.emf_stator[1] + CTRL.psi_stator_ab_fb[1]*CTRL.emf_stator[0]) / (CTRL.psi_stator_MT_fb[0]*CTRL.psi_stator_MT_fb[0])
-    CTRL.omega_slip = CTRL.omega_syn - CTRL.omega_r_elec
+    # CTRL.omega_slip = CTRL.omega_syn - CTRL.omega_r_elec
+    if True:
+        CTRL.emf_stator[0] = CTRL.cmd_uab[0] - CTRL.R * CTRL.iab[0]
+        CTRL.emf_stator[1] = CTRL.cmd_uab[1] - CTRL.R * CTRL.iab[1]
+        # CTRL.omega_syn = - (CTRL.psi_stator_ab_fb[0]*-CTRL.emf_stator[1] + CTRL.psi_stator_ab_fb[1]*CTRL.emf_stator[0]) / (CTRL.psi_stator_MT_fb[0]*CTRL.psi_stator_MT_fb[0])
+        CTRL.omega_slip = - (CTRL.psi_stator_ab_fb[0]*-CTRL.emf_stator[1] + CTRL.psi_stator_ab_fb[1]*CTRL.emf_stator[0]) / (CTRL.psi_stator_MT_fb[0]*CTRL.psi_stator_MT_fb[0])
+    else:
+        x = CTRL.psi_stator_ab_fb[0]
+        y = CTRL.psi_stator_ab_fb[1]
+        xdot = CTRL.cmd_uab[0] - CTRL.iab[0]*CTRL.R
+        ydot = CTRL.cmd_uab[1] - CTRL.iab[1]*CTRL.R
+        # CTRL.omega_syn = (ydot*x - xdot*y) / (x**2 + y**2)
+        CTRL.omega_slip = (ydot*x - xdot*y) / (x**2 + y**2)
 
     CTRL.Intergral_of_it_error += CTRL.CL_TS * CTRL.kPCL * (CTRL.cmd_iMT[1] - CTRL.iMT[1])
     CTRL.cmd_uMT[1] = CTRL.R * (CTRL.Intergral_of_it_error - CTRL.cmd_iMT[1]) + CTRL.omega_syn*CTRL.psi_stator_MT_fb[0]
@@ -824,6 +848,7 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq):
         CTRL.cosT_MT = 1.0
         CTRL.sinT_MT = 0.0
     CTRL.omega_syn = ACM.omega_syn
+    CTRL.omega_slip = ACM.omega_syn
 
     """ Speed Estimation """
     if CTRL.index_separate_speed_estimation == 0:
@@ -1300,6 +1325,7 @@ def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None,
 
         watch_data[47][watch_index] = CTRL.cmd_psi_Ms
         watch_data[48][watch_index] = CTRL.psi_stator_MT_fb[0]
+        watch_data[49][watch_index] = CTRL.omega_slip
 
         watch_index += 1
 
@@ -1358,6 +1384,9 @@ _Unit_Watch_Mapping = [
     '[V]=CTRL.cmd_uMT[1]',
     '[A]=CTRL.cmd_iMT[1]',
     '[A]=CTRL.iMT[1]',
+    '[Wb]=CTRL.cmd_psi_Ms',
+    '[Wb]=CTRL.psi_stator_MT_fb[0]',
+    '[rad/s]=CTRL.omega_slip',
 ]
 Watch_Mapping = [el[el.find('=')+1:] for el in _Unit_Watch_Mapping] # remove units before "="
 
@@ -1417,8 +1446,9 @@ def ACMSimPyWrapper(numba__scope_dict, *arg, **kwarg):
 ############################################# Wrapper level 3 (User Interface)
 from collections import OrderedDict as OD
 class Simulation_Benchmark:
-    def __init__(self, d, tuner=None, bool_start_simulation=True):
+    def __init__(self, d, tuner=None, bool_start_simulation=True, CTRL_execute_codes=''):
 
+        self.CTRL_execute_codes = CTRL_execute_codes
         self.d = d
         print('Simulation_Benchmark')
         # Auto-tuning PI
@@ -1454,8 +1484,9 @@ class Simulation_Benchmark:
             (r'S [1]',                        ( 'svgen1.S1', 'svgen1.S2', 'svgen1.S3', 'svgen1.S4', 'svgen1.S5', 'svgen1.S6' ,) ),
             (r'$M$-axis voltage [V]',         ( 'CTRL.cmd_uMT[0]'                                   ,) ),
             (r'$T$-axis voltage [V]',         ( 'CTRL.cmd_uMT[1]'                                   ,) ),
-            (r'omega_syn [rad/s]',            ( 'CTRL.omega_syn'                                    ,) ),
-            (r'A',            ( 'CTRL.cmd_iMT[1]', 'CTRL.iMT[1]'                                     ,) ),
+            (r'omega_syn [rad/s]',            ( 'CTRL.omega_syn', 'CTRL.omega_slip'                 ,) ),
+            (r'iT [A]',                       ( 'CTRL.cmd_iMT[1]', 'CTRL.iMT[1]'                    ,) ),
+            (r'M-axis Flux [Wb]',             ( 'CTRL.cmd_psi_Ms', 'CTRL.psi_stator_MT_fb[0]'       ,) ),
         ])
 
         if bool_start_simulation:
@@ -1478,6 +1509,7 @@ class Simulation_Benchmark:
                                     DC_BUS_VOLTAGE = d['DC_BUS_VOLTAGE'])
         CTRL.bool_apply_decoupling_voltages_to_current_regulation = d['CTRL.bool_apply_decoupling_voltages_to_current_regulation']
         CTRL.bool_apply_sweeping_frequency_excitation = d['CTRL.bool_apply_sweeping_frequency_excitation']
+        CTRL.bool_apply_speed_closed_loop_control = d['CTRL.bool_apply_speed_closed_loop_control']
         CTRL.bool_overwrite_speed_commands = d['CTRL.bool_overwrite_speed_commands']
         CTRL.bool_zero_id_control = d['CTRL.bool_zero_id_control']
         CTRL.bool_use_FOC_or_SFOC = d['CTRL.bool_use_FOC_or_SFOC']
@@ -1517,6 +1549,9 @@ class Simulation_Benchmark:
             local_IntLimit = 1.0*d['VL_LIMIT_OVERLOAD_FACTOR']*1.414*d['init_IN']
             reg_speed = The_PID_Regulator(local_Kp, local_Ki, local_Kd, local_tau, local_OutLimit, local_IntLimit, CTRL.VL_TS)
             print('\t', reg_speed.OutLimit, 'A')
+
+        exec(self.CTRL_execute_codes)
+        print(CTRL.cmd_psi_Ms)
 
         return CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY
 
@@ -1600,29 +1635,30 @@ if __name__ == '__main__':
         'TIME_SLICE': 0.2,
         'NUMBER_OF_SLICES': 6,
         # Motor data
-        'init_npp': 2,
-        'init_IN': 4.6,
-        'init_R': 5.5,
-        'init_Ld': 602*1e-3,
-        'init_Lq':  22*1e-3,
-        'init_KE': 0,
-        'init_KA': 580*1e-3*1.5, # Lmu * ids_rated
-        'init_Rreq': 2.1,
+        # 'init_npp': 2,
+        # 'init_IN': 4.6,
+        # 'init_R': 5.5,
+        # 'init_Ld': 602*1e-3,
+        # 'init_Lq':  22*1e-3,
+        # 'init_KE': 0,
+        # 'init_KA': 580*1e-3*1.5, # Lmu * ids_rated
+        # 'init_Rreq': 2.1,
         'init_Js': 0.044,
         # Motor data
-        # 'init_npp': 22,
-        # 'init_IN': 1.3*6/1.414,
-        # 'init_R': 0.035,
-        # 'init_Ld': 1*0.036*1e-3,
-        # 'init_Lq': 1*0.036*1e-3,
-        # 'init_KE': 0.0125,
-        # 'init_Rreq': 0.0,
+        'init_npp': 22,
+        'init_IN': 1.3*6/1.414,
+        'init_R': 0.035,
+        'init_Ld': 1*0.036*1e-3,
+        'init_Lq': 1*0.036*1e-3,
+        'init_KE': 0.0125,
+        'init_KA': 0.0125,
+        'init_Rreq': 0.0,
         # 'init_Js': 0.44*1e-4,
         ##########################
         'DC_BUS_VOLTAGE': 48,
-        'user_system_input_code': '''if ii < 1: CTRL.cmd_idq[0] = 0.0; CTRL.cmd_rpm = 50 \nelif ii <5: ACM.TLoad = 0.2 \nelif ii <100: CTRL.cmd_rpm = -50''',
+        'user_system_input_code': '''if ii < 1: CTRL.cmd_idq[0] = 0.0; CTRL.cmd_rpm = 50 \nelif ii <5: ACM.TLoad = 5 \nelif ii <100: CTRL.cmd_rpm = -50''',
         # Controller config
-        'CTRL.bool_apply_speed_closed_loop_control': False,
+        'CTRL.bool_apply_speed_closed_loop_control': True,
         'CTRL.bool_apply_decoupling_voltages_to_current_regulation': False,
         'CTRL.bool_apply_sweeping_frequency_excitation': False,
         'CTRL.bool_overwrite_speed_commands': True,
@@ -1676,21 +1712,23 @@ if __name__ == '__main__':
         ax = axes[1]
         ax.plot(global_machine_times, gdd['CTRL.cmd_uMT[0]'], label=r'$u_{M}$')
         ax.plot(global_machine_times, gdd['CTRL.cmd_uMT[1]'], label=r'$u_{T}$')
-        ax.set_ylabel(r'$i_d$ [A]', multialignment='center') #, fontdict=font)
+        ax.plot(global_machine_times, (gdd['ACM.udq[1]']), label=r'$u_q$')
+        ax.set_ylabel(r'$u$ [V]', multialignment='center') #, fontdict=font)
 
         ax = axes[2]
         ax.plot(global_machine_times, gdd['CTRL.omega_syn'], label=r'$\omega_{\rm syn}$')
+        ax.plot(global_machine_times, gdd['CTRL.omega_slip'], label=r'$\hat\omega_{\rm syn}$')
         ax.set_ylabel(r'$i_q$ [A]', multialignment='center') #, fontdict=font)
 
         ax = axes[3]
         ax.plot(global_machine_times, gdd['ACM.Tem'], label=r'ACM.$T_{\rm em}$')
-        ax.plot(global_machine_times, gdd['CTRL.Tem'], label=r'CTRL.$T_{\rm em}$')
+        # ax.plot(global_machine_times, gdd['CTRL.Tem'], label=r'CTRL.$T_{\rm em}$')
         ax.set_ylabel(r'$T_{\rm em}$ [Nm]', multialignment='center') #, fontdict=font)
 
         ax = axes[4]
-        ax.plot(global_machine_times, (gdd['CTRL.cmd_iMT[1]']), label=r'$1$')
-        ax.plot(global_machine_times, (gdd['CTRL.iMT[1]']), label=r'$2$')
-        ax.set_ylabel(r'$u_T$ [V]', multialignment='center')
+        ax.plot(global_machine_times, (gdd['CTRL.cmd_iMT[1]']), label=r'$cmd_iT$')
+        ax.plot(global_machine_times, (gdd['CTRL.iMT[1]']), label=r'$iT$')
+        ax.set_ylabel(r'$i_T$ [A]', multialignment='center')
 
         # ax = axes[4]
         # ax.plot(global_machine_times, (gdd['ACM.udq[0]']), label=r'$u_d$') # lpf1_inverter
@@ -1698,9 +1736,9 @@ if __name__ == '__main__':
         # ax.set_ylabel(r'$u_d$ [V]', multialignment='center') #, fontdict=font)
 
         ax = axes[5]
-        ax.plot(global_machine_times, (gdd['ACM.udq[1]']), label=r'$u_q$') # lpf1_inverter
-        ax.plot(global_machine_times, gdd['CTRL.cmd_udq[1]'], label=r'$u_q^*$')
-        ax.set_ylabel(r'$u_q$ [V]', multialignment='center') #, fontdict=font)
+        # ax.plot(global_machine_times, (gdd['CTRL.cmd_psi_Ms']), label=r'$\psi_{Ms}$^*')
+        ax.plot(global_machine_times, gdd['CTRL.psi_stator_MT_fb[0]'], label=r'$\psi_{Ms}$')
+        ax.set_ylabel(r'$\psi_{Ms}$ [Wb]', multialignment='center') #, fontdict=font)
 
         ax = axes[6]
         ax.plot(global_machine_times, gdd['CTRL.cmd_uab[0]'], label=r'$u_\alpha$')
@@ -1714,6 +1752,36 @@ if __name__ == '__main__':
             #     tick.label.set_font(font)
         axes[-1].set_xlabel('Time [s]') #, fontdict=font)
         return fig
-    sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times; fig = 图1画图代码(); # fig.savefig(f'SliceFSPM-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
 
-    plt.show()
+
+    temp_a = d['TIME_SLICE']
+    temp_b = d['NUMBER_OF_SLICES']
+    d['TIME_SLICE'] = 0.01
+    d['NUMBER_OF_SLICES'] = 1
+    sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times; #fig = 图1画图代码(); # fig.savefig(f'SliceFSPM-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
+    d['TIME_SLICE'] = temp_a
+    d['NUMBER_OF_SLICES'] = temp_b
+
+    # plt.show()
+
+#%%
+
+CTRL_execute_codes = '''
+CTRL.kPFL = 20
+CTRL.kPCL = 600
+reg_speed.Kp = 0.7
+reg_speed.Ki = 20
+CTRL.cmd_psi_Ms = 0.9
+'''
+CTRL_execute_codes = '''
+CTRL.kPFL = 0
+CTRL.kPCL = 2000
+reg_speed.Kp = 0.5
+reg_speed.Ki = 20
+CTRL.cmd_psi_Ms = 0.9
+'''
+
+sim1 = Simulation_Benchmark(d, CTRL_execute_codes=CTRL_execute_codes); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times; fig = 图1画图代码(); # fig.savefig(f'SliceFSPM-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
+plt.show()
+
+# %%
