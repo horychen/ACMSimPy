@@ -1,4 +1,4 @@
-from tutorials_ep6_maglev_motor import *
+from tutorials_ep9_flux_estimator import *
 
 # User input:
 d = d_user_input_motor_dict = {
@@ -89,7 +89,9 @@ def 图1画图代码():
     # ax.set_ylabel(r'$u_{\alpha,\beta}$ [V]', multialignment='center') #, fontdict=font)
     ax.plot(global_machine_times, gdd['fe_htz.psi_2[0]'], label=r'$\psi_\alpha$')
     ax.plot(global_machine_times, gdd['fe_htz.psi_2[1]'], label=r'$\psi_\beta$')
-    ax.set_ylabel(r'$\psi_2$ [Wb]', multialignment='center') #, fontdict=font)
+    ax.plot(global_machine_times, gdd['fe_htz.u_offset[0]'], label=r'$u_{{\rm offset},\alpha}$')
+    ax.plot(global_machine_times, gdd['fe_htz.u_offset[1]'], label=r'$u_{{\rm offset},\beta}$')
+    # ax.set_ylabel(r'$\psi_2$ [Wb]', multialignment='center') #, fontdict=font)
 
     for ax in axes:
         ax.grid(True)

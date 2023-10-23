@@ -49,7 +49,10 @@ class The_Motor_Controller:
         self.cmd_udq = np.zeros(2, dtype=np.float64)
         self.cmd_uab = np.zeros(2, dtype=np.float64)
         self.cmd_rpm = 0.0
-        self.cmd_psi = 0.9 # [Wb]
+        if init_Rreq >0:
+            self.cmd_psi = 0.9 # [Wb]
+        else:
+            self.cmd_psi = init_KE # [Wb]
         self.index_voltage_model_flux_estimation = 1
         self.index_separate_speed_estimation = 0
         self.use_disturbance_feedforward_rejection = 0
@@ -262,7 +265,7 @@ class Variables_FluxEstimator_Holtz03:
         self.u_off_calculated_increment= np.zeros(2, dtype=np.float64)    # saturation time based correction
         self.GAIN_OFFSET_INIT = 10.0
         self.gain_off = self.GAIN_OFFSET_INIT  # HOLTZ_2002_GAIN_OFFSET; # 5; -> slow but stable // 50.1 // 20 -> too large then speed will oscillate during reversal near zero
-        self.GAIN_OFFSET_REALTIME = 1.0
+        self.GAIN_OFFSET_REALTIME = 0.0
 
         self.flag_pos2negLevelA= np.zeros(2, dtype=np.int32)
         self.flag_pos2negLevelB= np.zeros(2, dtype=np.int32)
@@ -816,9 +819,12 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz):
         INTEGRAL_INPUT_ALPHA = fe_htz.u_off_saturation_time_correction[0] # exact offset calculation for compensation
         INTEGRAL_INPUT_BETA  = fe_htz.u_off_saturation_time_correction[1] # exact offset calculation for compensation
 
-        integer_local_sum = fe_htz.negative_cycle_in_count[0] + fe_htz.positive_cycle_in_count[0] + fe_htz.negative_cycle_in_count[1] + fe_htz.positive_cycle_in_count[1];
-        if integer_local_sum>0:
-            fe_htz.gain_off = fe_htz.GAIN_OFFSET_REALTIME * fe_htz.GAIN_OFFSET_INIT / (integer_local_sum*CTRL.CL_TS)
+        if fe_htz.GAIN_OFFSET_REALTIME != 0.0:
+            integer_local_sum = fe_htz.negative_cycle_in_count[0] + fe_htz.positive_cycle_in_count[0] + fe_htz.negative_cycle_in_count[1] + fe_htz.positive_cycle_in_count[1];
+            if integer_local_sum>0:
+                fe_htz.gain_off = fe_htz.GAIN_OFFSET_REALTIME * fe_htz.GAIN_OFFSET_INIT / (integer_local_sum*CTRL.CL_TS)
+        else:
+            fe_htz.gain_off = fe_htz.GAIN_OFFSET_INIT
 
         fe_htz.u_offset[0] += fe_htz.gain_off * CTRL.CL_TS * INTEGRAL_INPUT_ALPHA
         fe_htz.u_offset[1] += fe_htz.gain_off * CTRL.CL_TS * INTEGRAL_INPUT_BETA
@@ -1310,6 +1316,9 @@ def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None,
         watch_data[42][watch_index] = fe_htz.psi_2[0]
         watch_data[43][watch_index] = fe_htz.psi_2[1]
 
+        watch_data[44][watch_index] = fe_htz.u_offset[0]
+        watch_data[45][watch_index] = fe_htz.u_offset[1]
+
         watch_index += 1
 
     # return machine_times, watch_data # old
@@ -1364,6 +1373,8 @@ _Unit_Watch_Mapping = [
     '[Nm]=ACM.TLoad',
     '[Wb]=fe_htz.psi_2[0]',
     '[Wb]=fe_htz.psi_2[1]',
+    '[Wb]=fe_htz.u_offset[0]',
+    '[Wb]=fe_htz.u_offset[1]',
 ]
 Watch_Mapping = [el[el.find('=')+1:] for el in _Unit_Watch_Mapping] # remove units before "="
 
@@ -1445,23 +1456,24 @@ class Simulation_Benchmark:
         # 允许信号之间进行简单的加减乘除，比如：'CTRL.cmd_rpm - CTRL.omega_r_mech'
         numba__scope_dict = OD([
             # Y Labels                        Signal Name of Traces
-            (r'Speed Out Limit [A]',          ( 'reg_speed.OutLimit'                                ,) ),
-            (r'$q$-axis voltage [V]',         ( 'ACM.udq[1]', 'CTRL.cmd_udq[1]'                     ,) ),
-            (r'$d$-axis voltage [V]',         ( 'ACM.udq[0]', 'CTRL.cmd_udq[0]'                     ,) ),
-            (r'Torque [Nm]',                  ( 'ACM.Tem', 'CTRL.Tem'                               ,) ),
-            (r'Speed [rpm]',                  ( 'CTRL.cmd_rpm', 'CTRL.omega_r_mech', 'CTRL.xSpeed[1]'   ,) ),
-            (r'Speed Error [rpm]',            ( 'CTRL.cmd_rpm - CTRL.omega_r_mech'                  ,) ),
-            (r'Position [rad]',               ( 'ACM.theta_d', 'CTRL.theta_d', 'CTRL.xSpeed[0]'         ,) ),
-            (r'Position mech [rad]',          ( 'ACM.theta_d'                                       ,) ),
-            (r'$q$-axis current [A]',         ( 'ACM.iQ', 'CTRL.cmd_idq[1]'                         ,) ),
-            (r'$d$-axis current [A]',         ( 'ACM.iD', 'CTRL.cmd_idq[0]'                         ,) ),
-            (r'K_{\rm Active} [A]',           ( 'ACM.KA', 'CTRL.KA'                                 ,) ),
-            (r'Load torque [Nm]',             ( 'ACM.TLoad', 'CTRL.xSpeed[2]'                           ,) ),
-            (r'CTRL.iD [A]',                  ( 'CTRL.cmd_idq[0]', 'CTRL.idq[0]'                    ,) ),
-            (r'CTRL.iQ [A]',                  ( 'CTRL.cmd_idq[1]', 'CTRL.idq[1]'                    ,) ),
-            (r'CTRL.uab [V]',                 ( 'CTRL.cmd_uab[0]', 'CTRL.cmd_uab[1]'                ,) ),
+            (r'Speed Out Limit [A]',          ( 'reg_speed.OutLimit'                                 ,) ),
+            (r'$q$-axis voltage [V]',         ( 'ACM.udq[1]', 'CTRL.cmd_udq[1]'                      ,) ),
+            (r'$d$-axis voltage [V]',         ( 'ACM.udq[0]', 'CTRL.cmd_udq[0]'                      ,) ),
+            (r'Torque [Nm]',                  ( 'ACM.Tem', 'CTRL.Tem'                                ,) ),
+            (r'Speed [rpm]',                  ( 'CTRL.cmd_rpm', 'CTRL.omega_r_mech', 'CTRL.xSpeed[1]',) ),
+            (r'Speed Error [rpm]',            ( 'CTRL.cmd_rpm - CTRL.omega_r_mech'                   ,) ),
+            (r'Position [rad]',               ( 'ACM.theta_d', 'CTRL.theta_d', 'CTRL.xSpeed[0]'      ,) ),
+            (r'Position mech [rad]',          ( 'ACM.theta_d'                                        ,) ),
+            (r'$q$-axis current [A]',         ( 'ACM.iQ', 'CTRL.cmd_idq[1]'                          ,) ),
+            (r'$d$-axis current [A]',         ( 'ACM.iD', 'CTRL.cmd_idq[0]'                          ,) ),
+            (r'K_{\rm Active} [A]',           ( 'ACM.KA', 'CTRL.KA'                                  ,) ),
+            (r'Load torque [Nm]',             ( 'ACM.TLoad', 'CTRL.xSpeed[2]'                        ,) ),
+            (r'CTRL.iD [A]',                  ( 'CTRL.cmd_idq[0]', 'CTRL.idq[0]'                     ,) ),
+            (r'CTRL.iQ [A]',                  ( 'CTRL.cmd_idq[1]', 'CTRL.idq[1]'                     ,) ),
+            (r'CTRL.uab [V]',                 ( 'CTRL.cmd_uab[0]', 'CTRL.cmd_uab[1]'                 ,) ),
             (r'S [1]',                        ( 'svgen1.S1', 'svgen1.S2', 'svgen1.S3', 'svgen1.S4', 'svgen1.S5', 'svgen1.S6' ,) ),
-            (r'psi2 [Wb]',                    ( 'fe_htz.psi_2[0]', 'fe_htz.psi_2[1]'                ,) ),
+            (r'psi2 [Wb]',                    ( 'fe_htz.psi_2[0]', 'fe_htz.psi_2[1]'                 ,) ),
+            (r'uoffset [V]',                  ( 'fe_htz.u_offset[0]', 'fe_htz.u_offset[1]'           ,) ),
         ])
 
         if bool_start_simulation:
