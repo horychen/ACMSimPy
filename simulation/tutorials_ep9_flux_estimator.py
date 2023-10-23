@@ -5,101 +5,9 @@ from numba import njit, int32, float64
 from pylab import np, plt, mpl
 plt.style.use('ggplot')
 
+NS_GLOBAL = 6
+
 ############################################# CLASS DEFINITION 
-@jitclass(
-    spec=[
-        # CONTROL
-            # constants
-            ('CL_TS', float64),
-            ('VL_TS', float64),
-            ('velocity_loop_counter', float64),
-            ('velocity_loop_ceiling', float64),
-            # feedback / input
-            ('theta_d', float64),
-            ('theta_m', float64),
-            ('omega_r_elec', float64),
-            ('omega_syn', float64),
-            ('omega_slip', float64),
-            ('uab', float64[:]),
-            ('psi_stator_MT_fb', float64[:]),
-            ('psi_stator_ab_fb', float64[:]),
-            ('kPFL', float64),
-            ('kPCL', float64),
-            ('Intergral_of_iT_error', float64),
-            # ('uab_prev', float64[:]),
-            # ('uab_curr', float64[:]),
-            ('iab', float64[:]),
-            ('iab_prev', float64[:]),
-            ('iab_curr', float64[:]),
-            # states
-            ('timebase', float64),
-            ('Tem', float64),
-            ('cosT', float64),
-            ('sinT', float64),
-            ('cosT_MT', float64),
-            ('sinT_MT', float64),
-            ('lastcomplex', float64[:]),
-            # commands
-            ('cmd_iMT',float64[:]),
-            ('cmd_uMT', float64[:]),
-            ('cmd_idq', float64[:]),
-            ('cmd_udq', float64[:]),
-            ('cmd_uab', float64[:]),
-            ('cmd_rpm', float64),
-            ('cmd_KA',  float64),
-            ('cmd_psi_Ms', float64),
-            ('index_separate_speed_estimation', int32),
-            ('use_disturbance_feedforward_rejection', int32),
-            ('bool_apply_decoupling_voltages_to_current_regulation', int32),
-            ('bool_apply_speed_closed_loop_control', int32),
-            ('bool_zero_id_control', int32),
-            ('bool_use_FOC_or_SFOC', int32),
-            # commands (sweep freuqency)
-            ('bool_apply_sweeping_frequency_excitation', int32),
-            ('bool_overwrite_speed_commands', int32),
-            ('CMD_CURRENT_SINE_AMPERE', float64),
-            ('CMD_SPEED_SINE_RPM', float64),
-            ('CMD_SPEED_SINE_HZ', float64),
-            ('CMD_SPEED_SINE_STEP_SIZE', float64),
-            ('CMD_SPEED_SINE_LAST_END_TIME', float64),
-            ('CMD_SPEED_SINE_END_TIME', float64),
-            ('CMD_SPEED_SINE_HZ_CEILING', float64),
-        # MOTOR
-            # name plate data
-            ('npp',   int32),
-            ('IN',  float64),
-            ('DC_BUS_VOLTAGE', float64),
-            # electrical parameters
-            ('R',   float64),
-            ('Ld',  float64),
-            ('Lq',  float64),
-            ('KE',  float64),
-            ('KA',  float64),
-            ('Rreq',float64),
-            ('Lsigma', float64),
-            # mechanical parameters
-            ('Js',  float64),
-        # OBSERVER
-            # feedback / inputs
-            ('idq', float64[:]),
-            ('iMT', float64[:]),
-            ('emf_stator', float64[:]),
-            # states
-            ('NS', int32),
-            ('xS', float64[:]),
-            ('xT', float64[:]),
-            # outputs
-            ('speed_observer_output_error', float64),
-            ('vartheta_d', float64),
-            ('total_disrubance_feedforward', float64),
-            # gains
-            ('ell1', float64),
-            ('ell2', float64),
-            ('ell3', float64),
-            ('ell4', float64),
-            #
-            ('one_over_six', float64),
-    ])
 class The_Motor_Controller:
     def __init__(self, CL_TS, VL_TS,
         init_npp = 4,
@@ -108,7 +16,6 @@ class The_Motor_Controller:
         init_Ld = 5e-3,
         init_Lq = 6e-3,
         init_KE = 0.095,
-        init_KA = 0.095,
         init_Rreq = -1, # note division by 0 is equal to infinity
         init_Js = 0.0006168,
         DC_BUS_VOLTAGE = 300,
@@ -122,16 +29,10 @@ class The_Motor_Controller:
         print('\tCTRL.velocity_loop_ceiling =', self.velocity_loop_ceiling)
         # feedback / input
         self.theta_d = 0.0
-        self.theta_m = 0.0
         self.omega_r_elec = 0.0
         self.omega_syn = 0.0
         self.omega_slip = 0.0
         self.uab      = np.zeros(2, dtype=np.float64)
-        self.psi_stator_MT_fb = np.zeros(2, dtype=np.float64)
-        self.psi_stator_ab_fb = np.zeros(2, dtype=np.float64)
-        self.kPFL = 2 # 10 
-        self.kPCL = 20 # 200
-        self.Intergral_of_iT_error = 0.0
         # self.uab_prev = np.zeros(2, dtype=np.float64)
         # self.uab_curr = np.zeros(2, dtype=np.float64)
         self.iab      = np.zeros(2, dtype=np.float64)
@@ -139,25 +40,22 @@ class The_Motor_Controller:
         self.iab_curr = np.zeros(2, dtype=np.float64)
         # states
         self.timebase = 0.0
+        self.KA = init_KE
         self.Tem = 0.0
         self.cosT = 1.0
         self.sinT = 0.0
-        self.lastcomplex = np.zeros(2, dtype=np.float64)
         # commands
-        self.cmd_iMT = np.zeros(2, dtype=np.float64)
-        self.cmd_uMT = np.zeros(2, dtype=np.float64)
         self.cmd_idq = np.zeros(2, dtype=np.float64)
         self.cmd_udq = np.zeros(2, dtype=np.float64)
         self.cmd_uab = np.zeros(2, dtype=np.float64)
         self.cmd_rpm = 0.0
-        self.cmd_KA  = init_KA
-        self.cmd_psi_Ms = init_KA
+        self.cmd_psi = 0.9 # [Wb]
+        self.index_voltage_model_flux_estimation = 1
         self.index_separate_speed_estimation = 0
         self.use_disturbance_feedforward_rejection = 0
         self.bool_apply_decoupling_voltages_to_current_regulation = False
         self.bool_apply_speed_closed_loop_control = True
         self.bool_zero_id_control = True
-        self.bool_use_FOC_or_SFOC = True
         # sweep frequency
         self.bool_apply_sweeping_frequency_excitation = False
         self.bool_overwrite_speed_commands = False
@@ -175,21 +73,17 @@ class The_Motor_Controller:
         self.Ld   = init_Ld
         self.Lq   = init_Lq
         self.KE   = init_KE
-        self.KA   = init_KA
         self.Rreq = init_Rreq
         self.Js   = init_Js
         self.DC_BUS_VOLTAGE = DC_BUS_VOLTAGE
-        self.Lsigma = 22*1e-3
 
         ''' OBSERVER '''
         # feedback / input
         self.idq = np.zeros(2, dtype=np.float64)
-        self.iMT = np.zeros(2, dtype=np.float64)
-        self.emf_stator = np.zeros(2, dtype=np.float64)
         # state
-        self.NS   = 6 # = max(NS_SPEED, NS_FLUX)
-        self.xS   = np.zeros(self.NS, dtype=np.float64) # the internal states of speed estimator
-        self.xT   = np.zeros(self.NS, dtype=np.float64) # the internal states of torque estimator
+        # self.NS_SPEED  = 6 # = max(NS_SPEED, NS_FLUX)
+        self.xSpeed    = np.zeros(NS_GLOBAL, dtype=np.float64) # the internal states of speed estimator
+        self.xTorque   = np.zeros(NS_GLOBAL, dtype=np.float64) # the internal states of torque estimator
         # outputs
         self.speed_observer_output_error = 0.0
         self.vartheta_d = 0.0
@@ -219,50 +113,6 @@ class The_Motor_Controller:
 
         self.one_over_six = 1.0 / 6.0
 
-@jitclass(
-    spec=[
-        # name plate data
-        ('npp',   int32),
-        ('npp_inv', float64),
-        ('IN',  float64),
-        # electrical parameters
-        ('R',   float64),
-        ('Ld',  float64),
-        ('Lq',  float64),
-        ('KE',  float64),
-        ('KA', float64),
-        ('Rreq',float64),
-        # mechanical parameters
-        ('Js',  float64),
-        ('Js_inv', float64),
-        # states
-        ('NS',    int32),
-        ('x',   float64[:]),
-        # inputs
-        ('uab',   float64[:]),
-        ('udq',   float64[:]),
-        ('TLoad', float64),
-        # output
-        ('omega_slip', float64),
-        ('omega_r_elec', float64),
-        ('omega_r_mech', float64),
-        ('omega_syn', float64),
-        ('theta_d', float64),
-        ('theta_d_mech', float64),
-        ('iD', float64),
-        ('iQ', float64),
-        ('iAlfa', float64),
-        ('iBeta', float64),
-        ('ia', float64),
-        ('ib', float64),
-        ('ic', float64),
-        ('Tem', float64),
-        ('cosT', float64),
-        ('sinT', float64),
-        # simulation settings
-        ('MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD', int32),
-        ('bool_apply_load_model', int32)
-    ])
 class The_AC_Machine:
     def __init__(self, CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=1):
         # name plate data
@@ -273,11 +123,8 @@ class The_AC_Machine:
         self.R   = CTRL.R
         self.Ld  = CTRL.Ld
         self.Lq  = CTRL.Lq
+        self.KE  = CTRL.KE
         self.Rreq  = CTRL.Rreq
-        if self.Rreq >0:
-            if CTRL.KE>0:
-                raise Exception('KE should be zero for induction machine.')
-        self.KA  = CTRL.KA
         # mechanical parameters
         self.Js  = CTRL.Js # kg.m^2
         self.Js_inv = 1.0/self.Js
@@ -296,6 +143,7 @@ class The_AC_Machine:
         self.omega_syn = 0.0
         self.theta_d = 0.0
         self.theta_d_mech = 0.0
+        self.KA = CTRL.KA
         self.iD = 0.0
         self.iQ = 0.0
         self.iAlfa = 0.0
@@ -309,18 +157,6 @@ class The_AC_Machine:
         self.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD = MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD
         self.bool_apply_load_model = False
 
-@jitclass(
-    spec=[
-        ('Kp', float64),
-        ('Ki', float64),
-        ('Err', float64),
-        ('setpoint', float64),
-        ('measurement', float64),
-        ('Out', float64),
-        ('OutLimit', float64),
-        ('ErrPrev', float64),
-        ('OutPrev', float64),
-    ])
 class The_PI_Regulator:
     def __init__(self, KP_CODE, KI_CODE, OUTPUT_LIMIT):
         self.Kp = KP_CODE
@@ -333,23 +169,6 @@ class The_PI_Regulator:
         self.ErrPrev  = 0.0
         self.OutPrev  = 0.0
 
-@jitclass(
-    spec=[
-        ('Kp', float64),
-        ('Ki', float64),
-        ('Kd', float64),
-        ('tau', float64),
-        ('OutLimit', float64),
-        ('IntLimit', float64),
-        ('T', float64),
-        ('integrator', float64),
-        ('prevError', float64),
-        ('differentiator', float64),
-        ('prevMeasurement', float64),
-        ('Out', float64),
-        ('setpoint', float64),
-        ('measurement', float64),
-    ])
 class The_PID_Regulator:
     def __init__(self, Kp, Ki, Kd, tau, OutLimit, IntLimit, T):
 
@@ -383,40 +202,6 @@ class The_PID_Regulator:
         self.setpoint = 0.0
         self.measurement = 0.0;
 
-@jitclass(
-    spec=[
-        ('Ualfa', float64),
-        ('Ubeta', float64),
-        ('Unot', float64),
-        ('Ta', float64),
-        ('Tb', float64),
-        ('Tc', float64),
-        ('SYSTEM_MAX_PWM_DUTY_LIMATATION', float64),
-        ('SYSTEM_MIN_PWM_DUTY_LIMATATION', float64),
-        # Those variables are only needed in simulation
-        ('bool_interupt_event', float64),
-        ('bool_counting_down', float64),
-        ('bool_RisingEdgeDelay_is_active', float64[:]),
-        ('bool_FallingEdgeDelay_is_active', float64[:]),
-        ('carrier_counter', float64),
-        ('deadtime_counter', float64[:]),
-        ('S1', int32),
-        ('S2', int32),
-        ('S3', int32),
-        ('S4', int32),
-        ('S5', int32),
-        ('S6', int32),
-        ('EPwm1Regs_CMPA_bit_CMPA', float64),
-        ('EPwm2Regs_CMPA_bit_CMPA', float64),
-        ('EPwm3Regs_CMPA_bit_CMPA', float64),
-        ('phase_U_gate_signal', float64),
-        ('phase_V_gate_signal', float64),
-        ('phase_W_gate_signal', float64),
-        ('voltage_potential_at_terminal', float64[:]),
-        ('line_to_line_voltage_AC', float64),
-        ('line_to_line_voltage_BC', float64),
-        ('line_to_line_voltage_AB', float64),
-    ])
 class SVgen_Object:
     def __init__(self, CPU_TICK_PER_SAMPLING_PERIOD):
         self.Ualfa = 0.0
@@ -447,16 +232,78 @@ class SVgen_Object:
         self.line_to_line_voltage_BC = 0.0
         self.line_to_line_voltage_AB = 0.0
 
+class Variables_FluxEstimator_Holtz03:
+    def __init__(self, IM_STAOTR_RESISTANCE):
+
+        self.xFlux = np.zeros(NS_GLOBAL, dtype=np.float64)
+
+        # self.emf_stator = np.zeros(2, dtype=np.float64)
+
+        self.psi_1 = np.zeros(2, dtype=np.float64)
+        self.psi_2= np.zeros(2, dtype=np.float64)
+        self.psi_2_prev= np.zeros(2, dtype=np.float64)
+
+        self.psi_1_nonSat= np.zeros(2, dtype=np.float64)
+        self.psi_2_nonSat= np.zeros(2, dtype=np.float64)
+
+        self.psi_1_min= np.zeros(2, dtype=np.float64)
+        self.psi_1_max= np.zeros(2, dtype=np.float64)
+        self.psi_2_min= np.zeros(2, dtype=np.float64)
+        self.psi_2_max= np.zeros(2, dtype=np.float64)
+
+        self.rs_est   = IM_STAOTR_RESISTANCE
+        # self.rreq_est = IM_ROTOR_RESISTANCE
+
+        self.Delta_t = 1
+        self.u_offset= np.zeros(2, dtype=np.float64)
+
+        self.u_off_original_lpf_input= np.zeros(2, dtype=np.float64) # holtz03 original (but I uses int32egrator instead of LPF)
+        self.u_off_saturation_time_correction= np.zeros(2, dtype=np.float64) # exact offset calculation for compensation
+        self.u_off_calculated_increment= np.zeros(2, dtype=np.float64)    # saturation time based correction
+        self.GAIN_OFFSET_INIT = 10.0
+        self.gain_off = self.GAIN_OFFSET_INIT  # HOLTZ_2002_GAIN_OFFSET; # 5; -> slow but stable // 50.1 // 20 -> too large then speed will oscillate during reversal near zero
+        self.GAIN_OFFSET_REALTIME = 1.0
+
+        self.flag_pos2negLevelA= np.zeros(2, dtype=np.int32)
+        self.flag_pos2negLevelB= np.zeros(2, dtype=np.int32)
+        self.time_pos2neg= np.zeros(2, dtype=np.float64)
+        self.time_pos2neg_prev= np.zeros(2, dtype=np.float64)
+
+        self.flag_neg2posLevelA= np.zeros(2, dtype=np.int32)
+        self.flag_neg2posLevelB= np.zeros(2, dtype=np.int32)
+        self.time_neg2pos= np.zeros(2, dtype=np.float64)
+        self.time_neg2pos_prev= np.zeros(2, dtype=np.float64)
+
+        self.psi_aster_max = 0.9 #IM_FLUX_COMMAND_DC_PART + IM_FLUX_COMMAND_SINE_PART
+
+        self.maximum_of_sat_min_time= np.zeros(2, dtype=np.float64)
+        self.maximum_of_sat_max_time= np.zeros(2, dtype=np.float64)
+        self.sat_min_time= np.zeros(2, dtype=np.float64)
+        self.sat_max_time= np.zeros(2, dtype=np.float64)
+        self.sat_min_time_reg= np.zeros(2, dtype=np.float64)
+        self.sat_max_time_reg= np.zeros(2, dtype=np.float64)
+        self.extra_limit = 0.0
+        self.flag_limit_too_low = False
+
+        self.negative_cycle_in_count = np.zeros(2, dtype=np.float64)
+        self.positive_cycle_in_count = np.zeros(2, dtype=np.float64)
+        self.count_positive_in_one_cycle = np.zeros(2, dtype=np.float64)
+        self.count_negative_in_one_cycle = np.zeros(2, dtype=np.float64)
+        self.count_positive_cycle = 0
+        self.count_negative_cycle = 0
+        self.u_off_direct_calculated = np.zeros(2, dtype=np.float64)
+        self.sign__u_off_saturation_time_correction = np.zeros(2, dtype=np.float64)
+        self.sat_time_offset = np.zeros(2, dtype=np.float64)
+
 ############################################# OBSERVERS SECTION
-@njit(nogil=True)
 def DYNAMICS_SpeedObserver(x, CTRL):
-    fx = np.zeros(6)
+    fx = np.zeros(NS_GLOBAL)
 
     # [rad]
     # output_error = np.sin(CTRL.theta_d - x[0])
     output_error = angle_diff(CTRL.theta_d, x[0]) # OE version 2
-        # CTRL.output_error = np.sin(CTRL.theta_d - CTRL.xS[0]) # OE version 1 simple and silly
-        # CTRL.output_error = angle_diff(CTRL.theta_d - CTRL.xS[0]) # OE version 2
+        # CTRL.output_error = np.sin(CTRL.theta_d - CTRL.xSpeed[0]) # OE version 1 simple and silly
+        # CTRL.output_error = angle_diff(CTRL.theta_d - CTRL.xSpeed[0]) # OE version 2
         # CTRL.output_error = q-axis component # OE version 3 Boldea
     CTRL.speed_observer_output_error = output_error
 
@@ -467,41 +314,46 @@ def DYNAMICS_SpeedObserver(x, CTRL):
     fx[3] = CTRL.ell4*output_error + 0.0
     return fx
 
-@njit(nogil=True)
+def DYNAMICS_FluxEstimator(x, CTRL):
+    fx = np.zeros(NS_GLOBAL)
+    fx[0] = CTRL.uab[0] - CTRL.R * CTRL.iab[0] - x[2]
+    fx[1] = CTRL.uab[1] - CTRL.R * CTRL.iab[1] - x[3]
+    return fx
+
+
+
 def RK4_ObserverSolver_CJH_Style(THE_DYNAMICS, x, hs, CTRL):
-    NS = CTRL.NS # THIS SHOULD BE A CONSTANT THROUGHOUT THE CODES!!!
-    k1, k2, k3, k4 = np.zeros(NS), np.zeros(NS), np.zeros(NS), np.zeros(NS) # incrementals at 4 stages
-    xk, fx = np.zeros(NS), np.zeros(NS) # state x for stage 2/3/4, state derivative
+    k1, k2, k3, k4 = np.zeros(NS_GLOBAL), np.zeros(NS_GLOBAL), np.zeros(NS_GLOBAL), np.zeros(NS_GLOBAL) # incrementals at 4 stages
+    xk, fx = np.zeros(NS_GLOBAL), np.zeros(NS_GLOBAL) # state x for stage 2/3/4, state derivative
 
     CTRL.uab[0] = CTRL.cmd_uab[0]
     CTRL.uab[1] = CTRL.cmd_uab[1]
     CTRL.iab[0] = CTRL.iab_prev[0]
     CTRL.iab[1] = CTRL.iab_prev[1]
     fx = THE_DYNAMICS(x, CTRL)
-    for i in range(0, NS):
+    for i in range(0, NS_GLOBAL):
         k1[i] = fx[i] * hs
         xk[i] = x[i] + k1[i]*0.5
 
     CTRL.iab[0] = 0.5*(CTRL.iab_prev[0]+CTRL.iab_curr[0])
     CTRL.iab[1] = 0.5*(CTRL.iab_prev[1]+CTRL.iab_curr[1])
     fx = THE_DYNAMICS(xk, CTRL)
-    for i in range(0, NS):
+    for i in range(0, NS_GLOBAL):
         k2[i] = fx[i] * hs
         xk[i] = x[i] + k2[i]*0.5
 
     fx = THE_DYNAMICS(xk, CTRL)
-    for i in range(0, NS):
+    for i in range(0, NS_GLOBAL):
         k3[i] = fx[i] * hs
         xk[i] = x[i] + k3[i]
 
     CTRL.iab[0] = CTRL.iab_curr[0]
     CTRL.iab[1] = CTRL.iab_curr[1]
     fx = THE_DYNAMICS(xk, CTRL)
-    for i in range(0, NS):
+    for i in range(0, NS_GLOBAL):
         k4[i] = fx[i] * hs
         x[i] = x[i] + (k1[i] + 2*(k2[i] + k3[i]) + k4[i]) * CTRL.one_over_six
 
-@njit(nogil=True)
 def angle_diff(a,b):
     # ''' a and b must be within [0, 2*np.pi]'''
     _, a = divmod(a, 2*np.pi)
@@ -517,7 +369,6 @@ def angle_diff(a,b):
         return d2
 
 ############################################# MACHINE SIMULATION SECTION
-@njit(nogil=True)
 def DYNAMICS_MACHINE(t, x, ACM, CLARKE_TRANS_TORQUE_GAIN=1.5):
     fx = np.zeros(ACM.NS) # s x = f(x)
 
@@ -561,11 +412,9 @@ def DYNAMICS_MACHINE(t, x, ACM, CLARKE_TRANS_TORQUE_GAIN=1.5):
 
     return fx
 
-@njit(nogil=True)
 def RK4_MACHINE(t, ACM, hs): # 四阶龙格库塔法
-    NS = ACM.NS
-    k1, k2, k3, k4 = np.zeros(NS), np.zeros(NS), np.zeros(NS), np.zeros(NS) # incrementals at 4 stages
-    xk, fx = np.zeros(NS), np.zeros(NS) # state x for stage 2/3/4, state derivative
+    k1, k2, k3, k4 = np.zeros(ACM.NS), np.zeros(ACM.NS), np.zeros(ACM.NS), np.zeros(ACM.NS) # incrementals at 4 stages
+    xk, fx = np.zeros(ACM.NS), np.zeros(ACM.NS) # state x for stage 2/3/4, state derivative
 
     if False:
         """ this is about twice slower than loop through the element one by one """ 
@@ -586,28 +435,27 @@ def RK4_MACHINE(t, ACM, hs): # 四阶龙格库塔法
         ACM.x = ACM.x + (k1 + 2*(k2 + k3) + k4)/6.0
     else:
         fx = DYNAMICS_MACHINE(t, ACM.x, ACM) # @t
-        for i in range(NS):
+        for i in range(ACM.NS):
             k1[i] = fx[i] * hs
             xk[i] = ACM.x[i] + k1[i]*0.5
 
         fx = DYNAMICS_MACHINE(t, xk, ACM)  # @t+hs/2
-        for i in range(NS):
+        for i in range(ACM.NS):
             k2[i] = fx[i] * hs
             xk[i] = ACM.x[i] + k2[i]*0.5
 
         fx = DYNAMICS_MACHINE(t, xk, ACM)  # @t+hs/2
-        for i in range(NS):
+        for i in range(ACM.NS):
             k3[i] = fx[i] * hs
             xk[i] = ACM.x[i] + k3[i]
 
         fx = DYNAMICS_MACHINE(t, xk, ACM)  # @t+hs
-        for i in range(NS):
+        for i in range(ACM.NS):
             k4[i] = fx[i] * hs
             # ACM.x_dot[i] = (k1[i] + 2*(k2[i] + k3[i]) + k4[i])/6.0 / hs # derivatives
             ACM.x[i] = ACM.x[i] + (k1[i] + 2*(k2[i] + k3[i]) + k4[i])/6.0
 
 ############################################# BASIC FOC SECTION
-@njit(nogil=True)
 def incremental_pi(reg):
     reg.Err = reg.setpoint - reg.measurement
     reg.Out = reg.OutPrev + \
@@ -620,7 +468,6 @@ def incremental_pi(reg):
     reg.ErrPrev = reg.Err
     reg.OutPrev = reg.Out
 
-@njit(nogil=True)
 def tustin_pid(reg):
 
     # Error signal
@@ -659,22 +506,7 @@ def tustin_pid(reg):
     # Return controller output */
     return reg.Out
 
-@njit(nogil=True)
 def FOC(CTRL, reg_speed, reg_id, reg_iq):
-
-    """ Park Transformation Essentials """
-    # do this once per control interrupt
-    CTRL.cosT = np.cos(CTRL.theta_d)
-    CTRL.sinT = np.sin(CTRL.theta_d)
-    # Park transformation
-    CTRL.idq[0] = CTRL.iab[0] * CTRL.cosT + CTRL.iab[1] * CTRL.sinT
-    CTRL.idq[1] = CTRL.iab[0] *-CTRL.sinT + CTRL.iab[1] * CTRL.cosT
-
-    # now we are ready to calculate torque using dq-currents
-    CTRL.KA = (CTRL.Ld - CTRL.Lq) * CTRL.idq[0] + CTRL.KE # 有功磁链计算
-    CTRL.Tem =     1.5 * CTRL.npp * CTRL.idq[1] * CTRL.KA # 电磁转矩计算
-
-    # Speed regulation (FOC)
     reg_speed.setpoint = CTRL.cmd_rpm / 60 * 2*np.pi * CTRL.npp # [elec.rad/s]
     reg_speed.measurement = CTRL.omega_r_elec # [elec.rad/s]
     CTRL.velocity_loop_counter += 1
@@ -690,9 +522,10 @@ def FOC(CTRL, reg_speed, reg_id, reg_iq):
 
     # slip and syn frequencies
     if CTRL.Rreq>0: # IM
-        CTRL.cmd_idq[0] = CTRL.cmd_KA / (CTRL.Ld - CTRL.Lq) # [Wb] / [H]
+        CTRL.cmd_idq[0] = CTRL.cmd_psi / (CTRL.Ld - CTRL.Lq) # [Wb] / [H]
         CTRL.omega_slip = CTRL.Rreq * CTRL.cmd_idq[1] / CTRL.KA # Use commands for calculation (base off Harnefors recommendations)
-    else:
+
+    else: # PMSM
         CTRL.omega_slip = 0.0
 
         if CTRL.bool_zero_id_control == True:
@@ -758,142 +591,301 @@ def FOC(CTRL, reg_speed, reg_id, reg_iq):
         elif CTRL.cmd_udq[1] < -reg_iq.OutLimit:
             CTRL.cmd_udq[1]  = -reg_iq.OutLimit
 
-# @njit(nogil=True)
-# def get_angular_frequency_of_psi_ab(CTRL):
-#     x = CTRL.psi_stator_ab_fb[0]
-#     y = CTRL.psi_stator_ab_fb[1]
-#     # xdot = (x - CTRL.lastcomplex[0])/CTRL.CLTS #需要低通滤波
-#     # ydot = (y - CTRL.lastcomplex[1])/CTRL.CLTS
-#     xdot = CTRL.cmd_uab[0] - CTRL.iab[0]*CTRL.R 
-#     ydot = CTRL.cmd_uab[1]] - CTRL.iab[1]*CTRL.R
-#     den = np.sqrt(x**2 - y**2)
-#     CTRL.omega_syn = (ydot*x - xdot*y) /den
-
-#     # CTRL.lastcomplex[0] = CTRL.psi_stator_ab_fb[0]
-#     # CTRL.lastcomplex[1] = CTRL.psi_stator_ab_fb[1]
-
-@njit(nogil=True)
 def SFOC_Dynamic(CTRL, reg_speed, reg_id, reg_iq):
+    pass
 
-    """ Park Transformation Essentials """
-    # Park transformation
-    CTRL.iMT[0] = CTRL.iab[0] * CTRL.cosT_MT + CTRL.iab[1] * CTRL.sinT_MT
-    CTRL.iMT[1] = CTRL.iab[0] *-CTRL.sinT_MT + CTRL.iab[1] * CTRL.cosT_MT
-
-    # Speed regulation (SFOC)
-    reg_speed.setpoint = CTRL.cmd_rpm / 60 * 2*np.pi * CTRL.npp # [elec.rad/s]
-    reg_speed.measurement = CTRL.omega_r_elec # [elec.rad/s]
-    CTRL.velocity_loop_counter += 1
-    if CTRL.velocity_loop_counter >= CTRL.velocity_loop_ceiling:
-        CTRL.velocity_loop_counter = 0
-        # incremental_pi(reg_speed)
-        tustin_pid(reg_speed)
-
-    # dq-frame current commands
-    if CTRL.bool_apply_speed_closed_loop_control == True:
-        CTRL.cmd_iMT[1] = reg_speed.Out
-        # CTRL.cmd_idq[0] = 0.0 # for user specifying
-    else:
-        CTRL.cmd_iMT[1] = 0.5
-
-
-    if True:
-        # constant stator flux linkage
-        # CTRL.cmd_psi_Ms = 0.0
-        pass
-    else:
-        CTRL.cmd_idq[0] = 1.5
-        # CTRL.cmd_psi_Ms = np.sqrt( (CTRL.Ld*CTRL.cmd_i??[0])**2 + (CTRL.Lq * CTRL.cmd_i??[1])**2 )
-
-    # CTRL.cmd_uMT[0] = CTRL.kPFL*( CTRL.cmd_psi_Ms - CTRL.psi_stator_MT_fb[0] ) + 0.8*CTRL.R*CTRL.iMT[0] + 0
-    CTRL.cmd_uMT[0] = CTRL.kPFL*( CTRL.cmd_psi_Ms - CTRL.psi_stator_MT_fb[0] ) + 1.0*CTRL.R*CTRL.iMT[0] + 0
-
-    # CTRL.omega_slip = CTRL.omega_syn - CTRL.omega_r_elec
-    if True:
-        CTRL.emf_stator[0] = CTRL.cmd_uab[0] - CTRL.R * CTRL.iab[0]
-        CTRL.emf_stator[1] = CTRL.cmd_uab[1] - CTRL.R * CTRL.iab[1]
-        # CTRL.omega_syn = - (CTRL.psi_stator_ab_fb[0]*-CTRL.emf_stator[1] + CTRL.psi_stator_ab_fb[1]*CTRL.emf_stator[0]) / (CTRL.psi_stator_MT_fb[0]*CTRL.psi_stator_MT_fb[0])
-        CTRL.omega_slip = - (CTRL.psi_stator_ab_fb[0]*-CTRL.emf_stator[1] + CTRL.psi_stator_ab_fb[1]*CTRL.emf_stator[0]) / (CTRL.psi_stator_MT_fb[0]*CTRL.psi_stator_MT_fb[0])
-    else:
-        x = CTRL.psi_stator_ab_fb[0]
-        y = CTRL.psi_stator_ab_fb[1]
-        xdot = CTRL.cmd_uab[0] - CTRL.iab[0]*CTRL.R
-        ydot = CTRL.cmd_uab[1] - CTRL.iab[1]*CTRL.R
-        # CTRL.omega_syn = (ydot*x - xdot*y) / (x**2 + y**2)
-        CTRL.omega_slip = (ydot*x - xdot*y) / (x**2 + y**2)
-
-    CTRL.Intergral_of_iT_error += CTRL.CL_TS * CTRL.kPCL * (CTRL.cmd_iMT[1] - CTRL.iMT[1])
-    CTRL.cmd_uMT[1] = CTRL.R * (CTRL.Intergral_of_iT_error - CTRL.cmd_iMT[1]) + CTRL.omega_syn*CTRL.psi_stator_MT_fb[0]
+    CTRL.cmd_udq[1] = reg_iq.Out
 
 ############################################# DSP SECTION
-@njit(nogil=True)
-def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq):
+def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz):
     CTRL.timebase += CTRL.CL_TS
 
     """ Measurement """
-    CTRL.iab[0] = ACM.iAlfa
-    CTRL.iab[1] = ACM.iBeta
+    CTRL.iab[0] = CTRL.iab_curr[0] = ACM.iAlfa
+    CTRL.iab[1] = CTRL.iab_curr[1] = ACM.iBeta
     CTRL.theta_d = ACM.theta_d
 
-    # STATOR FLXU MEASUREMENT FOR SFOC
-    CTRL.psi_stator_ab_fb[0] = ACM.KA*np.cos(ACM.theta_d) + CTRL.Lq*CTRL.iab[0]
-    CTRL.psi_stator_ab_fb[1] = ACM.KA*np.sin(ACM.theta_d) + CTRL.Lq*CTRL.iab[1]
-    # CTRL.theta_m = np.atan2(CTRL.psi_stator_ab_fb[1], CTRL.psi_stator_ab_fb[0])
-    CTRL.psi_stator_MT_fb[0] = np.sqrt(CTRL.psi_stator_ab_fb[0]**2 + CTRL.psi_stator_ab_fb[1]**2)
-    CTRL.psi_stator_MT_fb[1] = 0.0
-    if CTRL.psi_stator_MT_fb[0] > 0:
-        inverse = 1.0 / CTRL.psi_stator_MT_fb[0]
-        CTRL.cosT_MT = CTRL.psi_stator_ab_fb[0] * inverse
-        CTRL.sinT_MT = CTRL.psi_stator_ab_fb[1] * inverse
-    else:
-        CTRL.cosT_MT = 1.0
-        CTRL.sinT_MT = 0.0
-    CTRL.omega_syn = ACM.omega_syn
-    CTRL.omega_slip = ACM.omega_syn
+    """ Park Transformation Essentials """
+    if CTRL.index_voltage_model_flux_estimation == 0:
+        # do this once per control interrupt
+        CTRL.cosT = np.cos(CTRL.theta_d)
+        CTRL.sinT = np.sin(CTRL.theta_d)
+
+    elif CTRL.index_voltage_model_flux_estimation == 1:
+        # sensorless
+        RK4_ObserverSolver_CJH_Style(DYNAMICS_FluxEstimator, fe_htz.xFlux, CTRL.CL_TS, CTRL)
+        fe_htz.psi_1[0] = fe_htz.xFlux[0]
+        fe_htz.psi_1[1] = fe_htz.xFlux[1]
+
+        fe_htz.psi_2[0] = fe_htz.psi_1[0] - CTRL.Lq*CTRL.iab[0]
+        fe_htz.psi_2[1] = fe_htz.psi_1[1] - CTRL.Lq*CTRL.iab[1]
+        fe_htz.psi_2_ampl = np.sqrt(fe_htz.psi_2[0]*fe_htz.psi_2[0]+fe_htz.psi_2[1]*fe_htz.psi_2[1])
+
+        # 限幅前求角度还是应该限幅后？
+        # fe_htz.theta_d = np.arctan2(fe_htz.psi_2[1], fe_htz.psi_2[0])
+        # fe_htz.cosT = np.cos(fe_htz.theta_d)
+        # fe_htz.sinT = np.sin(fe_htz.theta_d)
+
+        # fe_htz.psi_1_nonSat[0] += CTRL.CL_TS*(fe_htz.emf_stator[0])
+        # fe_htz.psi_1_nonSat[1] += CTRL.CL_TS*(fe_htz.emf_stator[1])
+        # fe_htz.psi_2_nonSat[0] = fe_htz.psi_1_nonSat[0] - CTRL.Lq*CTRL.iab[0]
+        # fe_htz.psi_2_nonSat[1] = fe_htz.psi_1_nonSat[1] - CTRL.Lq*CTRL.iab[1]
+
+        fe_htz.psi_aster_max = CTRL.cmd_psi + fe_htz.extra_limit
+
+        # 限幅是针对转子磁链限幅的
+        for ind in range(0,2):
+            if CTRL.cmd_rpm != 0.0:
+                if fe_htz.psi_2[ind]    > fe_htz.psi_aster_max: # TODO BUG呀！这里怎么可以是>应该是大于等于啊！
+                    fe_htz.psi_2[ind]   = fe_htz.psi_aster_max
+                    fe_htz.sat_max_time[ind] += CTRL.CL_TS
+                elif fe_htz.psi_2[ind] < -fe_htz.psi_aster_max:
+                    fe_htz.psi_2[ind]   = -fe_htz.psi_aster_max
+                    fe_htz.sat_min_time[ind] += CTRL.CL_TS
+                else:
+                    # 这样可以及时清零饱和时间
+                    if fe_htz.sat_max_time[ind]>0: fe_htz.sat_max_time[ind] -= CTRL.CL_TS
+                    if fe_htz.sat_min_time[ind]>0: fe_htz.sat_min_time[ind] -= CTRL.CL_TS
+
+            # 上限饱和减去下限饱和作为误差，主要为了消除实际磁链幅值大于给定的情况，实际上这种现象在常见工况下出现次数不多。
+            fe_htz.u_off_saturation_time_correction[ind] = fe_htz.sat_max_time[ind] - fe_htz.sat_min_time[ind]
+            # u_offset波动会导致sat_min_time和sat_max_time的波动，这个时候最有效的办法是减少gain_off。
+            # 但是同时，观察饱和时间sat_min_time等的波形，可以发现它里面也会出现一个正弦波包络线。
+            if fe_htz.sat_min_time[ind] > fe_htz.maximum_of_sat_min_time[ind]: fe_htz.maximum_of_sat_min_time[ind] = fe_htz.sat_min_time[ind]
+            if fe_htz.sat_max_time[ind] > fe_htz.maximum_of_sat_max_time[ind]: fe_htz.maximum_of_sat_max_time[ind] = fe_htz.sat_max_time[ind]
+
+        # 数数，算磁链周期
+        if fe_htz.psi_2[0]    > 0.0:
+            fe_htz.count_positive_in_one_cycle[0] += 1
+            if fe_htz.count_negative_in_one_cycle[0]!=0: 
+                fe_htz.negative_cycle_in_count[0] = fe_htz.count_negative_in_one_cycle[0]; fe_htz.count_negative_in_one_cycle[0] = 0
+        elif fe_htz.psi_2[0] < -0.0:
+            fe_htz.count_negative_in_one_cycle[0] += 1
+            if fe_htz.count_positive_in_one_cycle[0]!=0: 
+                fe_htz.positive_cycle_in_count[0] = fe_htz.count_positive_in_one_cycle[0]; fe_htz.count_positive_in_one_cycle[0] = 0
+
+        if fe_htz.psi_2[1]    > 0.0:
+            fe_htz.count_positive_in_one_cycle[1] += 1
+            if fe_htz.count_negative_in_one_cycle[1]!=0: 
+                fe_htz.negative_cycle_in_count[1] = fe_htz.count_negative_in_one_cycle[1]; fe_htz.count_negative_in_one_cycle[1] = 0
+        elif fe_htz.psi_2[1] < -0.0:
+            fe_htz.count_negative_in_one_cycle[1] += 1
+            if fe_htz.count_positive_in_one_cycle[1]!=0: 
+                fe_htz.positive_cycle_in_count[1] = fe_htz.count_positive_in_one_cycle[1]; fe_htz.count_positive_in_one_cycle[1] = 0
+
+        # 限幅后的转子磁链，再求取限幅后的定子磁链
+        fe_htz.psi_1[0] = fe_htz.psi_2[0] + CTRL.Lq*CTRL.iab[0]
+        fe_htz.psi_1[1] = fe_htz.psi_2[1] + CTRL.Lq*CTRL.iab[1]
+        fe_htz.xFlux[0] = fe_htz.psi_1[0]
+        fe_htz.xFlux[1] = fe_htz.psi_1[1]
+
+        # Speed Estimation
+        # if True:
+        #     temp = (fe_htz.psi_1[0]*fe_htz.psi_1[0]+fe_htz.psi_1[1]*fe_htz.psi_1[1])
+        #     if(temp>0.001):
+        #         fe_htz.field_speed_est = - (fe_htz.psi_1[0]*-fe_htz.emf_stator[1] + fe_htz.psi_1[1]*fe_htz.emf_stator[0]) / temp
+        #     temp = (fe_htz.psi_2[0]*fe_htz.psi_2[0]+fe_htz.psi_2[1]*fe_htz.psi_2[1])
+        #     if(temp>0.001):
+        #         fe_htz.slip_est = CTRL.motor->Rreq*(CTRL.iab[0]*-fe_htz.psi_2[1]+CTRL.iab[1]*fe_htz.psi_2[0]) / temp
+        #     fe_htz.omg_est = fe_htz.field_speed_est - fe_htz.slip_est
+
+        # TODO My proposed saturation time based correction method NOTE VERY COOL
+
+        # Loop for alpha & beta components # destroy integer outside this loop to avoid accidentally usage 
+        for ind in range(0,2):
+
+            # /* 必须先检查是否进入levelA */
+            if fe_htz.flag_pos2negLevelA[ind] == True: 
+                if fe_htz.psi_2_prev[ind]<0 and fe_htz.psi_2[ind]<0: # 二次检查，磁链已经是负的了  <- 可以改为施密特触发器
+                    if fe_htz.flag_pos2negLevelB[ind] == False:
+                        fe_htz.count_negative_cycle+=1 # fe_htz.count_positive_cycle = 0
+
+                        # 第一次进入寻找最小值的levelB，说明最大值已经检测到。
+                        fe_htz.psi_1_max[ind] = fe_htz.psi_2_max[ind] # 不区别定转子磁链，区别：psi_2是连续更新的，而psi_1是离散更新的。
+                        fe_htz.Delta_t_last = fe_htz.Delta_t
+                        fe_htz.Delta_t = fe_htz.time_pos2neg[ind] - fe_htz.time_pos2neg_prev[ind]
+                        fe_htz.time_pos2neg_prev[ind] = fe_htz.time_pos2neg[ind] # 备份作为下次耗时参考点
+                        # 初始化
+                        fe_htz.flag_neg2posLevelA[ind] = False
+                        fe_htz.flag_neg2posLevelB[ind] = False
+
+                        # 注意这里是正半周到负半周切换的时候才执行一次的哦！
+                        # CALCULATE_OFFSET_VOLTAGE_COMPENSATION_TERMS
+                        if True:
+                            fe_htz.u_off_original_lpf_input[ind]         = 0.5*(fe_htz.psi_2_min[ind] + fe_htz.psi_2_max[ind]) /  (fe_htz.Delta_t+fe_htz.Delta_t_last) 
+                            fe_htz.u_off_calculated_increment[ind]       = 0.5*(fe_htz.psi_2_min[ind] + fe_htz.psi_2_max[ind]) / ((fe_htz.Delta_t+fe_htz.Delta_t_last) - (fe_htz.sat_max_time[ind]+fe_htz.sat_min_time[ind])) 
+                            fe_htz.u_off_saturation_time_correction[ind] = fe_htz.sat_max_time[ind] - fe_htz.sat_min_time[ind] 
+                            fe_htz.u_off_direct_calculated[ind] += (fe_htz.count_negative_cycle+fe_htz.count_positive_cycle>4) * fe_htz.u_off_calculated_increment[ind] # if(BOOL_USE_METHOD_DIFFERENCE_INPUT) 
+                            # 引入 count：刚起动时的几个磁链正负半周里，Delta_t_last 存在巨大的计算误差，所以要放弃更新哦。
+
+                        # fe_htz.accumulated__u_off_saturation_time_correction[ind] += fe_htz.u_off_saturation_time_correction[ind]
+                        fe_htz.sign__u_off_saturation_time_correction[ind] = -1.0
+                        # 饱和时间的正弦包络线的正负半周的频率比磁链频率低多啦！需要再额外加一个低频u_offset校正
+                        fe_htz.sat_time_offset[ind] = fe_htz.maximum_of_sat_max_time[ind] - fe_htz.maximum_of_sat_min_time[ind]
+                        fe_htz.maximum_of_sat_max_time[ind] = 0.0
+                        fe_htz.maximum_of_sat_min_time[ind] = 0.0
+
+                        fe_htz.psi_1_min[ind] = 0.0
+                        fe_htz.psi_2_min[ind] = 0.0
+                        if False: # BOOL_TURN_ON_ADAPTIVE_EXTRA_LIMIT):
+                            fe_htz.sat_min_time_reg[ind] = fe_htz.sat_min_time[ind]
+                            if(fe_htz.sat_max_time_reg[ind]>CL_TS and fe_htz.sat_min_time_reg[ind]>CL_TS):
+                                fe_htz.flag_limit_too_low = True
+                                fe_htz.extra_limit += 1e-2 * (fe_htz.sat_max_time_reg[ind] + fe_htz.sat_min_time_reg[ind]) / fe_htz.Delta_t 
+                            else:
+                                fe_htz.flag_limit_too_low = False
+                                fe_htz.extra_limit -= 2e-4 * fe_htz.Delta_t
+                                if(bool_positive_extra_limit):
+                                    if(fe_htz.extra_limit<0.0):
+                                        fe_htz.extra_limit = 0.0
+
+                            fe_htz.sat_max_time_reg[ind] = 0.0
+
+                        fe_htz.sat_min_time[ind] = 0.0
+
+                    fe_htz.flag_pos2negLevelB[ind] = True
+                    if fe_htz.flag_pos2negLevelB[ind] == True: # 寻找磁链最小值
+                        if fe_htz.psi_2[ind] < fe_htz.psi_2_min[ind]:
+                            fe_htz.psi_2_min[ind] = fe_htz.psi_2[ind]
+
+                else: # 磁链还没有变负，说明是虚假过零，比如在震荡，fe_htz.psi_2[0]>0
+                    fe_htz.flag_pos2negLevelA[ind] = False # /* 震荡的话，另一方的检测就有可能被触动？ */
+
+            if fe_htz.psi_2_prev[ind]>0 and fe_htz.psi_2[ind]<0: # 发现磁链由正变负的时刻
+                fe_htz.flag_pos2negLevelA[ind] = True
+                fe_htz.time_pos2neg[ind] = CTRL.timebase
+
+            if fe_htz.flag_neg2posLevelA[ind] == True:
+                if fe_htz.psi_2_prev[ind]>0 and fe_htz.psi_2[ind]>0: # 二次检查，磁链已经是正的了
+                    if fe_htz.flag_neg2posLevelB[ind] == False:
+                        fe_htz.count_positive_cycle+=1 # fe_htz.count_negative_cycle = 0
+                        # 第一次进入寻找最大值的levelB，说明最小值已经检测到。
+                        fe_htz.psi_1_min[ind] = fe_htz.psi_2_min[ind] # 不区别定转子磁链，区别：psi_2是连续更新的，而psi_1是离散更新的。
+                        fe_htz.Delta_t_last = fe_htz.Delta_t
+                        fe_htz.Delta_t = fe_htz.time_neg2pos[ind] - fe_htz.time_neg2pos_prev[ind]
+                        fe_htz.time_neg2pos_prev[ind] = fe_htz.time_neg2pos[ind] # 备份作为下次耗时参考点
+                        # 初始化
+                        fe_htz.flag_pos2negLevelA[ind] = False
+                        fe_htz.flag_pos2negLevelB[ind] = False
+
+                        if True:
+                            fe_htz.u_off_original_lpf_input[ind]         = 0.5*(fe_htz.psi_2_min[ind] + fe_htz.psi_2_max[ind]) /  (fe_htz.Delta_t+fe_htz.Delta_t_last) 
+                            fe_htz.u_off_calculated_increment[ind]       = 0.5*(fe_htz.psi_2_min[ind] + fe_htz.psi_2_max[ind]) / ((fe_htz.Delta_t+fe_htz.Delta_t_last) - (fe_htz.sat_max_time[ind]+fe_htz.sat_min_time[ind])) 
+                            fe_htz.u_off_saturation_time_correction[ind] = fe_htz.sat_max_time[ind] - fe_htz.sat_min_time[ind] 
+                            fe_htz.u_off_direct_calculated[ind] += (fe_htz.count_negative_cycle+fe_htz.count_positive_cycle>4) * fe_htz.u_off_calculated_increment[ind] # if(BOOL_USE_METHOD_DIFFERENCE_INPUT) 
+                            # 引入 count：刚起动时的几个磁链正负半周里，Delta_t_last 存在巨大的计算误差，所以要放弃更新哦。
+
+                        # fe_htz.accumulated__u_off_saturation_time_correction[ind] += fe_htz.u_off_saturation_time_correction[ind]
+                        fe_htz.sign__u_off_saturation_time_correction[ind] = 1.0
+
+                        fe_htz.psi_1_max[ind] = 0.0
+                        fe_htz.psi_2_max[ind] = 0.0
+                        if False: # BOOL_TURN_ON_ADAPTIVE_EXTRA_LIMIT):
+                            fe_htz.sat_max_time_reg[ind] = fe_htz.sat_max_time[ind]
+                            if(fe_htz.sat_min_time_reg[ind]>CL_TS and fe_htz.sat_max_time_reg[ind]>CL_TS):
+                                fe_htz.flag_limit_too_low = True
+                                fe_htz.extra_limit += 1e-2 * (fe_htz.sat_min_time_reg[ind] + fe_htz.sat_max_time_reg[ind]) / fe_htz.Delta_t 
+                            else:
+                                fe_htz.flag_limit_too_low = False
+                                fe_htz.extra_limit -= 2e-4 * fe_htz.Delta_t
+                                if(fe_htz.extra_limit<0.0):
+                                    fe_htz.extra_limit = 0.0
+
+                            fe_htz.sat_min_time_reg[ind] = 0.0
+
+                        fe_htz.sat_max_time[ind] = 0.0
+
+                    fe_htz.flag_neg2posLevelB[ind] = True 
+                    if fe_htz.flag_neg2posLevelB[ind] == True: # 寻找磁链最大值
+                        if fe_htz.psi_2[ind] > fe_htz.psi_2_max[ind]:
+                            fe_htz.psi_2_max[ind] = fe_htz.psi_2[ind]
+
+                else: # 磁链还没有变正，说明是虚假过零，比如在震荡，fe_htz.psi_2[0]<0
+                    fe_htz.flag_neg2posLevelA[ind] = False
+
+            if fe_htz.psi_2_prev[ind]<0 and fe_htz.psi_2[ind]>0: # 发现磁链由负变正的时刻
+                fe_htz.flag_neg2posLevelA[ind] = True
+                fe_htz.time_neg2pos[ind] = CTRL.timebase
+
+        # /*这里一共有四种方案，积分两种，LPF两种：
+        # 1. Holtz03原版是用u_off_original_lpf_input过LPF，
+        # 2. 我发现u_off_original_lpf_input过积分器才能完全补偿偏置电压，
+        # 3. 我还提出可以直接算出偏置电压补偿误差（可加LPF），
+        # 4. 我还提出了用饱和时间去做校正的方法*/
+
+        INTEGRAL_INPUT_ALPHA = fe_htz.u_off_saturation_time_correction[0] # exact offset calculation for compensation
+        INTEGRAL_INPUT_BETA  = fe_htz.u_off_saturation_time_correction[1] # exact offset calculation for compensation
+
+        integer_local_sum = fe_htz.negative_cycle_in_count[0] + fe_htz.positive_cycle_in_count[0] + fe_htz.negative_cycle_in_count[1] + fe_htz.positive_cycle_in_count[1];
+        if integer_local_sum>0:
+            fe_htz.gain_off = fe_htz.GAIN_OFFSET_REALTIME * fe_htz.GAIN_OFFSET_INIT / (integer_local_sum*CTRL.CL_TS)
+
+        fe_htz.u_offset[0] += fe_htz.gain_off * CTRL.CL_TS * INTEGRAL_INPUT_ALPHA
+        fe_htz.u_offset[1] += fe_htz.gain_off * CTRL.CL_TS * INTEGRAL_INPUT_BETA
+        fe_htz.xFlux[2] = fe_htz.u_offset[0]
+        fe_htz.xFlux[3] = fe_htz.u_offset[1]
+
+        fe_htz.psi_2_prev[0] = fe_htz.psi_2[0]
+        fe_htz.psi_2_prev[1] = fe_htz.psi_2[1]
+
+        # psi_2_ampl 在限幅前已经算过了，还有必要限幅后在这里再算一次吗？
+        fe_htz.psi_2_ampl = np.sqrt(fe_htz.psi_2[0]**2 + fe_htz.psi_2[1]**2)
+        if fe_htz.psi_2_ampl == 0:
+            fe_htz.psi_2_ampl = 1.0
+        amplitude_inverse = 1.0 / fe_htz.psi_2_ampl
+
+        CTRL.cosT = fe_htz.psi_2[0] * amplitude_inverse
+        CTRL.sinT = fe_htz.psi_2[1] * amplitude_inverse
+        CTRL.cosT = np.cos(CTRL.theta_d)
+        CTRL.sinT = np.sin(CTRL.theta_d)
+
+        # for element in dir(fe_htz):
+        #     print(f'{element=}')
+
+
+    # Park transformation
+    CTRL.idq[0] = CTRL.iab[0] * CTRL.cosT + CTRL.iab[1] * CTRL.sinT
+    CTRL.idq[1] = CTRL.iab[0] *-CTRL.sinT + CTRL.iab[1] * CTRL.cosT
+
+    # now we are ready to calculate torque using dq-currents
+    CTRL.KA = (CTRL.Ld - CTRL.Lq) * CTRL.idq[0] + CTRL.KE # 有功磁链计算
+    CTRL.Tem =     1.5 * CTRL.npp * CTRL.idq[1] * CTRL.KA # 电磁转矩计算
 
     """ Speed Estimation """
     if CTRL.index_separate_speed_estimation == 0:
         #TODO simulate the encoder
         CTRL.omega_r_elec = ACM.omega_r_elec
     elif CTRL.index_separate_speed_estimation == 1:
-        RK4_ObserverSolver_CJH_Style(DYNAMICS_SpeedObserver, CTRL.xS, CTRL.CL_TS, CTRL)
-        while CTRL.xS[0]> np.pi: CTRL.xS[0] -= 2*np.pi
-        while CTRL.xS[0]<-np.pi: CTRL.xS[0] += 2*np.pi
-        CTRL.iab_prev[0] = CTRL.iab_curr[0]
-        CTRL.iab_prev[1] = CTRL.iab_curr[1]
+        RK4_ObserverSolver_CJH_Style(DYNAMICS_SpeedObserver, CTRL.xSpeed, CTRL.CL_TS, CTRL)
+        while CTRL.xSpeed[0]> np.pi: CTRL.xSpeed[0] -= 2*np.pi
+        while CTRL.xSpeed[0]<-np.pi: CTRL.xSpeed[0] += 2*np.pi
         # CTRL.uab_prev[0] = CTRL.uab_curr[0] # This is needed only if voltage is measured, e.g., by eCAP. Remember to update the code below marked by [$].
         # CTRL.uab_prev[1] = CTRL.uab_curr[1] # This is needed only if voltage is measured, e.g., by eCAP. Remember to update the code below marked by [$].
 
         """ Speed Observer Outputs """
-        CTRL.vartheta_d = CTRL.xS[0]
-        CTRL.omega_r_elec = CTRL.xS[1]
+        CTRL.vartheta_d = CTRL.xSpeed[0]
+        CTRL.omega_r_elec = CTRL.xSpeed[1]
         if CTRL.use_disturbance_feedforward_rejection == 0:
             CTRL.total_disrubance_feedforward = 0.0
         if CTRL.use_disturbance_feedforward_rejection == 1:
-            CTRL.total_disrubance_feedforward = CTRL.xS[2]
+            CTRL.total_disrubance_feedforward = CTRL.xSpeed[2]
         elif CTRL.use_disturbance_feedforward_rejection == 2:
-            CTRL.total_disrubance_feedforward = CTRL.xS[2] + CTRL.ell2*CTRL.speed_observer_output_error
+            CTRL.total_disrubance_feedforward = CTRL.xSpeed[2] + CTRL.ell2*CTRL.speed_observer_output_error
+
+    # update previous current measurement for soeed observation and flux estimation 
+    CTRL.iab_prev[0] = CTRL.iab_curr[0]
+    CTRL.iab_prev[1] = CTRL.iab_curr[1]
 
     """ (Optional) Do Park transformation again using the position estimate from the speed observer """
 
     """ Speed and Current Controller (two cascaded closed loops) """
-    if CTRL.bool_use_FOC_or_SFOC == True:
-        FOC(CTRL, reg_speed, reg_id, reg_iq)
+    FOC(CTRL, reg_speed, reg_id, reg_iq)
 
-        # [$] Inverse Park transformation: get voltage commands in alpha-beta frame as SVPWM input
-        CTRL.cmd_uab[0] = CTRL.cmd_udq[0] * CTRL.cosT + CTRL.cmd_udq[1] *-CTRL.sinT
-        CTRL.cmd_uab[1] = CTRL.cmd_udq[0] * CTRL.sinT + CTRL.cmd_udq[1] * CTRL.cosT
-
-    else:
-        SFOC_Dynamic(CTRL, reg_speed, reg_id, reg_iq)
-
-        # [$] Inverse Park transformation: get voltage commands in alpha-beta frame as SVPWM input
-        CTRL.cmd_uab[0] = CTRL.cmd_uMT[0] * CTRL.cosT_MT + CTRL.cmd_uMT[1] *-CTRL.sinT_MT
-        CTRL.cmd_uab[1] = CTRL.cmd_uMT[0] * CTRL.sinT_MT + CTRL.cmd_uMT[1] * CTRL.cosT_MT
-
+    # [$] Inverse Park transformation: get voltage commands in alpha-beta frame as SVPWM input
+    CTRL.cmd_uab[0] = CTRL.cmd_udq[0] * CTRL.cosT + CTRL.cmd_udq[1] *-CTRL.sinT
+    CTRL.cmd_uab[1] = CTRL.cmd_udq[0] * CTRL.sinT + CTRL.cmd_udq[1] * CTRL.cosT
 
 ############################################# Inverter and PWM
-@njit(nogil=True)
 def SVGEN_DQ(v, one_over_Vdc):
 
     # Normalization (which converts [Volt] into [s])
@@ -973,7 +965,6 @@ def SVGEN_DQ(v, one_over_Vdc):
 
     return v
 
-@njit(nogil=True)
 def gate_signal_generator(ii, v, CPU_TICK_PER_SAMPLING_PERIOD, DEAD_TIME_AS_COUNT):
     # 波谷中断 # if ii % CPU_TICK_PER_SAMPLING_PERIOD == 0:
     if v.bool_interupt_event:
@@ -1072,8 +1063,7 @@ def gate_signal_generator(ii, v, CPU_TICK_PER_SAMPLING_PERIOD, DEAD_TIME_AS_COUN
 
 
 ############################################# Wrapper level 1 (Main simulation | Incremental Edition)
-""" MAIN for Real-time simulation """
-@njit(nogil=True)
+""" MAIN for  ('-time simulation """
 def vehicel_load_model(t, ACM):
     EVM=1500    #####(车身质量)
     EVA=2.5     ####(迎风面积)
@@ -1089,8 +1079,7 @@ def vehicel_load_model(t, ACM):
     ACM.TLoad=FLoad*EVR          ##### 单侧转矩负载
     ACM.Js = EVJ = EVM*EVR*EVR*0.25  ##### 单轮等效转动惯量
 
-@njit(nogil=True)
-def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None, reg_speed=None):
+def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None, reg_speed=None, fe_htz=None):
 
     # RK4 simulation and controller execution relative freuqencies
     MACHINE_TS = CTRL.CL_TS / ACM.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD
@@ -1107,7 +1096,7 @@ def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None,
 
     # watch variabels
     machine_times = np.arange(t0, t0+TIME, MACHINE_TS)
-    watch_data    = np.zeros( (100, len(machine_times)) ) # new
+    watch_data    = np.zeros( (60, len(machine_times)) ) # new
     # control_times = np.arange(t0, t0+TIME, CTRL.CL_TS)
     # watch_data = np.zeros( (40, len(control_times)) ) # old
 
@@ -1196,7 +1185,8 @@ def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None,
                 CTRL=CTRL,
                 reg_speed=reg_speed,
                 reg_id=reg_id,
-                reg_iq=reg_iq)
+                reg_iq=reg_iq,
+                fe_htz=fe_htz)
 
             # DEBUG
             # CTRL.cmd_uab[0] = 10*np.cos(5*2*np.pi*CTRL.timebase)
@@ -1284,16 +1274,16 @@ def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None,
         watch_data[12][watch_index] = CTRL.cmd_rpm
         watch_data[13][watch_index] = CTRL.cmd_idq[0]
         watch_data[14][watch_index] = CTRL.cmd_idq[1]
-        watch_data[15][watch_index] = CTRL.xS[0] # theta_d
-        watch_data[16][watch_index] = CTRL.xS[1] / (2*np.pi*ACM.npp) * 60 # omega_r_elec
-        watch_data[17][watch_index] = CTRL.xS[2] # TL
-        watch_data[18][watch_index] = CTRL.xS[3] # pT
+        watch_data[15][watch_index] = CTRL.xSpeed[0] # theta_d
+        watch_data[16][watch_index] = CTRL.xSpeed[1] / (2*np.pi*ACM.npp) * 60 # omega_r_elec
+        watch_data[17][watch_index] = CTRL.xSpeed[2] # TL
+        watch_data[18][watch_index] = CTRL.xSpeed[3] # pT
         watch_data[19][watch_index] = CTRL.KA
         watch_data[20][watch_index] = CTRL.KE
-        watch_data[21][watch_index] = CTRL.xT[0] # stator flux[0]
-        watch_data[22][watch_index] = CTRL.xT[1] # stator flux[1]
-        watch_data[23][watch_index] = CTRL.xT[2] # I term
-        watch_data[24][watch_index] = CTRL.xT[3] # I term
+        watch_data[21][watch_index] = CTRL.xTorque[0] # stator flux[0]
+        watch_data[22][watch_index] = CTRL.xTorque[1] # stator flux[1]
+        watch_data[23][watch_index] = CTRL.xTorque[2] # I term
+        watch_data[24][watch_index] = CTRL.xTorque[3] # I term
         watch_data[25][watch_index] = 0.0 # CTRL.active_flux[0] # active flux[0]
         watch_data[26][watch_index] = 0.0 # CTRL.active_flux[1] # active flux[1]
         watch_data[27][watch_index] = CTRL.Tem
@@ -1317,18 +1307,8 @@ def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None,
 
         watch_data[41][watch_index] = ACM.TLoad
 
-        watch_data[42][watch_index] = CTRL.omega_syn
-        watch_data[43][watch_index] = CTRL.cmd_uMT[0]
-        watch_data[44][watch_index] = CTRL.cmd_uMT[1]
-
-        watch_data[45][watch_index] = CTRL.cmd_iMT[1]
-        watch_data[46][watch_index] = CTRL.iMT[1]
-
-        watch_data[47][watch_index] = CTRL.cmd_psi_Ms
-        watch_data[48][watch_index] = CTRL.psi_stator_MT_fb[0]
-        watch_data[49][watch_index] = CTRL.omega_slip
-
-        watch_data[50][watch_index] = CTRL.iMT[0]
+        watch_data[42][watch_index] = fe_htz.psi_2[0]
+        watch_data[43][watch_index] = fe_htz.psi_2[1]
 
         watch_index += 1
 
@@ -1355,16 +1335,16 @@ _Unit_Watch_Mapping = [
     '[rpm]=CTRL.cmd_rpm',
     '[A]=CTRL.cmd_idq[0]',
     '[A]=CTRL.cmd_idq[1]',
-    '[rad]=CTRL.xS[0]',  # theta_d
-    '[rpm]=CTRL.xS[1]',  # omega_r_elec
-    '[Nm]=CTRL.xS[2]',   # -TL
-    '[Nm/s]=CTRL.xS[3]', # DL
+    '[rad]=CTRL.xSpeed[0]',  # theta_d
+    '[rpm]=CTRL.xSpeed[1]',  # omega_r_elec
+    '[Nm]=CTRL.xSpeed[2]',   # -TL
+    '[Nm/s]=CTRL.xSpeed[3]', # DL
     '[Wb]=CTRL.KA',
     '[Wb]=CTRL.KE',
-    '[Wb]=CTRL.xT[0]', # stator flux[0]
-    '[Wb]=CTRL.xT[1]', # stator flux[1]
-    '[V]=CTRL.xT[2]', # I term
-    '[V]=CTRL.xT[3]', # I term
+    '[Wb]=CTRL.xTorque[0]', # stator flux[0]
+    '[Wb]=CTRL.xTorque[1]', # stator flux[1]
+    '[V]=CTRL.xTorque[2]', # I term
+    '[V]=CTRL.xTorque[3]', # I term
     '[Wb]=CTRL.active_flux[0]', # active flux[0]
     '[Wb]=CTRL.active_flux[1]', # active flux[1]
     '[Nm]=CTRL.Tem',
@@ -1382,15 +1362,8 @@ _Unit_Watch_Mapping = [
     '[V]=CTRL.cmd_udq[1]',
     '[A]=reg_speed.OutLimit',
     '[Nm]=ACM.TLoad',
-    '[rad/s]=CTRL.omega_syn',
-    '[V]=CTRL.cmd_uMT[0]',
-    '[V]=CTRL.cmd_uMT[1]',
-    '[A]=CTRL.cmd_iMT[1]',
-    '[A]=CTRL.iMT[1]',
-    '[Wb]=CTRL.cmd_psi_Ms',
-    '[Wb]=CTRL.psi_stator_MT_fb[0]',
-    '[rad/s]=CTRL.omega_slip',
-    '[A]=CTRL.iMT[0]',
+    '[Wb]=fe_htz.psi_2[0]',
+    '[Wb]=fe_htz.psi_2[1]',
 ]
 Watch_Mapping = [el[el.find('=')+1:] for el in _Unit_Watch_Mapping] # remove units before "="
 
@@ -1414,10 +1387,13 @@ def ACMSimPyWrapper(numba__scope_dict, *arg, **kwarg):
                 # expression = 'CTRL.cmd_rpm-ACM.omega_r_mech'
                 translated_expression = ''
                 for word in expression.split():
-                    if 'CTRL' in word or 'ACM' in word or 'reg_' in word or 'svgen1' in word: # 这里逻辑有点怪，每增加一个新的结构体（比如svgen1）都要在修改这一行？
+                    if 'CTRL' in word or 'ACM' in word or 'reg_' in word or 'svgen1' in word or 'fe_htz' in word: # 这里逻辑有点怪，每增加一个新的结构体（比如svgen1）都要在修改这一行？
                         translated_expression += f'watch_data_as_dict["{word}"]'
                     else:
-                        translated_expression += word
+                        try:
+                            translated_expression += word
+                        except:
+                            raise Exception('Need to manually add new global object here.')
                 # print('DEBUG', translated_expression)
                 waveforms.append(eval(translated_expression))
             numba__waveforms_dict[key] = waveforms
@@ -1450,9 +1426,8 @@ def ACMSimPyWrapper(numba__scope_dict, *arg, **kwarg):
 ############################################# Wrapper level 3 (User Interface)
 from collections import OrderedDict as OD
 class Simulation_Benchmark:
-    def __init__(self, d, tuner=None, bool_start_simulation=True, CTRL_execute_codes=''):
+    def __init__(self, d, tuner=None, bool_start_simulation=True):
 
-        self.CTRL_execute_codes = CTRL_execute_codes
         self.d = d
         print('Simulation_Benchmark')
         # Auto-tuning PI
@@ -1474,23 +1449,19 @@ class Simulation_Benchmark:
             (r'$q$-axis voltage [V]',         ( 'ACM.udq[1]', 'CTRL.cmd_udq[1]'                     ,) ),
             (r'$d$-axis voltage [V]',         ( 'ACM.udq[0]', 'CTRL.cmd_udq[0]'                     ,) ),
             (r'Torque [Nm]',                  ( 'ACM.Tem', 'CTRL.Tem'                               ,) ),
-            (r'Speed [rpm]',                  ( 'CTRL.cmd_rpm', 'CTRL.omega_r_mech', 'CTRL.xS[1]'   ,) ),
+            (r'Speed [rpm]',                  ( 'CTRL.cmd_rpm', 'CTRL.omega_r_mech', 'CTRL.xSpeed[1]'   ,) ),
             (r'Speed Error [rpm]',            ( 'CTRL.cmd_rpm - CTRL.omega_r_mech'                  ,) ),
-            (r'Position [rad]',               ( 'ACM.theta_d', 'CTRL.theta_d', 'CTRL.xS[0]'         ,) ),
+            (r'Position [rad]',               ( 'ACM.theta_d', 'CTRL.theta_d', 'CTRL.xSpeed[0]'         ,) ),
             (r'Position mech [rad]',          ( 'ACM.theta_d'                                       ,) ),
             (r'$q$-axis current [A]',         ( 'ACM.iQ', 'CTRL.cmd_idq[1]'                         ,) ),
             (r'$d$-axis current [A]',         ( 'ACM.iD', 'CTRL.cmd_idq[0]'                         ,) ),
             (r'K_{\rm Active} [A]',           ( 'ACM.KA', 'CTRL.KA'                                 ,) ),
-            (r'Load torque [Nm]',             ( 'ACM.TLoad', 'CTRL.xS[2]'                           ,) ),
+            (r'Load torque [Nm]',             ( 'ACM.TLoad', 'CTRL.xSpeed[2]'                           ,) ),
             (r'CTRL.iD [A]',                  ( 'CTRL.cmd_idq[0]', 'CTRL.idq[0]'                    ,) ),
             (r'CTRL.iQ [A]',                  ( 'CTRL.cmd_idq[1]', 'CTRL.idq[1]'                    ,) ),
             (r'CTRL.uab [V]',                 ( 'CTRL.cmd_uab[0]', 'CTRL.cmd_uab[1]'                ,) ),
             (r'S [1]',                        ( 'svgen1.S1', 'svgen1.S2', 'svgen1.S3', 'svgen1.S4', 'svgen1.S5', 'svgen1.S6' ,) ),
-            (r'$M$-axis voltage [V]',         ( 'CTRL.cmd_uMT[0]'                                   ,) ),
-            (r'$T$-axis voltage [V]',         ( 'CTRL.cmd_uMT[1]'                                   ,) ),
-            (r'omega_syn [rad/s]',            ( 'CTRL.omega_syn', 'CTRL.omega_slip'                 ,) ),
-            (r'Current [A]',                  ( 'CTRL.cmd_iMT[1]', 'CTRL.iMT[1]', 'CTRL.iMT[0]'     ,) ),
-            (r'M-axis Flux [Wb]',             ( 'CTRL.cmd_psi_Ms', 'CTRL.psi_stator_MT_fb[0]'       ,) ),
+            (r'psi2 [Wb]',                    ( 'fe_htz.psi_2[0]', 'fe_htz.psi_2[1]'                ,) ),
         ])
 
         if bool_start_simulation:
@@ -1507,19 +1478,16 @@ class Simulation_Benchmark:
                                     init_Ld = d['init_Ld'],
                                     init_Lq = d['init_Lq'],
                                     init_KE = d['init_KE'],
-                                    init_KA = d['init_KA'],
                                     init_Rreq = d['init_Rreq'],
                                     init_Js = d['init_Js'],
                                     DC_BUS_VOLTAGE = d['DC_BUS_VOLTAGE'])
         CTRL.bool_apply_decoupling_voltages_to_current_regulation = d['CTRL.bool_apply_decoupling_voltages_to_current_regulation']
         CTRL.bool_apply_sweeping_frequency_excitation = d['CTRL.bool_apply_sweeping_frequency_excitation']
-        CTRL.bool_apply_speed_closed_loop_control = d['CTRL.bool_apply_speed_closed_loop_control']
         CTRL.bool_overwrite_speed_commands = d['CTRL.bool_overwrite_speed_commands']
         CTRL.bool_zero_id_control = d['CTRL.bool_zero_id_control']
-        CTRL.bool_use_FOC_or_SFOC = d['CTRL.bool_use_FOC_or_SFOC']
-        CTRL.omega_syn = 50
-
         ACM       = The_AC_Machine(CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=d['MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD'])
+
+        fe_htz    = Variables_FluxEstimator_Holtz03(CTRL.R)
 
         reg_dispX = The_PID_Regulator(d['disp.Kp'], d['disp.Ki'], d['disp.Kd'], d['disp.tau'], d['disp.OutLimit'], d['disp.IntLimit'], d['CL_TS'])
         reg_dispY = The_PID_Regulator(d['disp.Kp'], d['disp.Ki'], d['disp.Kd'], d['disp.tau'], d['disp.OutLimit'], d['disp.IntLimit'], d['CL_TS'])
@@ -1554,15 +1522,13 @@ class Simulation_Benchmark:
             reg_speed = The_PID_Regulator(local_Kp, local_Ki, local_Kd, local_tau, local_OutLimit, local_IntLimit, CTRL.VL_TS)
             print('\t', reg_speed.OutLimit, 'A')
 
-        exec(self.CTRL_execute_codes)
-        print(CTRL.cmd_psi_Ms)
-
-        return CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY
+        return CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY, fe_htz
 
     def start_simulation_slices(self, d, numba__scope_dict):
 
         global_objects = self.get_global_objects()
-        self.CTRL, self.ACM, self.reg_id, self.reg_iq, self.reg_speed, self.reg_dispX, self.reg_dispY = CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY = global_objects
+        self.CTRL, self.ACM, self.reg_id, self.reg_iq, self.reg_speed, self.reg_dispX, self.reg_dispY, self.fe_htz \
+            = CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY, fe_htz = global_objects
 
         global_trace_names = []
         max_number_of_traces = 0
@@ -1597,7 +1563,8 @@ class Simulation_Benchmark:
                             CTRL=CTRL,
                             reg_id=reg_id,
                             reg_iq=reg_iq,
-                            reg_speed=reg_speed)
+                            reg_speed=reg_speed,
+                            fe_htz=fe_htz)
 
             # and save slice data to global data variables
             global_machine_times = save_to_global(global_machine_times, machine_times)
@@ -1615,6 +1582,7 @@ class Simulation_Benchmark:
         for name, array in zip(global_trace_names, global_arrays):
             global_data_dict[name] = array
 
+        print('Simulation ends without errors.')
         print(f'\t{gdd.keys()=}')
 
         self.global_machine_times = global_machine_times
@@ -1634,20 +1602,10 @@ if __name__ == '__main__':
     d = d_user_input_motor_dict = {
         # Timing
         'CL_TS': 1e-4,
-        'VL_EXE_PER_CL_EXE': 1,
-        'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 1, # 500,
+        'VL_EXE_PER_CL_EXE': 5,
+        'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 500,
         'TIME_SLICE': 0.2,
         'NUMBER_OF_SLICES': 6,
-        # Motor data
-        # 'init_npp': 2,
-        # 'init_IN': 4.6,
-        # 'init_R': 5.5,
-        # 'init_Ld': 602*1e-3,
-        # 'init_Lq':  22*1e-3,
-        # 'init_KE': 0,
-        # 'init_KA': 580*1e-3*1.5, # Lmu * ids_rated
-        # 'init_Rreq': 2.1,
-        'init_Js': 0.044,
         # Motor data
         'init_npp': 22,
         'init_IN': 1.3*6/1.414,
@@ -1655,21 +1613,18 @@ if __name__ == '__main__':
         'init_Ld': 1*0.036*1e-3,
         'init_Lq': 1*0.036*1e-3,
         'init_KE': 0.0125,
-        'init_KA': 0.0125,
         'init_Rreq': 0.0,
-        # 'init_Js': 0.44*1e-4,
-        ##########################
-        'DC_BUS_VOLTAGE': 48,
-        'user_system_input_code': '''if ii < 1: CTRL.cmd_idq[0] = 0.0; CTRL.cmd_rpm = 50 \nelif ii <5: ACM.TLoad = 5 \nelif ii <100: CTRL.cmd_rpm = -50''',
+        'init_Js': 0.44*1e-4,
+        'DC_BUS_VOLTAGE': 5,
+        'user_system_input_code': '''if ii < 1: CTRL.cmd_idq[0] = 0.0; CTRL.cmd_rpm = 50 \nelif ii <5: ACM.TLoad = 0.2 \nelif ii <100: CTRL.cmd_rpm = -50''',
         # Controller config
         'CTRL.bool_apply_speed_closed_loop_control': True,
         'CTRL.bool_apply_decoupling_voltages_to_current_regulation': False,
         'CTRL.bool_apply_sweeping_frequency_excitation': False,
         'CTRL.bool_overwrite_speed_commands': True,
         'CTRL.bool_zero_id_control': True,
-        'CTRL.bool_use_FOC_or_SFOC': False,
-        'FOC_delta': 10, # 25, # 6.5
-        'FOC_desired_VLBW_HZ': 20, # 60
+        'FOC_delta': 15, # 25, # 6.5
+        'FOC_desired_VLBW_HZ': 120, # 60
         'FOC_CL_KI_factor_when__bool_apply_decoupling_voltages_to_current_regulation__is_False': 10,
         'CL_SERIES_KP': None,
         'CL_SERIES_KI': None,
@@ -1702,48 +1657,31 @@ if __name__ == '__main__':
         # ax.legend(loc=2, prop={'size': 6})
         ax.legend(loc=1, fontsize=6)
 
-        # ax = axes[1]
-        # ax.plot(global_machine_times, gdd['CTRL.cmd_idq[0]'], label=r'$i_d^*$')
-        # ax.plot(global_machine_times, gdd['CTRL.idq[0]'], label=r'$i_d$')
-        # # ax.plot(global_machine_times, gdd['ACM.iD'])
-        # ax.set_ylabel(r'$i_d$ [A]', multialignment='center') #, fontdict=font)
-
-        # ax = axes[2]
-        # ax.plot(global_machine_times, gdd['CTRL.cmd_idq[1]'], label=r'$i_q^*$')
-        # ax.plot(global_machine_times, gdd['CTRL.idq[1]'], label=r'$i_q$')
-        # ax.set_ylabel(r'$i_q$ [A]', multialignment='center') #, fontdict=font)
-
         ax = axes[1]
-        ax.plot(global_machine_times, gdd['CTRL.cmd_uMT[0]'], label=r'$u_{M}$')
-        ax.plot(global_machine_times, gdd['CTRL.cmd_uMT[1]'], label=r'$u_{T}$')
-        ax.plot(global_machine_times, (gdd['ACM.udq[1]']), label=r'$u_q$')
-        ax.set_ylabel(r'$u$ [V]', multialignment='center') #, fontdict=font)
+        ax.plot(global_machine_times, gdd['CTRL.cmd_idq[0]'], label=r'$i_d^*$')
+        ax.plot(global_machine_times, gdd['CTRL.idq[0]'], label=r'$i_d$')
+        # ax.plot(global_machine_times, gdd['ACM.iD'])
+        ax.set_ylabel(r'$i_d$ [A]', multialignment='center') #, fontdict=font)
 
         ax = axes[2]
-        ax.plot(global_machine_times, gdd['CTRL.omega_syn'], label=r'$\omega_{\rm syn}$')
-        ax.plot(global_machine_times, gdd['CTRL.omega_slip'], label=r'$\hat\omega_{\rm syn}$')
+        ax.plot(global_machine_times, gdd['CTRL.cmd_idq[1]'], label=r'$i_q^*$')
+        ax.plot(global_machine_times, gdd['CTRL.idq[1]'], label=r'$i_q$')
         ax.set_ylabel(r'$i_q$ [A]', multialignment='center') #, fontdict=font)
 
         ax = axes[3]
         ax.plot(global_machine_times, gdd['ACM.Tem'], label=r'ACM.$T_{\rm em}$')
-        # ax.plot(global_machine_times, gdd['CTRL.Tem'], label=r'CTRL.$T_{\rm em}$')
+        ax.plot(global_machine_times, gdd['CTRL.Tem'], label=r'CTRL.$T_{\rm em}$')
         ax.set_ylabel(r'$T_{\rm em}$ [Nm]', multialignment='center') #, fontdict=font)
 
         ax = axes[4]
-        ax.plot(global_machine_times, (gdd['CTRL.cmd_iMT[1]']), label=r'$iT*$')
-        ax.plot(global_machine_times, (gdd['CTRL.iMT[1]']), label=r'$iT$')
-        ax.plot(global_machine_times, (gdd['CTRL.iMT[0]']), label=r'$iM$')
-        ax.set_ylabel(r'Current [A]', multialignment='center')
-
-        # ax = axes[4]
-        # ax.plot(global_machine_times, (gdd['ACM.udq[0]']), label=r'$u_d$') # lpf1_inverter
-        # ax.plot(global_machine_times, gdd['CTRL.cmd_udq[0]'], label=r'$u_d^*$')
-        # ax.set_ylabel(r'$u_d$ [V]', multialignment='center') #, fontdict=font)
+        ax.plot(global_machine_times, (gdd['ACM.udq[0]']), label=r'$u_d$') # lpf1_inverter
+        ax.plot(global_machine_times, gdd['CTRL.cmd_udq[0]'], label=r'$u_d^*$')
+        ax.set_ylabel(r'$u_d$ [V]', multialignment='center') #, fontdict=font)
 
         ax = axes[5]
-        # ax.plot(global_machine_times, (gdd['CTRL.cmd_psi_Ms']), label=r'$\psi_{Ms}$^*')
-        ax.plot(global_machine_times, gdd['CTRL.psi_stator_MT_fb[0]'], label=r'$\psi_{Ms}$')
-        ax.set_ylabel(r'$\psi_{Ms}$ [Wb]', multialignment='center') #, fontdict=font)
+        ax.plot(global_machine_times, (gdd['ACM.udq[1]']), label=r'$u_q$') # lpf1_inverter
+        ax.plot(global_machine_times, gdd['CTRL.cmd_udq[1]'], label=r'$u_q^*$')
+        ax.set_ylabel(r'$u_q$ [V]', multialignment='center') #, fontdict=font)
 
         ax = axes[6]
         ax.plot(global_machine_times, gdd['CTRL.cmd_uab[0]'], label=r'$u_\alpha$')
@@ -1757,36 +1695,10 @@ if __name__ == '__main__':
             #     tick.label.set_font(font)
         axes[-1].set_xlabel('Time [s]') #, fontdict=font)
         return fig
+    sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times; fig = 图1画图代码(); # fig.savefig(f'SliceFSPM-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
 
+    图 = 2 # 空载加速、加载、反转（改变母线电压）
+    d['DC_BUS_VOLTAGE'] = 20
+    sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times; fig = 图1画图代码()
 
-    temp_a = d['TIME_SLICE']
-    temp_b = d['NUMBER_OF_SLICES']
-    d['TIME_SLICE'] = 0.01
-    d['NUMBER_OF_SLICES'] = 1
-    sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times; #fig = 图1画图代码(); # fig.savefig(f'SliceFSPM-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
-    d['TIME_SLICE'] = temp_a
-    d['NUMBER_OF_SLICES'] = temp_b
-
-    # plt.show()
-
-#%%
-
-CTRL_execute_codes = '''
-CTRL.kPFL = 20
-CTRL.kPCL = 600
-reg_speed.Kp = 0.7
-reg_speed.Ki = 20
-CTRL.cmd_psi_Ms = 0.9
-'''
-CTRL_execute_codes = '''
-CTRL.kPFL = 0
-CTRL.kPCL = 300
-reg_speed.Kp = 0.5
-reg_speed.Ki = 20
-CTRL.cmd_psi_Ms = 0.0125
-'''
-
-sim1 = Simulation_Benchmark(d, CTRL_execute_codes=CTRL_execute_codes); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times; fig = 图1画图代码(); # fig.savefig(f'SliceFSPM-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
-plt.show()
-
-# %%
+    plt.show()

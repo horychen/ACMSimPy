@@ -5,9 +5,9 @@ d = d_user_input_motor_dict = {
     # Timing
     'CL_TS': 1e-4,
     'TIME_SLICE': 0.2,
-    'NUMBER_OF_SLICES': 6,
+    'NUMBER_OF_SLICES': 2,
     'VL_EXE_PER_CL_EXE': 5,
-    'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 500,
+    'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 1,
     'CTRL.bool_apply_speed_closed_loop_control': True,
     'CTRL.bool_apply_decoupling_voltages_to_current_regulation': False,
     'CTRL.bool_apply_sweeping_frequency_excitation': False,
@@ -84,9 +84,12 @@ def 图1画图代码():
     ax.set_ylabel(r'$u_q$ [V]', multialignment='center') #, fontdict=font)
 
     ax = axes[6]
-    ax.plot(global_machine_times, gdd['CTRL.cmd_uab[0]'], label=r'$u_\alpha$')
-    ax.plot(global_machine_times, gdd['CTRL.cmd_uab[1]'], label=r'$u_\beta$')
-    ax.set_ylabel(r'$u_{\alpha,\beta}$ [V]', multialignment='center') #, fontdict=font)
+    # ax.plot(global_machine_times, gdd['CTRL.cmd_uab[0]'], label=r'$u_\alpha$')
+    # ax.plot(global_machine_times, gdd['CTRL.cmd_uab[1]'], label=r'$u_\beta$')
+    # ax.set_ylabel(r'$u_{\alpha,\beta}$ [V]', multialignment='center') #, fontdict=font)
+    ax.plot(global_machine_times, gdd['fe_htz.psi_2[0]'], label=r'$\psi_\alpha$')
+    ax.plot(global_machine_times, gdd['fe_htz.psi_2[1]'], label=r'$\psi_\beta$')
+    ax.set_ylabel(r'$\psi_2$ [Wb]', multialignment='center') #, fontdict=font)
 
     for ax in axes:
         ax.grid(True)
@@ -97,10 +100,13 @@ def 图1画图代码():
     return fig
 sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times; fig = 图1画图代码(); # fig.savefig(f'SliceFSPM-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
 
+plt.show()
+quit()
+
 图 = 2
-d['MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD'] = 1
-sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times; fig = 图1画图代码(); # fig.savefig(f'SliceFSPM-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
 d['MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD'] = 500
+sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times; fig = 图1画图代码(); # fig.savefig(f'SliceFSPM-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
+d['MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD'] = 1
 
 plt.show()
 quit()
