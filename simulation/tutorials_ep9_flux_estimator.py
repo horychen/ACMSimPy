@@ -845,10 +845,6 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz):
         CTRL.cosT = np.cos(CTRL.theta_d)
         CTRL.sinT = np.sin(CTRL.theta_d)
 
-        # for element in dir(fe_htz):
-        #     print(f'{element=}')
-
-
     # Park transformation
     CTRL.idq[0] = CTRL.iab[0] * CTRL.cosT + CTRL.iab[1] * CTRL.sinT
     CTRL.idq[1] = CTRL.iab[0] *-CTRL.sinT + CTRL.iab[1] * CTRL.cosT
@@ -1202,7 +1198,7 @@ def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None,
             svgen1.Ualfa = CTRL.cmd_uab[0]
             svgen1.Ubeta = CTRL.cmd_uab[1]
             SVGEN_DQ(svgen1, one_over_Vdc)
-            # 高低有效逻辑翻转（仿真里得马上反回来，否则输出就反相了）
+            # 高低有效逻辑翻转（实物用的光耦HCP2060带了一个非门，导致PWM输出是低有效，SVGEN_DQ是和实物一致的，但是在仿真里我们得马上反回来，否则PWM输出就反相了）
             svgen1.Ta = 1-svgen1.Ta
             svgen1.Tb = 1-svgen1.Tb
             svgen1.Tc = 1-svgen1.Tc
@@ -1714,3 +1710,5 @@ if __name__ == '__main__':
     sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times; fig = 图1画图代码()
 
     plt.show()
+
+
