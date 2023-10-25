@@ -1,6 +1,6 @@
 #%%
 from rich import print
-DISABLE_STUPID_WARNING = False
+DISABLE_STUPID_WARNING = True
 
 # data frame example
 class CustomDataFrame:
@@ -70,10 +70,10 @@ class CustomDataFrame:
     def plot(self, machine_times, watch_data):
         plt.style.use('bmh') # https://matplotlib.org/stable/gallery/style_sheets/style_sheets_reference.html
         mpl.rc('font', family='Times New Roman', size=10.0)
-        mpl.rc('legend', fontsize=10)
+        mpl.rc('legend', fontsize=16)
         mpl.rcParams['lines.linewidth'] = 0.75 # mpl.rc('lines', linewidth=4, linestyle='-.')
         mpl.rcParams['mathtext.fontset'] = 'stix'
-        
+
         total = 0
         index = 0
         figure_index = 0
@@ -114,13 +114,13 @@ custom.generate_function()
 d = d_user_input_motor_dict = {
     # Timing
     'CL_TS': 1e-4,
-    'TIME_SLICE': 1,
+    'TIME_SLICE': 3,
     'NUMBER_OF_SLICES': 1,
     'VL_EXE_PER_CL_EXE': 5,
     'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 1,
     'CTRL.bool_apply_speed_closed_loop_control': True,
     'CTRL.bool_apply_decoupling_voltages_to_current_regulation': False,
-    'CTRL.bool_apply_sweeping_frequency_excitation': True,
+    'CTRL.bool_apply_sweeping_frequency_excitation': False,
     'CTRL.bool_overwrite_speed_commands': True,
     'CTRL.bool_zero_id_control': True,
     'FOC_delta': 10, # 25, # 6.5
@@ -176,6 +176,7 @@ CTRL = The_Motor_Controller(CL_TS = d['CL_TS'],
                             DC_BUS_VOLTAGE = d['DC_BUS_VOLTAGE'])
 CTRL.bool_apply_decoupling_voltages_to_current_regulation = d['CTRL.bool_apply_decoupling_voltages_to_current_regulation']
 CTRL.bool_apply_sweeping_frequency_excitation = d['CTRL.bool_apply_sweeping_frequency_excitation']
+CTRL.bool_yanzhengzhang = False ####
 # CTRL.bool_overwrite_speed_commands = d['CTRL.bool_overwrite_speed_commands']
 CTRL.bool_zero_id_control = d['CTRL.bool_zero_id_control']
 ACM       = The_AC_Machine(CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=d['MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD'])
