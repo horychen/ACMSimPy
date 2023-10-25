@@ -14,7 +14,8 @@ import pandas as pd
     # import simulation.tutorials_ep2_full_dynamics as acmsimpy # note the slip error with Rreq=-1 exists here
     # import simulation.tutorials_ep3_svpwm as acmsimpy
     # import simulation.tutorials_ep4_batch_generating_figures as acmsimpy
-import simulation.tutorials_ep8_SFOC_Dynamic as acmsimpy
+import simulation.tutorials_ep6_maglev_motor as acmsimpy
+# import simulation.tutorials_ep8_SFOC_Dynamic as acmsimpy
 import simulation.tuner as tuner
 
 # 后端

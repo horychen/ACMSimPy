@@ -1,4 +1,4 @@
-from tutorials_ep9_flux_estimator import *
+from tutorials_ep6_maglev_motor import *
 
 # User input:
 d = d_user_input_motor_dict = {
@@ -37,6 +37,7 @@ d['init_R'] = 0.035
 d['init_Ld'] = 1*0.036*1e-3
 d['init_Lq'] = 1*0.036*1e-3
 d['init_KE'] = 0.0125
+d['init_KA'] = 0.0125
 d['init_Rreq'] = 0.0
 d['init_Js'] = 0.44*1e-4
 d['DC_BUS_VOLTAGE'] = 10

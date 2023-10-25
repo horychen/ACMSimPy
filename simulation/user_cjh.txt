@@ -1,0 +1,10 @@
+
+flux estimate [Wb], fe_htz.psi_2[0], fe_htz.psi_2[1]
+offset voltage [V], fe_htz.u_offset[0], fe_htz.u_offset[1]
+
+Speed [r/min], CTRL.cmd_rpm, ACM.omega_r_mech/(2*np.pi)*60
+d-axis current [A], CTRL.cmd_idq[0], CTRL.idq[0]
+q-axis current [A], CTRL.cmd_idq[1], CTRL.idq[1]
+
+dq-axes voltage [V], CTRL.cmd_udq[0], CTRL.cmd_udq[1]
+alpha-beta-axes voltage [V], CTRL.cmd_uab[0], CTRL.cmd_uab[1]

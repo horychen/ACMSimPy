@@ -219,7 +219,7 @@ def tunner_wrapper(d):
     motor_dict['JLoadRatio'] = 0.0
     motor_dict['n_pp'] =       d['init_npp']
     motor_dict['KE'] =         d['init_KE']
-    # motor_dict['KA'] =         d['init_KA']
+    motor_dict['KA'] =         d['init_KA']
     motor_dict['CL_TS'] =      d['CL_TS']
     motor_dict['VL_TS'] =      d['CL_TS'] * d['VL_EXE_PER_CL_EXE']
     delta = d['FOC_delta']

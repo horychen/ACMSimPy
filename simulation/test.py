@@ -1,45 +1,126 @@
-from tutorials_ep9_flux_estimator import *
+#%%
 from rich import print
+DISABLE_STUPID_WARNING = False
 
-# which algorithm for torque and speed control
-list_of_control_strategies = {
-    "classic": ["ifoc", "dfoc"],
-    "advanced": ["sensorless ifoc",]
-}
-print(list_of_control_strategies)
+# data frame example
+class CustomDataFrame:
+    def __init__(self) -> None:
+        self.plot_details = []
 
-# which algorithm for flux estimation
-list_of_flux_estimator_algorithms = {
-    "voltage model": [
-        {
-            "saturation function based saturation time difference correction": 'fe01_satime',
-        }
-    ],
-    "full order model":[],
-}
-print(list_of_flux_estimator_algorithms)
+    def load(self, path1, path2):
+        with open(path1, 'r', encoding='utf-8') as f:
+            axis_info_library = f.read()
+        with open(path2, 'r', encoding='utf-8') as f:
+            signals_library = f.read()
+        axis_info_library = axis_info_library.split('\n')
+        signals_library = signals_library.split('\n')
+        while axis_info_library[0] == '':
+            axis_info_library.pop(0)
+        while axis_info_library[-1] == '':
+            axis_info_library.pop()
+        while signals_library[0] == '':
+            signals_library.pop(0)
+        while signals_library[-1] == '':
+            signals_library.pop()
+        try:
+            tmp_signal_library = []
+            for i in range(len(signals_library)):
+                if signals_library[i] == '':
+                    self.plot_details.append({'data_info': tmp_signal_library})
+                    tmp_signal_library = []
+                else:
+                    signal_library = signals_library[i].split(',')
+                    for j in range(len(signal_library)):
+                        signal_library[j] = signal_library[j].strip()
+                    tmp_signal_library.append(signal_library)
+            self.plot_details.append({'data_info': tmp_signal_library})
+            for i in range(len(axis_info_library)):
+                axis_info = axis_info_library[i].split(',')
+                for j in range(len(axis_info)):
+                    axis_info[j] = axis_info[j].strip()
+                y_label = axis_info.pop(0)
+                for axis in axis_info:
+                    for k in range(len(self.plot_details)):
+                        for l in range(len(self.plot_details[k]['data_info'])):
+                            if axis == self.plot_details[k]['data_info'][l][0]:
+                                self.plot_details[k]['axis_info'] = y_label
+            for i in range(len(self.plot_details)):
+                try:
+                    if not self.plot_details[i]['axis_info']:
+                        self.plot_details[i]['axis_info'] = ''
+                        print("There is no axis info about {}. Please add to user.txt".format(self.plot_details[i]['data_info'][0][0]))
+                except:
+                    self.plot_details[i]['axis_info'] = ''
+                    if not DISABLE_STUPID_WARNING:
+                        print("There is no axis info about {}. Please add to user.txt".format(self.plot_details[i]['data_info'][0][0]))
+        except:
+            raise Exception('signals_library.txt or user_cjh.txt is not in the correct format.\n{}'.format(self.plot_details))
+        # print(self.plot_details)
 
-# which algorithm for speed estimation
+    def generate_function(self):
+        with open('collect_data.py', 'w') as f:
+            f.write(f'''import numpy as np\ndef collect_data(watch_data, watch_index, CTRL, ACM, reg_id, reg_iq, reg_speed, fe_htz):\n''')
+            index = 0
+            for i in range(len(self.plot_details)):
+                for j in range(len(self.plot_details[i]['data_info'])):
+                    f.write(f'\twatch_data[{index}][watch_index] = {self.plot_details[i]["data_info"][j][0]}\n')
+                    index += 1
+            f.write(f'''\twatch_index += 1\n\treturn watch_index''')
 
-# which signals to look at
-fe_htz.psi_2[1], '[Wb]', r'$\psi_\beta$', dataframe, 
+    def plot(self, machine_times, watch_data):
+        plt.style.use('bmh') # https://matplotlib.org/stable/gallery/style_sheets/style_sheets_reference.html
+        mpl.rc('font', family='Times New Roman', size=10.0)
+        mpl.rc('legend', fontsize=10)
+        mpl.rcParams['lines.linewidth'] = 0.75 # mpl.rc('lines', linewidth=4, linestyle='-.')
+        mpl.rcParams['mathtext.fontset'] = 'stix'
+        
+        total = 0
+        index = 0
+        figure_index = 0
+        for plot_detail in self.plot_details:
+            if plot_detail['axis_info']:
+                total += 1
 
-# specify motor parameters and tune contol coefficients if any
+        if total<6:
+            fig, axes = plt.subplots(nrows=total, ncols=1, dpi=150, facecolor='w', figsize=(8,12), sharex=True)
+        else:
+            fig, axes_ = plt.subplots(nrows=(total+1) // 2, ncols=2, dpi=150, facecolor='w', figsize=(8,12), sharex=True)
+            axes = np.ravel(axes_)
+        
+        for plot_detail in self.plot_details:
+            if plot_detail['axis_info']:
+                ax = axes[figure_index]
+                figure_index += 1
+                for data in plot_detail:
+                    # data[0]: the name of the signal
+                    # data[1]: the explain of the signal
+                    # data[2]: the unit of the signal
+                    # data[3]: the label of the signal
+                    # data[4]: the physical meaning of the signal
+                    ax.plot(machine_times, watch_data[index], label=data[3])
+                    index += 1
+                # axis_info[0]: the label of y axis
+                ax.set_ylabel(plot_detail['axis_info'], multialignment='center')
+                ax.legend(loc=1, fontsize=6)
+                ax.grid(True)
+        axes[-1].set_xlabel('Time [s]')
+        plt.show()
+        return fig
 
-# specify working conditions if any
+custom = CustomDataFrame()
+custom.load('user_cjh.txt', 'signals_library.txt')
+custom.generate_function()
 
-
-# User input:
 d = d_user_input_motor_dict = {
     # Timing
     'CL_TS': 1e-4,
-    'TIME_SLICE': 0.2,
-    'NUMBER_OF_SLICES': 2,
+    'TIME_SLICE': 1,
+    'NUMBER_OF_SLICES': 1,
     'VL_EXE_PER_CL_EXE': 5,
     'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 1,
     'CTRL.bool_apply_speed_closed_loop_control': True,
     'CTRL.bool_apply_decoupling_voltages_to_current_regulation': False,
-    'CTRL.bool_apply_sweeping_frequency_excitation': False,
+    'CTRL.bool_apply_sweeping_frequency_excitation': True,
     'CTRL.bool_overwrite_speed_commands': True,
     'CTRL.bool_zero_id_control': True,
     'FOC_delta': 10, # 25, # 6.5
@@ -57,7 +138,138 @@ d = d_user_input_motor_dict = {
     'disp.OutLimit': 0.0,
     'disp.IntLimit': 0.0,
 }
+# 小电感电机
+d['init_npp'] = 22
+d['init_IN'] = 1.3*6/1.414
+d['init_R'] = 0.035
+d['init_Ld'] = 1*0.036*1e-3
+d['init_Lq'] = 1*0.036*1e-3
+d['init_KE'] = 0.0125
+d['init_KA'] = 0.0125
+d['init_Rreq'] = 0.0
+d['init_Js'] = 0.44*1e-4
+d['DC_BUS_VOLTAGE'] = 10
 
+from tutorials_ep9_flux_estimator import *
+
+print('Simulation_Benchmark')
+# Auto-tuning PI
+if d['CL_SERIES_KP'] is None:
+    # sys.path.append(os.path.join(os.path.dirname(__file__), "tuner"))
+    import tuner
+    tuner.tunner_wrapper(d)
+    print('\tAuto tuning...')
+    print(f'\t{d=}\n')
+else:
+    print('\tSkip tuning.')
+
+CTRL = The_Motor_Controller(CL_TS = d['CL_TS'],
+                            VL_TS = d['VL_EXE_PER_CL_EXE']*d['CL_TS'],
+                            init_npp = d['init_npp'],
+                            init_IN = d['init_IN'],
+                            init_R = d['init_R'],
+                            init_Ld = d['init_Ld'],
+                            init_Lq = d['init_Lq'],
+                            init_KE = d['init_KE'],
+                            init_Rreq = d['init_Rreq'],
+                            init_Js = d['init_Js'],
+                            DC_BUS_VOLTAGE = d['DC_BUS_VOLTAGE'])
+CTRL.bool_apply_decoupling_voltages_to_current_regulation = d['CTRL.bool_apply_decoupling_voltages_to_current_regulation']
+CTRL.bool_apply_sweeping_frequency_excitation = d['CTRL.bool_apply_sweeping_frequency_excitation']
+# CTRL.bool_overwrite_speed_commands = d['CTRL.bool_overwrite_speed_commands']
+CTRL.bool_zero_id_control = d['CTRL.bool_zero_id_control']
+ACM       = The_AC_Machine(CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=d['MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD'])
+
+fe_htz    = Variables_FluxEstimator_Holtz03(CTRL.R)
+
+reg_dispX = The_PID_Regulator(d['disp.Kp'], d['disp.Ki'], d['disp.Kd'], d['disp.tau'], d['disp.OutLimit'], d['disp.IntLimit'], d['CL_TS'])
+reg_dispY = The_PID_Regulator(d['disp.Kp'], d['disp.Ki'], d['disp.Kd'], d['disp.tau'], d['disp.OutLimit'], d['disp.IntLimit'], d['CL_TS'])
+
+if False:
+    # Use incremental_pi codes
+    reg_id    = The_PI_Regulator(d['CL_SERIES_KP'], d['CL_SERIES_KP']*d['CL_SERIES_KI']*CTRL.CL_TS, d['DC_BUS_VOLTAGE']/1.732) # 我们假设调制方式是SVPWM，所以母线电压就是输出电压的线电压最大值，而我们用的是恒相幅值变换，所以限幅是相电压。
+    reg_iq    = The_PI_Regulator(d['CL_SERIES_KP'], d['CL_SERIES_KP']*d['CL_SERIES_KI']*CTRL.CL_TS, d['DC_BUS_VOLTAGE']/1.732) # 我们假设调制方式是SVPWM，所以母线电压就是输出电压的线电压最大值，而我们用的是恒相幅值变换，所以限幅是相电压。
+    reg_speed = The_PI_Regulator(d['VL_SERIES_KP'], d['VL_SERIES_KP']*d['VL_SERIES_KI']*CTRL.VL_TS, d['VL_LIMIT_OVERLOAD_FACTOR']*1.414*d['init_IN']) # IN 是线电流有效值，我们这边限幅是用的电流幅值。
+else:
+    # Use tustin_pi codes
+    local_Kp = d['CL_SERIES_KP']
+    if d['CTRL.bool_apply_decoupling_voltages_to_current_regulation'] == False:
+        local_Ki = d['CL_SERIES_KP']*d['CL_SERIES_KI'] * d['FOC_CL_KI_factor_when__bool_apply_decoupling_voltages_to_current_regulation__is_False']
+        print('\tNote bool_apply_decoupling_voltages_to_current_regulation is False, to improve the current regulator performance a factor of %g has been multiplied to CL KI.' % (d['FOC_CL_KI_factor_when__bool_apply_decoupling_voltages_to_current_regulation__is_False']))
+    else:
+        local_Ki = d['CL_SERIES_KP']*d['CL_SERIES_KI']
+    local_Kd = 0.0
+    local_tau = 0.0
+    local_OutLimit =     d['DC_BUS_VOLTAGE']/1.732
+    local_IntLimit = 1.0*d['DC_BUS_VOLTAGE']/1.732 # Integrator having a lower output limit makes no sense. For example, the q-axis current regulator needs to cancel back emf using the integrator output for almost full dc bus voltage at maximum speed.
+    reg_id    = The_PID_Regulator(local_Kp, local_Ki, local_Kd, local_tau, local_OutLimit, local_IntLimit, d['CL_TS'])
+    reg_iq    = The_PID_Regulator(local_Kp, local_Ki, local_Kd, local_tau, local_OutLimit, local_IntLimit, d['CL_TS'])
+    print(f'\t{reg_id.OutLimit=} V')
+
+    local_Kp = d['VL_SERIES_KP']
+    local_Ki = d['VL_SERIES_KP']*d['VL_SERIES_KI']
+    local_Kd = 0.0
+    local_tau = 0.0
+    local_OutLimit =     d['VL_LIMIT_OVERLOAD_FACTOR']*1.414*d['init_IN']
+    local_IntLimit = 1.0*d['VL_LIMIT_OVERLOAD_FACTOR']*1.414*d['init_IN']
+    reg_speed = The_PID_Regulator(local_Kp, local_Ki, local_Kd, local_tau, local_OutLimit, local_IntLimit, CTRL.VL_TS)
+    print(f'\t{reg_speed.OutLimit=} A')
+
+CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY, fe_htz
+
+# simulate to generate NUMBER_OF_SLICES*TIME_SLICE sec of data
+for ii in range(d['NUMBER_OF_SLICES']):
+    # perform animation step
+    machine_times, watch_data = ACMSimPyIncremental(t0=ii*d['TIME_SLICE'], TIME=d['TIME_SLICE'], 
+                    ACM=ACM,
+                    CTRL=CTRL,
+                    reg_id=reg_id,
+                    reg_iq=reg_iq,
+                    reg_speed=reg_speed,
+                    fe_htz=fe_htz)
+
+custom.plot(machine_times, watch_data)
+
+
+
+# which algorithm for torque and speed control
+# list_of_control_strategies = {
+#     "classic": ["ifoc", "dfoc"],
+#     "advanced": ["sensorless ifoc",]
+# }#1f INCREMENTAL PID
+# print(list_of_control_strategies)
+
+# which algorithm for flux estimation
+# list_of_flux_estimator_algorithms = {
+#     "voltage model": [
+#         {
+#             "saturation function based saturation time difference correction": 'fe01_satime',
+#         }
+#     ],
+#     "full order model":[],
+# }
+# print(list_of_flux_estimator_algorithms)
+
+# which algorithm for speed estimation
+
+# which signals to look at
+# parse : 
+
+# fe_htz.psi_2[1], '[Wb]', r'$\psi_\beta$', dataframe, 
+
+# votlage, '[V]', r'$\psi_\beta$', dataframe, 
+
+# eval
+# exec
+
+# specify motor parameters and tune contol coefficients if any
+
+# specify working conditions if any
+
+
+
+
+quit()
 图 = 1 # 空载加速、加载、反转
 # 小电感电机
 d['init_npp'] = 22
@@ -66,6 +278,7 @@ d['init_R'] = 0.035
 d['init_Ld'] = 1*0.036*1e-3
 d['init_Lq'] = 1*0.036*1e-3
 d['init_KE'] = 0.0125
+d['init_KA'] = 0.0125
 d['init_Rreq'] = 0.0
 d['init_Js'] = 0.44*1e-4
 d['DC_BUS_VOLTAGE'] = 10
@@ -130,8 +343,5 @@ def 图1画图代码():
         #     tick.label.set_font(font)
     axes[-1].set_xlabel('Time [s]') #, fontdict=font)
     return fig
-sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times; fig = 图1画图代码(); # fig.savefig(f'SliceFSPM-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
-
-plt.show()
 
 

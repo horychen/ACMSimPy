@@ -1770,23 +1770,23 @@ if __name__ == '__main__':
     # plt.show()
 
 #%%
+if False:
+    CTRL_execute_codes = '''
+    CTRL.kPFL = 20
+    CTRL.kPCL = 600
+    reg_speed.Kp = 0.7
+    reg_speed.Ki = 20
+    CTRL.cmd_psi_Ms = 0.9
+    '''
+    CTRL_execute_codes = '''
+    CTRL.kPFL = 0
+    CTRL.kPCL = 300
+    reg_speed.Kp = 0.5
+    reg_speed.Ki = 20
+    CTRL.cmd_psi_Ms = 0.0125
+    '''
 
-CTRL_execute_codes = '''
-CTRL.kPFL = 20
-CTRL.kPCL = 600
-reg_speed.Kp = 0.7
-reg_speed.Ki = 20
-CTRL.cmd_psi_Ms = 0.9
-'''
-CTRL_execute_codes = '''
-CTRL.kPFL = 0
-CTRL.kPCL = 300
-reg_speed.Kp = 0.5
-reg_speed.Ki = 20
-CTRL.cmd_psi_Ms = 0.0125
-'''
-
-sim1 = Simulation_Benchmark(d, CTRL_execute_codes=CTRL_execute_codes); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times; fig = 图1画图代码(); # fig.savefig(f'SliceFSPM-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
-plt.show()
+    sim1 = Simulation_Benchmark(d, CTRL_execute_codes=CTRL_execute_codes); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times; fig = 图1画图代码(); # fig.savefig(f'SliceFSPM-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
+    plt.show()
 
 # %%
