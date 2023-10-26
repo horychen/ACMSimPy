@@ -91,7 +91,7 @@ class CustomDataFrame:
             if plot_detail['axis_info']:
                 ax = axes[figure_index]
                 figure_index += 1
-                for data in plot_detail:
+                for data in plot_detail['data_info']:
                     # data[0]: the name of the signal
                     # data[1]: the explain of the signal
                     # data[2]: the unit of the signal
@@ -101,7 +101,7 @@ class CustomDataFrame:
                     index += 1
                 # axis_info[0]: the label of y axis
                 ax.set_ylabel(plot_detail['axis_info'], multialignment='center')
-                ax.legend(loc=1, fontsize=6)
+                ax.legend(loc=1, fontsize=16)
                 ax.grid(True)
         axes[-1].set_xlabel('Time [s]')
         plt.show()
