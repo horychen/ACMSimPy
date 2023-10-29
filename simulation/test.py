@@ -84,7 +84,9 @@ class CustomDataFrame:
 
 
 custom = CustomDataFrame()
-custom.load('user_cjh.txt', 'signals_library.txt')
+import os
+custom.load(os.path.dirname(__file__) + '/user_cjh.txt', 
+            os.path.dirname(__file__) + '/signals_library.txt')
 custom.generate_function()
 
 d = d_user_input_motor_dict = {
@@ -216,8 +218,25 @@ for ii in range(d['NUMBER_OF_SLICES']):
                                                     reg_speed=reg_speed,
                                                     fe_htz=fe_htz)
 
-custom.plot(machine_times, watch_data)
+# TODO:  程序员大哥，给我个好字典，谢谢您了！
+watch_data_as_dict = custom.plot(machine_times, watch_data)
 
+# Lissajour plot
+plt.plot(watch_data_as_dict['fe_htz.psi_2[0]'], watch_data_as_dict['fe_htz.psi_2[1]'])
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+quit()
 # which algorithm for torque and speed control
 # list_of_control_strategies = {
 #     "classic": ["ifoc", "dfoc"],
@@ -252,8 +271,6 @@ custom.plot(machine_times, watch_data)
 
 # specify working conditions if any
 
-
-quit()
 图 = 1  # 空载加速、加载、反转
 # 小电感电机
 d['init_npp'] = 22
