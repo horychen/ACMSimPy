@@ -76,7 +76,7 @@ class CustomDataFrame:
                 ax.plot(machine_times, watch_data[index], label=plot_detail['data_signal_label'][i])
                 index += 1
             ax.set_ylabel(plot_detail['data_axis'], multialignment='center')
-            ax.legend(loc=1, fontsize=16)
+            ax.legend(loc=1, fontsize=12)
             ax.grid(True)
         axes[-1].set_xlabel('Time [s]')
         plt.show()
@@ -90,7 +90,7 @@ custom.generate_function()
 d = d_user_input_motor_dict = {
     # Timing
     'CL_TS': 1e-4,
-    'TIME_SLICE': 3,
+    'TIME_SLICE': 10,
     'NUMBER_OF_SLICES': 1,
     'VL_EXE_PER_CL_EXE': 5,
     'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 1,
@@ -115,16 +115,16 @@ d = d_user_input_motor_dict = {
     'disp.IntLimit': 0.0,
 }
 # 小电感电机
-d['init_npp'] = 22
-d['init_IN'] = 1.3 * 6 / 1.414
-d['init_R'] = 0.035
-d['init_Ld'] = 1 * 0.036 * 1e-3
-d['init_Lq'] = 1 * 0.036 * 1e-3
-d['init_KE'] = 0.0125
-d['init_KA'] = 0.0125
+d['init_npp'] = 4
+d['init_IN'] = 3
+d['init_R'] = 1.10
+d['init_Ld'] = 0.00496
+d['init_Lq'] = 0.00496
+d['init_KE'] = 0.1
+d['init_KA'] = 0.1
 d['init_Rreq'] = 0.0
-d['init_Js'] = 0.44 * 1e-4
-d['DC_BUS_VOLTAGE'] = 10
+d['init_Js'] = 0.000617
+d['DC_BUS_VOLTAGE'] = 110
 
 from tutorials_ep9_flux_estimator import *
 

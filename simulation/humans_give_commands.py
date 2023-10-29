@@ -3,13 +3,21 @@ def humans_give_commands(CTRL, ACM, t):
     """ Console @ CL_TS """
 
     if t < 1.0:
-        CTRL.cmd_rpm = 50
-    elif t < 1.5:
-        ACM.TLoad = 2
-    elif t < 2.0:
         CTRL.cmd_rpm = 200
-    elif t < 3.0:
-        CTRL.cmd_rpm = -200
+    elif t < 1.5:
+         ACM.TLoad = 2
+    elif t < 2.0:
+        CTRL.cmd_rpm = 400
+    elif t < 4:
+        CTRL.cmd_rpm = 400
+    elif t < 5:
+        CTRL.apply_pulse_4_evaluating_position_estimator_accuracy = True
+    # elif t < 4:
+    #     # CTRL.cmd_rpm = -200
+    #     CTRL.apply_pulse_4_evaluating_position_estimator_accuracy = True
+    # elif t < 4.1:
+    #     # CTRL.cmd_rpm = -200
+    #     CTRL.apply_pulse_4_evaluating_position_estimator_accuracy = True
     # elif t < 4.0:
     # print(CTRL.cmd_rpm)
 

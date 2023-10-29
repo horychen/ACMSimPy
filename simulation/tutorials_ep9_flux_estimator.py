@@ -19,7 +19,7 @@ class The_Motor_Controller:
         init_Ld = 5e-3,
         init_Lq = 6e-3,
         init_KE = 0.095,
-        init_Rreq = -1, # note division by 0 is equal to infinity
+        init_Rreq = 0, # note division by 0 is equal to infinity
         init_Js = 0.0006168,
         DC_BUS_VOLTAGE = 300,
     ):
@@ -57,15 +57,16 @@ class The_Motor_Controller:
         else:
             self.cmd_psi = init_KE # [Wb]
         self.index_voltage_model_flux_estimation = 1
-        self.index_separate_speed_estimation = 0
+        self.index_separate_speed_estimation = 1
         self.use_disturbance_feedforward_rejection = 0
         self.bool_apply_decoupling_voltages_to_current_regulation = False
         self.bool_apply_speed_closed_loop_control = True
-        self.bool_zero_id_control = True
+        self.bool_zero_id_control = False
         # sweep frequency
         self.bool_apply_sweeping_frequency_excitation = False
-        self.bool_overwrite_speed_commands = False
+        self.bool_overwrite_speed_commands = True
         self.bool_yanzhengzhang = False
+        self.apply_pulse_4_evaluating_position_estimator_accuracy = False
         self.CMD_CURRENT_SINE_AMPERE = 1 # [A]
         self.CMD_SPEED_SINE_RPM = 100 # [r/min]
         self.CMD_SPEED_SINE_HZ = 0 # [Hz]
@@ -83,7 +84,7 @@ class The_Motor_Controller:
         self.Rreq = init_Rreq
         self.Js   = init_Js
         self.DC_BUS_VOLTAGE = DC_BUS_VOLTAGE
-
+        
         ''' OBSERVER '''
         # feedback / input
         self.idq = np.zeros(2, dtype=np.float64)
@@ -95,7 +96,20 @@ class The_Motor_Controller:
         self.speed_observer_output_error = 0.0
         self.vartheta_d = 0.0
         self.total_disrubance_feedforward = 0.0
-
+        self.idq_pre = np.zeros(2, dtype=np.float64)
+        self.iQ_avg_curr = 0.0
+        self.iQ_sum_curr = 0.0
+        self.window_counter = 0
+        self.iQ_avg_prev = 0.0
+        self.iQ_sum_prev = 0.0
+        self.theta_tilde = 0.0
+        # self.rotor_flux_error = 0.0
+        # self.OFFSET_VOLTAGE_ALPHA = 0.0
+        # self.OFFSET_VOLTAGE_BETA = 0.0
+        # self.VM_PROPOSED_PI_CORRECTION_GAIN_P = 50
+        # self.VM_PROPOSED_PI_CORRECTION_GAIN_I = 0.0
+        # self.correction_integral_term = 0.0
+        
         # gains
         omega_ob = 100 # [rad/s]
         self.ell1 = 0.0
@@ -207,7 +221,7 @@ class The_PID_Regulator:
 
         # Regulator input */
         self.setpoint = 0.0
-        self.measurement = 0.0;
+        self.measurement = 0.0
 
 class SVgen_Object:
     def __init__(self, CPU_TICK_PER_SAMPLING_PERIOD):
@@ -244,7 +258,7 @@ class Variables_FluxEstimator_Holtz03:
 
         self.xFlux = np.zeros(NS_GLOBAL, dtype=np.float64)
 
-        # self.emf_stator = np.zeros(2, dtype=np.float64)
+        self.emf_stator = np.zeros(2, dtype=np.float64)
 
         self.psi_1 = np.zeros(2, dtype=np.float64)
         self.psi_2= np.zeros(2, dtype=np.float64)
@@ -316,18 +330,16 @@ def DYNAMICS_SpeedObserver(x, CTRL):
 
     # 机械子系统 (omega_r_elec, theta_d, theta_r_mech)
     fx[0] = CTRL.ell1*output_error + x[1]
-    fx[1] = CTRL.ell2*output_error + (CTRL.Tem + x[2]) * CTRL.npp/CTRL.Js # elec. angular rotor speed
+    fx[1] = 1.2*CTRL.ell2*output_error + (CTRL.Tem + x[2]) * CTRL.npp/CTRL.Js # elec. angular rotor speed
     fx[2] = CTRL.ell3*output_error + x[3]
     fx[3] = CTRL.ell4*output_error + 0.0
     return fx
 
 def DYNAMICS_FluxEstimator(x, CTRL):
     fx = np.zeros(NS_GLOBAL)
-    fx[0] = CTRL.uab[0] - CTRL.R * CTRL.iab[0] - x[2]
-    fx[1] = CTRL.uab[1] - CTRL.R * CTRL.iab[1] - x[3]
+    fx[0] = CTRL.uab[0] - CTRL.R * 1 * CTRL.iab[0] - x[2]
+    fx[1] = CTRL.uab[1] - CTRL.R * 1 * CTRL.iab[1] - x[3]
     return fx
-
-
 
 def RK4_ObserverSolver_CJH_Style(THE_DYNAMICS, x, hs, CTRL):
     k1, k2, k3, k4 = np.zeros(NS_GLOBAL), np.zeros(NS_GLOBAL), np.zeros(NS_GLOBAL), np.zeros(NS_GLOBAL) # incrementals at 4 stages
@@ -514,6 +526,7 @@ def tustin_pid(reg):
     return reg.Out
 
 def FOC(CTRL, reg_speed, reg_id, reg_iq):
+    # speed loop
     reg_speed.setpoint = CTRL.cmd_rpm / 60 * 2*np.pi * CTRL.npp # [elec.rad/s]
     reg_speed.measurement = CTRL.omega_r_elec # [elec.rad/s]
     CTRL.velocity_loop_counter += 1
@@ -523,41 +536,94 @@ def FOC(CTRL, reg_speed, reg_id, reg_iq):
         tustin_pid(reg_speed)
 
     # dq-frame current commands
+    # Q-axis current command
     if CTRL.bool_apply_speed_closed_loop_control == True:
         CTRL.cmd_idq[1] = reg_speed.Out
         # CTRL.cmd_idq[0] = 0.0 # for user specifying
-
-    # slip and syn frequencies
+    # D-axis current command
     if CTRL.Rreq>0: # IM
+        # psi command divided by magntizing inductance
         CTRL.cmd_idq[0] = CTRL.cmd_psi / (CTRL.Ld - CTRL.Lq) # [Wb] / [H]
+        # slip angular speed
         CTRL.omega_slip = CTRL.Rreq * CTRL.cmd_idq[1] / CTRL.KA # Use commands for calculation (base off Harnefors recommendations)
-
+        
     else: # PMSM
         CTRL.omega_slip = 0.0
 
-        if CTRL.bool_zero_id_control == True:
-            CTRL.cmd_idq[0] = 0
-        else:
-            # Field weakening control (simple)
-                # 电气转折速度 = CTRL.DC_BUS_VOLTAGE/1.732 / CTRL.KA * 0.7
-                # print('Turning point', 电气转折速度 * 60 / (2*np.pi * CTRL.npp), 'r/min')
-                # if CTRL.omega_r_elec > 电气转折速度:
-                #     # 计算弱磁电流
-                #     下一弱磁速度增量 = 10 / 60 * 2*np.pi * CTRL.npp
-                #     CTRL.cmd_idq[0] = - (CTRL.KE - 电气转折速度 / (CTRL.omega_r_elec + 下一弱磁速度增量)) / (CTRL.Ld - CTRL.Lq)
-                #     # 修改速度环输出限幅
-                #     reg_speed.OutLimit = np.sqrt((CTRL.IN*1.414)**2 - CTRL.cmd_idq[0]**2)
-                #     print(f'{reg_speed.OutLimit=}')
-            当前速度 = CTRL.omega_r_elec*60/(2*np.pi*CTRL.npp)
-            MAX_DEMAG_CURRENT = 60
-            if 当前速度 < 450:
+        # if CTRL.bool_zero_id_control == True:
+        #     CTRL.cmd_idq[0] = 0
+        # else:
+        #     # Field weakening control (simple)
+        #         # 电气转折速度 = CTRL.DC_BUS_VOLTAGE/1.732 / CTRL.KA * 0.7
+        #         # print('Turning point', 电气转折速度 * 60 / (2*np.pi * CTRL.npp), 'r/min')
+        #         # if CTRL.omega_r_elec > 电气转折速度:
+        #         #     # 计算弱磁电流
+        #         #     下一弱磁速度增量 = 10 / 60 * 2*np.pi * CTRL.npp
+        #         #     CTRL.cmd_idq[0] = - (CTRL.KE - 电气转折速度 / (CTRL.omega_r_elec + 下一弱磁速度增量)) / (CTRL.Ld - CTRL.Lq)
+        #         #     # 修改速度环输出限幅
+        #         #     reg_speed.OutLimit = np.sqrt((CTRL.IN*1.414)**2 - CTRL.cmd_idq[0]**2)
+        #         #     print(f'{reg_speed.OutLimit=}')
+        #     当前速度 = CTRL.omega_r_elec*60/(2*np.pi*CTRL.npp)
+        #     MAX_DEMAG_CURRENT = 60
+        #     if 当前速度 < 450:
+        #         CTRL.cmd_idq[0] = 0
+        #     elif 当前速度 < 1000:
+        #         CTRL.cmd_idq[0] = (当前速度 - 450) / (1000 - 450) * -MAX_DEMAG_CURRENT
+        #     else:
+        #         CTRL.cmd_idq[0] = -MAX_DEMAG_CURRENT
+        #     if CTRL.IN*1.414 > CTRL.cmd_idq[0]:
+        #         reg_speed.OutLimit = np.sqrt((CTRL.IN*1.414)**2 - CTRL.cmd_idq[0]**2)
+
+        if CTRL.apply_pulse_4_evaluating_position_estimator_accuracy == True:
+            ID_PULSE = 5
+            COUNT_WINDOW = 500
+            COUNT_WAIT = 300
+            if CTRL.window_counter > COUNT_WINDOW + COUNT_WAIT + COUNT_WINDOW:
+                # get averaged current measurementsiQ_avg_curr iQ_sum_curr window_counter iQ_avg_prev iQ_sum_prev theta_tilde
+                CTRL.iQ_avg_curr = CTRL.iQ_sum_curr / COUNT_WINDOW
+                CTRL.iQ_avg_prev = CTRL.iQ_sum_prev / COUNT_WINDOW
+                # calculate for theta error assuming the motor load is time invariant
+                CTRL.theta_tilde = np.arctan2((CTRL.iQ_avg_prev - CTRL.iQ_avg_curr), ID_PULSE)
+                # initialize everything
+                CTRL.apply_pulse_4_evaluating_position_estimator_accuracy = False
+                CTRL.window_counter = 0
                 CTRL.cmd_idq[0] = 0
-            elif 当前速度 < 1000:
-                CTRL.cmd_idq[0] = (当前速度 - 450) / (1000 - 450) * -MAX_DEMAG_CURRENT
+                CTRL.iQ_sum_prev = 0
+                CTRL.iQ_sum_curr = 0
+            elif CTRL.window_counter >= COUNT_WINDOW + COUNT_WAIT:
+                # sum up q-axis current after the impulse is applied
+                CTRL.iQ_sum_curr += CTRL.idq[1]
+            elif CTRL.window_counter == COUNT_WINDOW:
+                # apply pulse
+                CTRL.cmd_idq[0] = 5
+            elif CTRL.window_counter >= 0 and CTRL.window_counter < COUNT_WINDOW:
+                # sum up q-axis current before the impulse is applied
+                CTRL.iQ_sum_prev += CTRL.idq[1]
+            CTRL.window_counter += 1
+        else: 
+            if CTRL.bool_zero_id_control == True:
+                CTRL.cmd_idq[0] = 0
             else:
-                CTRL.cmd_idq[0] = -MAX_DEMAG_CURRENT
-            if CTRL.IN*1.414 > CTRL.cmd_idq[0]:
-                reg_speed.OutLimit = np.sqrt((CTRL.IN*1.414)**2 - CTRL.cmd_idq[0]**2)
+                # Field weakening control (simple)
+                    # 电气转折速度 = CTRL.DC_BUS_VOLTAGE/1.732 / CTRL.KA * 0.7
+                    # print('Turning point', 电气转折速度 * 60 / (2*np.pi * CTRL.npp), 'r/min')
+                    # if CTRL.omega_r_elec > 电气转折速度:
+                    #     # 计算弱磁电流
+                    #     下一弱磁速度增量 = 10 / 60 * 2*np.pi * CTRL.npp
+                    #     CTRL.cmd_idq[0] = - (CTRL.KE - 电气转折速度 / (CTRL.omega_r_elec + 下一弱磁速度增量)) / (CTRL.Ld - CTRL.Lq)
+                    #     # 修改速度环输出限幅
+                    #     reg_speed.OutLimit = np.sqrt((CTRL.IN*1.414)**2 - CTRL.cmd_idq[0]**2)
+                    #     print(f'{reg_speed.OutLimit=}')
+                当前速度 = CTRL.omega_r_elec*60/(2*np.pi*CTRL.npp)
+                MAX_DEMAG_CURRENT = 60
+                if 当前速度 < 450:
+                    CTRL.cmd_idq[0] = 0
+                elif 当前速度 < 1000:
+                    CTRL.cmd_idq[0] = (当前速度 - 450) / (1000 - 450) * -MAX_DEMAG_CURRENT
+                else:
+                    CTRL.cmd_idq[0] = -MAX_DEMAG_CURRENT
+                if CTRL.IN*1.414 > CTRL.cmd_idq[0]:
+                    reg_speed.OutLimit = np.sqrt((CTRL.IN*1.414)**2 - CTRL.cmd_idq[0]**2)
 
     CTRL.omega_syn = CTRL.omega_r_elec + CTRL.omega_slip
 
@@ -607,13 +673,13 @@ def SFOC_Dynamic(CTRL, reg_speed, reg_id, reg_iq):
 def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz):
     CTRL.timebase += CTRL.CL_TS
 
-    """ Measurement """
+    """ Current Measurement """
     CTRL.iab[0] = CTRL.iab_curr[0] = ACM.iAlfa
     CTRL.iab[1] = CTRL.iab_curr[1] = ACM.iBeta
-    CTRL.theta_d = ACM.theta_d
 
-    """ Park Transformation Essentials """
+    """ Angular Position Measurement """
     if CTRL.index_voltage_model_flux_estimation == 0:
+        CTRL.theta_d = ACM.theta_d
         # do this once per control interrupt
         CTRL.cosT = np.cos(CTRL.theta_d)
         CTRL.sinT = np.sin(CTRL.theta_d)
@@ -830,8 +896,8 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz):
         else:
             fe_htz.gain_off = fe_htz.GAIN_OFFSET_INIT
 
-        fe_htz.u_offset[0] += fe_htz.gain_off * CTRL.CL_TS * INTEGRAL_INPUT_ALPHA
-        fe_htz.u_offset[1] += fe_htz.gain_off * CTRL.CL_TS * INTEGRAL_INPUT_BETA
+        fe_htz.u_offset[0] += 0.9*fe_htz.gain_off * CTRL.CL_TS * INTEGRAL_INPUT_ALPHA
+        fe_htz.u_offset[1] += 0.9*fe_htz.gain_off * CTRL.CL_TS * INTEGRAL_INPUT_BETA
         fe_htz.xFlux[2] = fe_htz.u_offset[0]
         fe_htz.xFlux[3] = fe_htz.u_offset[1]
 
@@ -846,9 +912,16 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz):
 
         CTRL.cosT = fe_htz.psi_2[0] * amplitude_inverse
         CTRL.sinT = fe_htz.psi_2[1] * amplitude_inverse
+        CTRL.theta_d = np.arctan2(fe_htz.psi_2[1], fe_htz.psi_2[0]) # Costly operation, but it is needed only once per control interrupt
+        
+        while ACM.theta_d> np.pi: ACM.theta_d -= 2*np.pi
+        while ACM.theta_d<-np.pi: ACM.theta_d += 2*np.pi
+        fe_htz.theta_d = ACM.theta_d
+        
         CTRL.cosT = np.cos(CTRL.theta_d)
         CTRL.sinT = np.sin(CTRL.theta_d)
 
+    """ Park Transformation Essentials """
     # Park transformation
     CTRL.idq[0] = CTRL.iab[0] * CTRL.cosT + CTRL.iab[1] * CTRL.sinT
     CTRL.idq[1] = CTRL.iab[0] *-CTRL.sinT + CTRL.iab[1] * CTRL.cosT
@@ -878,11 +951,12 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz):
         elif CTRL.use_disturbance_feedforward_rejection == 2:
             CTRL.total_disrubance_feedforward = CTRL.xSpeed[2] + CTRL.ell2*CTRL.speed_observer_output_error
 
+    """ (Optional) Do Park transformation again using the position estimate from the speed observer """
+    pass
+
     # update previous current measurement for soeed observation and flux estimation 
     CTRL.iab_prev[0] = CTRL.iab_curr[0]
     CTRL.iab_prev[1] = CTRL.iab_curr[1]
-
-    """ (Optional) Do Park transformation again using the position estimate from the speed observer """
 
     """ Speed and Current Controller (two cascaded closed loops) """
     FOC(CTRL, reg_speed, reg_id, reg_iq)
@@ -1234,4 +1308,7 @@ def lpf1_inverter(array):
         y_tminus1 = new_x
         new_array.append(y_tminus1)
     return new_array
+
+
+# %%
 
