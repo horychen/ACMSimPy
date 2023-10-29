@@ -6,7 +6,7 @@ fe_htz.u_offset[1], beta-axis offset voltage, V, $u_{\beta \rm offset}$, voltage
 
 CTRL.cmd_rpm, mechnical speed command, r/min, $\omega_r^*$, speed
 ACM.omega_r_mech/(2*np.pi)*60, mechnical speed, r/min, $\omega_r$, speed
-
+CTRL.omega_r_elec/(2*np.pi*ACM.npp)*60, elec speed, r/min, $\omega_e$, speed
 CTRL.idq[0], d-axis current, A, $i_d$, current
 CTRL.idq[1], q-axis current, A, $i_q$, current
 
@@ -21,5 +21,9 @@ CTRL.cmd_uab[1], comamanded beta-axis voltage, V, $u_\beta$, voltage
 
 CTRL.omega_syn, synchronous angular speed, rad/s, $\omega_{\rm syn}$, speed
 
-ACM.Tem, motor torque, Nm, $T_{\rm em}$, torque
+ACM.Tem, Temmotor torque, Nm, $T_{\rm em}$, torque
 CTRL.Tem, calculated torque, Nm, $T_{\rm em}$, torque
+
+CTRL.theta_tilde, estimate theta_tilde, rad, $\tilde\theta$, degree
+CTRL.window_counter, counter, 1,$counter$, 1
+
