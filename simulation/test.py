@@ -51,16 +51,18 @@ class CustomDataFrame:
                     index += 1
             f.write(f'''\twatch_index += 1\n\treturn watch_index''')
 
+   
     def plot(self, machine_times, watch_data):
         plt.style.use('bmh')  # https://matplotlib.org/stable/gallery/style_sheets/style_sheets_reference.html
-        mpl.rc('font', family='Times New Roman', size=10.0)
-        mpl.rc('legend', fontsize=16)
-        mpl.rcParams['lines.linewidth'] = 0.75  # mpl.rc('lines', linewidth=4, linestyle='-.')
+        mpl.rc('font', family='Times New Roman', size=12.0)
+        mpl.rc('legend', fontsize=12)
+        mpl.rcParams['lines.linewidth'] = 1.5  # mpl.rc('lines', linewidth=4, linestyle='-.')
         mpl.rcParams['mathtext.fontset'] = 'stix'
 
         total = len(self.plot_details)
         index = 0
         figure_index = 0
+        result = {}
 
         if total < 6:
             fig, axes = plt.subplots(nrows=total, ncols=1, dpi=150, facecolor='w', figsize=(8, 12), sharex=True)
@@ -74,6 +76,7 @@ class CustomDataFrame:
             figure_index += 1
             for i in range(len(plot_detail['data_signal'])):
                 ax.plot(machine_times, watch_data[index], label=plot_detail['data_signal_label'][i])
+                result[plot_detail['data_signal'][i]] = watch_data[index]
                 index += 1
             ax.set_ylabel(plot_detail['data_axis'], multialignment='center')
             ax.legend(loc=1, fontsize=12)
@@ -81,8 +84,7 @@ class CustomDataFrame:
         axes[-1].set_xlabel('Time [s]')
         plt.show()
         # return
-        return {self.plot_details[i]['data_signal'][j]: watch_data[i * len(self.plot_details[i]['data_signal']) + j] for
-                i in range(len(self.plot_details)) for j in range(len(self.plot_details[i]['data_signal']))}
+        return result
 
 
     def lissajou(self, watch_data_as_dict, period, path):
@@ -108,6 +110,7 @@ class CustomDataFrame:
 
         total = len(user_fig_config)
         figure_index = 0
+        axes = None
 
         if total < 6:
             fig, axes = plt.subplots(nrows=total, ncols=1, dpi=150, facecolor='w', figsize=(8, 12))
@@ -118,18 +121,21 @@ class CustomDataFrame:
         for i in range(len(user_fig_config)):
             ax = axes[figure_index]
             figure_index += 1
-            x_lim_low = min(watch_data_as_dict[user_fig_config[i][0]][int(int(user_fig_config[i][4])/period): int(int(user_fig_config[i][5])/period)])
-            x_lim_high = max(watch_data_as_dict[user_fig_config[i][0]][int(int(user_fig_config[i][4])/period): int(int(user_fig_config[i][5])/period)])
+            x_lim_low = min(watch_data_as_dict[user_fig_config[i][0]][int(float(user_fig_config[i][4])/period): int(float(user_fig_config[i][5])/period)])
+            x_lim_high = max(watch_data_as_dict[user_fig_config[i][0]][int(float(user_fig_config[i][4])/period): int(float(user_fig_config[i][5])/period)])
             x_lim_shift = (x_lim_high - x_lim_low) / 10
-            ax.plot(watch_data_as_dict[user_fig_config[i][0]][int(int(user_fig_config[i][4])/period): int(int(user_fig_config[i][5])/period)],
-                    watch_data_as_dict[user_fig_config[i][1]][int(int(user_fig_config[i][4])/period): int(int(user_fig_config[i][5])/period)])
+            ax.plot(watch_data_as_dict[user_fig_config[i][0]][int(float(user_fig_config[i][4])/period): int(float(user_fig_config[i][5])/period)],
+                    watch_data_as_dict[user_fig_config[i][1]][int(float(user_fig_config[i][4])/period): int(float(user_fig_config[i][5])/period)])
+                    #, '.')
             ax.set_xlabel(user_fig_config[i][2], multialignment='center')
             ax.set_ylabel(user_fig_config[i][3], multialignment='center')
             ax.set_xlim(x_lim_low - x_lim_shift, x_lim_high + x_lim_shift)
             ax.set_ylim(x_lim_low - x_lim_shift, x_lim_high + x_lim_shift)
             ax.grid(True)
+            ax.set_aspect(aspect='equal')
         plt.show()
         return None
+
 
 
 
@@ -142,13 +148,13 @@ custom.generate_function()
 d = d_user_input_motor_dict = {
     # Timing
     'CL_TS': 1e-4,
-    'TIME_SLICE': 10,
+    'TIME_SLICE': 5,
     'NUMBER_OF_SLICES': 1,
     'VL_EXE_PER_CL_EXE': 5,
     'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 1,
     'CTRL.bool_apply_speed_closed_loop_control': True,
     'CTRL.bool_apply_decoupling_voltages_to_current_regulation': False,
-    'CTRL.bool_apply_sweeping_frequency_excitation': False,
+    'CTRL.bool_apply_sweeping_frequency_excitation': True,
     'CTRL.bool_overwrite_speed_commands': True,
     'CTRL.bool_zero_id_control': True,
     'FOC_delta': 10,  # 25, # 6.5

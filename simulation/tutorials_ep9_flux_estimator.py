@@ -32,6 +32,7 @@ class The_Motor_Controller:
         print('\tCTRL.velocity_loop_ceiling =', self.velocity_loop_ceiling)
         # feedback / input
         self.theta_d = 0.0
+        self. thetaerror = 0.0
         self.omega_r_elec = 0.0
         self.omega_syn = 0.0
         self.omega_slip = 0.0
@@ -56,14 +57,14 @@ class The_Motor_Controller:
             self.cmd_psi = 0.9 # [Wb]
         else:
             self.cmd_psi = init_KE # [Wb]
-        self.index_voltage_model_flux_estimation = 1
+        self.index_voltage_model_flux_estimation = 2
         self.index_separate_speed_estimation = 1
         self.use_disturbance_feedforward_rejection = 0
         self.bool_apply_decoupling_voltages_to_current_regulation = False
         self.bool_apply_speed_closed_loop_control = True
         self.bool_zero_id_control = False
         # sweep frequency
-        self.bool_apply_sweeping_frequency_excitation = False
+        self.bool_apply_sweeping_frequency_excitation = True
         self.bool_overwrite_speed_commands = True
         self.bool_yanzhengzhang = False
         self.apply_pulse_4_evaluating_position_estimator_accuracy = False
@@ -103,13 +104,15 @@ class The_Motor_Controller:
         self.iQ_avg_prev = 0.0
         self.iQ_sum_prev = 0.0
         self.theta_tilde = 0.0
-        # self.rotor_flux_error = 0.0
-        # self.OFFSET_VOLTAGE_ALPHA = 0.0
-        # self.OFFSET_VOLTAGE_BETA = 0.0
-        # self.VM_PROPOSED_PI_CORRECTION_GAIN_P = 50
-        # self.VM_PROPOSED_PI_CORRECTION_GAIN_I = 0.0
-        # self.correction_integral_term = 0.0
-        
+
+        self.rotor_flux_error = np.zeros(2, dtype=np.float64)
+        self.OFFSET_VOLTAGE_ALPHA = 0.0
+        self.OFFSET_VOLTAGE_BETA = 0.0
+        self.VM_PROPOSED_PI_CORRECTION_GAIN_P = 10.000
+        self.VM_PROPOSED_PI_CORRECTION_GAIN_I = 0.1
+        self.correction_integral_term = np.zeros(2, dtype=np.float64)
+        self.emf_stator = np.zeros(2, dtype=np.float64)
+        self.cmd_psi_mu = np.zeros(2, dtype=np.float64)
         # gains
         omega_ob = 100 # [rad/s]
         self.ell1 = 0.0
@@ -143,7 +146,10 @@ class The_AC_Machine:
         # electrical parameters
         self.R   = CTRL.R
         self.Ld  = CTRL.Ld
-        self.Lq  = CTRL.Lq
+        
+
+        self.Lq  = CTRL.Lq * 1
+        print(f'ACM: {self.Lq=}')
         self.KE  = CTRL.KE
         self.Rreq  = CTRL.Rreq
         # mechanical parameters
@@ -258,10 +264,11 @@ class Variables_FluxEstimator_Holtz03:
 
         self.xFlux = np.zeros(NS_GLOBAL, dtype=np.float64)
 
-        self.emf_stator = np.zeros(2, dtype=np.float64)
+        
 
         self.psi_1 = np.zeros(2, dtype=np.float64)
         self.psi_2= np.zeros(2, dtype=np.float64)
+        self.psi_A= np.zeros(2, dtype=np.float64)
         self.psi_2_prev= np.zeros(2, dtype=np.float64)
 
         self.psi_1_nonSat= np.zeros(2, dtype=np.float64)
@@ -274,7 +281,7 @@ class Variables_FluxEstimator_Holtz03:
 
         self.rs_est   = IM_STAOTR_RESISTANCE
         # self.rreq_est = IM_ROTOR_RESISTANCE
-
+        self.theta_d = 0.0
         self.Delta_t = 1
         self.u_offset= np.zeros(2, dtype=np.float64)
 
@@ -330,7 +337,7 @@ def DYNAMICS_SpeedObserver(x, CTRL):
 
     # 机械子系统 (omega_r_elec, theta_d, theta_r_mech)
     fx[0] = CTRL.ell1*output_error + x[1]
-    fx[1] = 1.2*CTRL.ell2*output_error + (CTRL.Tem + x[2]) * CTRL.npp/CTRL.Js # elec. angular rotor speed
+    fx[1] = CTRL.ell2*output_error + (CTRL.Tem + x[2]) * CTRL.npp/CTRL.Js # elec. angular rotor speed
     fx[2] = CTRL.ell3*output_error + x[3]
     fx[3] = CTRL.ell4*output_error + 0.0
     return fx
@@ -546,7 +553,7 @@ def FOC(CTRL, reg_speed, reg_id, reg_iq):
         CTRL.cmd_idq[0] = CTRL.cmd_psi / (CTRL.Ld - CTRL.Lq) # [Wb] / [H]
         # slip angular speed
         CTRL.omega_slip = CTRL.Rreq * CTRL.cmd_idq[1] / CTRL.KA # Use commands for calculation (base off Harnefors recommendations)
-        
+
     else: # PMSM
         CTRL.omega_slip = 0.0
 
@@ -575,14 +582,15 @@ def FOC(CTRL, reg_speed, reg_id, reg_iq):
         #         reg_speed.OutLimit = np.sqrt((CTRL.IN*1.414)**2 - CTRL.cmd_idq[0]**2)
 
         if CTRL.apply_pulse_4_evaluating_position_estimator_accuracy == True:
-            ID_PULSE = 5
-            COUNT_WINDOW = 500
-            COUNT_WAIT = 300
+            ID_PULSE = 1
+            COUNT_WINDOW = 1000
+            COUNT_WAIT = 3000
             if CTRL.window_counter > COUNT_WINDOW + COUNT_WAIT + COUNT_WINDOW:
                 # get averaged current measurementsiQ_avg_curr iQ_sum_curr window_counter iQ_avg_prev iQ_sum_prev theta_tilde
                 CTRL.iQ_avg_curr = CTRL.iQ_sum_curr / COUNT_WINDOW
                 CTRL.iQ_avg_prev = CTRL.iQ_sum_prev / COUNT_WINDOW
                 # calculate for theta error assuming the motor load is time invariant
+                
                 CTRL.theta_tilde = np.arctan2((CTRL.iQ_avg_prev - CTRL.iQ_avg_curr), ID_PULSE)
                 # initialize everything
                 CTRL.apply_pulse_4_evaluating_position_estimator_accuracy = False
@@ -595,7 +603,7 @@ def FOC(CTRL, reg_speed, reg_id, reg_iq):
                 CTRL.iQ_sum_curr += CTRL.idq[1]
             elif CTRL.window_counter == COUNT_WINDOW:
                 # apply pulse
-                CTRL.cmd_idq[0] = 5
+                CTRL.cmd_idq[0] = 1
             elif CTRL.window_counter >= 0 and CTRL.window_counter < COUNT_WINDOW:
                 # sum up q-axis current before the impulse is applied
                 CTRL.iQ_sum_prev += CTRL.idq[1]
@@ -668,6 +676,22 @@ def SFOC_Dynamic(CTRL, reg_speed, reg_id, reg_iq):
     pass
 
     CTRL.cmd_udq[1] = reg_iq.Out
+# 4. B. Proposed Flux Command Error feedback PI Correction in Controller Frame (xRho) 
+def rhf_CmdErrFdkCorInFrameRho_Dynamics(x, CTRL):
+    
+    fx = np.zeros(NS_GLOBAL)
+    
+    CTRL.rotor_flux_error[0] = ( CTRL.cmd_psi_mu[0] - (x[0]-CTRL.Lq * CTRL.iab[0]) )
+    CTRL.rotor_flux_error[1] = ( CTRL.cmd_psi_mu[1] - (x[1]-CTRL.Lq * CTRL.iab[1]) )
+
+    CTRL.emf_stator[0] = CTRL.uab[0] - CTRL.R * 1 * CTRL.iab[0] + CTRL.OFFSET_VOLTAGE_ALPHA + CTRL.VM_PROPOSED_PI_CORRECTION_GAIN_P * CTRL.rotor_flux_error[0] + x[2]
+    CTRL.emf_stator[1] = CTRL.uab[1] - CTRL.R * 1 * CTRL.iab[1] + CTRL.OFFSET_VOLTAGE_BETA  + CTRL.VM_PROPOSED_PI_CORRECTION_GAIN_P * CTRL.rotor_flux_error[1] + x[3]
+    fx[0] = CTRL.emf_stator[0]
+    fx[1] = CTRL.emf_stator[1]
+    fx[2] = CTRL.VM_PROPOSED_PI_CORRECTION_GAIN_I * CTRL.rotor_flux_error[0]
+    fx[3] = CTRL.VM_PROPOSED_PI_CORRECTION_GAIN_I * CTRL.rotor_flux_error[1]
+    return fx
+
 
 ############################################# DSP SECTION
 def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz):
@@ -692,6 +716,8 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz):
 
         fe_htz.psi_2[0] = fe_htz.psi_1[0] - CTRL.Lq*CTRL.iab[0]
         fe_htz.psi_2[1] = fe_htz.psi_1[1] - CTRL.Lq*CTRL.iab[1]
+        fe_htz.psi_A[0] = fe_htz.psi_2[0]
+        fe_htz.psi_A[1] = fe_htz.psi_2[1]
         fe_htz.psi_2_ampl = np.sqrt(fe_htz.psi_2[0]*fe_htz.psi_2[0]+fe_htz.psi_2[1]*fe_htz.psi_2[1])
 
         # 限幅前求角度还是应该限幅后？
@@ -905,21 +931,60 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz):
         fe_htz.psi_2_prev[1] = fe_htz.psi_2[1]
 
         # psi_2_ampl 在限幅前已经算过了，还有必要限幅后在这里再算一次吗？
-        fe_htz.psi_2_ampl = np.sqrt(fe_htz.psi_2[0]**2 + fe_htz.psi_2[1]**2)
-        if fe_htz.psi_2_ampl == 0:
-            fe_htz.psi_2_ampl = 1.0
-        amplitude_inverse = 1.0 / fe_htz.psi_2_ampl
+        fe_htz.psi_A_ampl = np.sqrt(fe_htz.psi_A[0] **2 + fe_htz.psi_A[1] **2)
+        if fe_htz.psi_A_ampl == 0:
+            fe_htz.psi_A_ampl = 1.0
+        amplitude_inverse = 1.0 / fe_htz.psi_A_ampl
 
-        CTRL.cosT = fe_htz.psi_2[0] * amplitude_inverse
-        CTRL.sinT = fe_htz.psi_2[1] * amplitude_inverse
-        CTRL.theta_d = np.arctan2(fe_htz.psi_2[1], fe_htz.psi_2[0]) # Costly operation, but it is needed only once per control interrupt
+        CTRL.cosT = fe_htz.psi_A[0] * amplitude_inverse
+        CTRL.sinT = fe_htz.psi_A[1] * amplitude_inverse
+        CTRL.theta_d = np.arctan2(fe_htz.psi_A[1], fe_htz.psi_A[0]) # Costly operation, but it is needed only once per control interrupt
         
         while ACM.theta_d> np.pi: ACM.theta_d -= 2*np.pi
         while ACM.theta_d<-np.pi: ACM.theta_d += 2*np.pi
         fe_htz.theta_d = ACM.theta_d
+
+        if CTRL.theta_d * fe_htz.theta_d > 0:
+            CTRL.thetaerror = CTRL.theta_d - fe_htz.theta_d
+        elif CTRL.theta_d * fe_htz.theta_d < 0:
+            CTRL.thetaerror = CTRL.theta_d + fe_htz.theta_d
         
+
         CTRL.cosT = np.cos(CTRL.theta_d)
         CTRL.sinT = np.sin(CTRL.theta_d)
+    #/* 4. B. Proposed Flux Command Error feedback PI Correction in Controller Frame (xRho) */
+    elif CTRL.index_voltage_model_flux_estimation == 2:
+        # CTRL.theta_d = ACM.theta_d
+        # CTRL.cosT = np.cos(CTRL.theta_d)
+        # CTRL.sinT = np.sin(CTRL.theta_d)
+        CTRL.cmd_psi_mu[0] = CTRL.cmd_psi * CTRL.cosT
+        CTRL.cmd_psi_mu[1] = CTRL.cmd_psi * CTRL.sinT 
+        RK4_ObserverSolver_CJH_Style(rhf_CmdErrFdkCorInFrameRho_Dynamics, fe_htz.xFlux, CTRL.CL_TS, CTRL)
+        #// Unpack x
+        fe_htz.psi_1[0]                         = fe_htz.xFlux[0]
+        fe_htz.psi_1[1]                         = fe_htz.xFlux[1]
+        CTRL.correction_integral_term[0]        = fe_htz.xFlux[2]
+        CTRL.correction_integral_term[1]        = fe_htz.xFlux[3]
+        fe_htz.u_offset[0] = CTRL.correction_integral_term[0]
+        fe_htz.u_offset[1] = CTRL.correction_integral_term[1]
+    
+        #// rotor flux updates
+
+        fe_htz.psi_2[0] = fe_htz.psi_1[0] - CTRL.Lq * CTRL.iab_curr[0]
+        fe_htz.psi_2[1] = fe_htz.psi_1[1] - CTRL.Lq * CTRL.iab_curr[1]
+
+        CTRL.theta_d = np.arctan2(fe_htz.psi_2[1], fe_htz.psi_2[0]) 
+        CTRL.cosT = np.cos(CTRL.theta_d)
+        CTRL.sinT = np.sin(CTRL.theta_d)
+         
+        while ACM.theta_d> np.pi: ACM.theta_d -= 2*np.pi
+        while ACM.theta_d<-np.pi: ACM.theta_d += 2*np.pi
+        fe_htz.theta_d = ACM.theta_d
+
+        if CTRL.theta_d * fe_htz.theta_d > 0:
+            CTRL.thetaerror = CTRL.theta_d - fe_htz.theta_d
+        elif CTRL.theta_d * fe_htz.theta_d < 0:
+            CTRL.thetaerror = CTRL.theta_d + fe_htz.theta_d
 
     """ Park Transformation Essentials """
     # Park transformation
