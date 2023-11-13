@@ -84,6 +84,19 @@ plt.style.use('ggplot')
             ('idq', float64[:]),
             ('iMT', float64[:]),
             ('emf_stator', float64[:]),
+            ('rotor_flux_error', float64[:]),
+            ('OFFSET_VOLTAGE_ALPHA', float64),
+            ('OFFSET_VOLTAGE_BETA', float64),
+            ('VM_PROPOSED_PI_CORRECTION_GAIN_P', float64),
+            ('VM_PROPOSED_PI_CORRECTION_GAIN_I', float64),
+            ('correction_integral_term', float64),
+            #      self.rotor_flux_error = np.zeros(2, dtype=np.float64)
+            # self.OFFSET_VOLTAGE_ALPHA = 0.0
+            # self.OFFSET_VOLTAGE_BETA = 0.0
+            # self.VM_PROPOSED_PI_CORRECTION_GAIN_P = 50
+            # self.VM_PROPOSED_PI_CORRECTION_GAIN_I = 0.0
+            # self.correction_integral_term = 0.0
+            # self.emf_stator = np.zeros(2, dtype=np.float64)
             # states
             ('NS', int32),
             ('xS', float64[:]),
