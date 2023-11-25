@@ -62,6 +62,14 @@ class The_Motor_Controller:
         self.bool_apply_decoupling_voltages_to_current_regulation = False
         self.bool_apply_speed_closed_loop_control = True
         self.bool_zero_id_control = False
+        self.bool_counter = False
+        self.counter_theta = 0 
+        self.psi_max = 0
+        self.psi_min = 0
+        self.psi_sum = 0
+        self.psi_avg = 0
+        self.psi_max_fin = 0
+        self.psi_min_fin = 0
         # sweep frequency
         self.bool_apply_sweeping_frequency_excitation = True
         self.bool_overwrite_speed_commands = True
@@ -137,7 +145,7 @@ class The_Motor_Controller:
         self.one_over_six = 1.0 / 6.0
 
 class The_AC_Machine:
-    def __init__(self, CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=1):
+    def __init__(self, CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=1, ACM_param=1.0):
         # name plate data
         self.npp = CTRL.npp
         self.npp_inv = 1.0/self.npp
@@ -145,9 +153,7 @@ class The_AC_Machine:
         # electrical parameters
         self.R   = CTRL.R
         self.Ld  = CTRL.Ld
-        
-
-        self.Lq  = CTRL.Lq * 1.25
+        self.Lq  = CTRL.Lq * ACM_param
         print(f'ACM: {self.Lq=}')
         self.KE  = CTRL.KE
         self.Rreq  = CTRL.Rreq
@@ -269,7 +275,7 @@ class Variables_FluxEstimator_Holtz03:
         self.psi_2= np.zeros(2, dtype=np.float64)
         self.psi_A= np.zeros(2, dtype=np.float64)
         self.psi_2_prev= np.zeros(2, dtype=np.float64)
-
+        self.psi_e = 0
         self.psi_1_nonSat= np.zeros(2, dtype=np.float64)
         self.psi_2_nonSat= np.zeros(2, dtype=np.float64)
 
@@ -323,7 +329,7 @@ class Variables_FluxEstimator_Holtz03:
         self.sat_time_offset = np.zeros(2, dtype=np.float64)
 
 ############################################# OBSERVERS SECTION
-def DYNAMICS_SpeedObserver(x, CTRL):
+def DYNAMICS_SpeedObserver(x, CTRL, SO_param=1.0):
     fx = np.zeros(NS_GLOBAL)
 
     # [rad]
@@ -341,13 +347,13 @@ def DYNAMICS_SpeedObserver(x, CTRL):
     fx[3] = CTRL.ell4*output_error + 0.0
     return fx
 
-def DYNAMICS_FluxEstimator(x, CTRL):
+def DYNAMICS_FluxEstimator(x, CTRL, FE_param=1.0):
     fx = np.zeros(NS_GLOBAL)
-    fx[0] = CTRL.uab[0] - CTRL.R * 1 * CTRL.iab[0] - x[2]
-    fx[1] = CTRL.uab[1] - CTRL.R * 1 * CTRL.iab[1] - x[3]
+    fx[0] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] - x[2]
+    fx[1] = CTRL.uab[1] - CTRL.R * FE_param * CTRL.iab[1] - x[3]
     return fx
 
-def RK4_ObserverSolver_CJH_Style(THE_DYNAMICS, x, hs, CTRL):
+def RK4_ObserverSolver_CJH_Style(THE_DYNAMICS, x, hs, CTRL, param=1.0):
     k1, k2, k3, k4 = np.zeros(NS_GLOBAL), np.zeros(NS_GLOBAL), np.zeros(NS_GLOBAL), np.zeros(NS_GLOBAL) # incrementals at 4 stages
     xk, fx = np.zeros(NS_GLOBAL), np.zeros(NS_GLOBAL) # state x for stage 2/3/4, state derivative
 
@@ -355,26 +361,26 @@ def RK4_ObserverSolver_CJH_Style(THE_DYNAMICS, x, hs, CTRL):
     CTRL.uab[1] = CTRL.cmd_uab[1]
     CTRL.iab[0] = CTRL.iab_prev[0]
     CTRL.iab[1] = CTRL.iab_prev[1]
-    fx = THE_DYNAMICS(x, CTRL)
+    fx = THE_DYNAMICS(x, CTRL, param)
     for i in range(0, NS_GLOBAL):
         k1[i] = fx[i] * hs
         xk[i] = x[i] + k1[i]*0.5
 
     CTRL.iab[0] = 0.5*(CTRL.iab_prev[0]+CTRL.iab_curr[0])
     CTRL.iab[1] = 0.5*(CTRL.iab_prev[1]+CTRL.iab_curr[1])
-    fx = THE_DYNAMICS(xk, CTRL)
+    fx = THE_DYNAMICS(xk, CTRL, param)
     for i in range(0, NS_GLOBAL):
         k2[i] = fx[i] * hs
         xk[i] = x[i] + k2[i]*0.5
 
-    fx = THE_DYNAMICS(xk, CTRL)
+    fx = THE_DYNAMICS(xk, CTRL, param)
     for i in range(0, NS_GLOBAL):
         k3[i] = fx[i] * hs
         xk[i] = x[i] + k3[i]
 
     CTRL.iab[0] = CTRL.iab_curr[0]
     CTRL.iab[1] = CTRL.iab_curr[1]
-    fx = THE_DYNAMICS(xk, CTRL)
+    fx = THE_DYNAMICS(xk, CTRL, param)
     for i in range(0, NS_GLOBAL):
         k4[i] = fx[i] * hs
         x[i] = x[i] + (k1[i] + 2*(k2[i] + k3[i]) + k4[i]) * CTRL.one_over_six
@@ -581,8 +587,8 @@ def FOC(CTRL, reg_speed, reg_id, reg_iq):
         #         reg_speed.OutLimit = np.sqrt((CTRL.IN*1.414)**2 - CTRL.cmd_idq[0]**2)
 
         if CTRL.apply_pulse_4_evaluating_position_estimator_accuracy == True:
-            ID_PULSE = 1
-            COUNT_WINDOW = 1000
+            ID_PULSE = 6
+            COUNT_WINDOW = 3000
             COUNT_WAIT = 3000
             if CTRL.window_counter > COUNT_WINDOW + COUNT_WAIT + COUNT_WINDOW:
                 # get averaged current measurementsiQ_avg_curr iQ_sum_curr window_counter iQ_avg_prev iQ_sum_prev theta_tilde
@@ -590,9 +596,9 @@ def FOC(CTRL, reg_speed, reg_id, reg_iq):
                 CTRL.iQ_avg_prev = CTRL.iQ_sum_prev / COUNT_WINDOW
                 # calculate for theta error assuming the motor load is time invariant
                 
-                CTRL.theta_tilde = np.arctan2((CTRL.iQ_avg_prev - CTRL.iQ_avg_curr), ID_PULSE)
+                CTRL.theta_tilde = np.sin(np.arctan2((CTRL.iQ_avg_prev - CTRL.iQ_avg_curr), 1))
                 # initialize everything
-                CTRL.apply_pulse_4_evaluating_position_estimator_accuracy = False
+                # CTRL.apply_pulse_4_evaluating_position_estimator_accuracy = False
                 CTRL.window_counter = 0
                 CTRL.cmd_idq[0] = 0
                 CTRL.iQ_sum_prev = 0
@@ -676,15 +682,15 @@ def SFOC_Dynamic(CTRL, reg_speed, reg_id, reg_iq):
 
     CTRL.cmd_udq[1] = reg_iq.Out
 # 4. B. Proposed Flux Command Error feedback PI Correction in Controller Frame (xRho) 
-def rhf_CmdErrFdkCorInFrameRho_Dynamics(x, CTRL):
+def rhf_CmdErrFdkCorInFrameRho_Dynamics(x, CTRL,FE_param=1):
     
     fx = np.zeros(NS_GLOBAL)
     
     CTRL.rotor_flux_error[0] = ( CTRL.cmd_psi_mu[0] - (x[0]-CTRL.Lq * CTRL.iab[0]) )
     CTRL.rotor_flux_error[1] = ( CTRL.cmd_psi_mu[1] - (x[1]-CTRL.Lq * CTRL.iab[1]) )
 
-    CTRL.emf_stator[0] = CTRL.uab[0] - CTRL.R * 1 * CTRL.iab[0] + CTRL.OFFSET_VOLTAGE_ALPHA + CTRL.VM_PROPOSED_PI_CORRECTION_GAIN_P * CTRL.rotor_flux_error[0] + x[2]
-    CTRL.emf_stator[1] = CTRL.uab[1] - CTRL.R * 1 * CTRL.iab[1] + CTRL.OFFSET_VOLTAGE_BETA  + CTRL.VM_PROPOSED_PI_CORRECTION_GAIN_P * CTRL.rotor_flux_error[1] + x[3]
+    CTRL.emf_stator[0] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] + CTRL.OFFSET_VOLTAGE_ALPHA + CTRL.VM_PROPOSED_PI_CORRECTION_GAIN_P * CTRL.rotor_flux_error[0] + x[2]
+    CTRL.emf_stator[1] = CTRL.uab[1] - CTRL.R * FE_param * CTRL.iab[1] + CTRL.OFFSET_VOLTAGE_BETA  + CTRL.VM_PROPOSED_PI_CORRECTION_GAIN_P * CTRL.rotor_flux_error[1] + x[3]
     fx[0] = CTRL.emf_stator[0]
     fx[1] = CTRL.emf_stator[1]
     fx[2] = CTRL.VM_PROPOSED_PI_CORRECTION_GAIN_I * CTRL.rotor_flux_error[0]
@@ -693,7 +699,7 @@ def rhf_CmdErrFdkCorInFrameRho_Dynamics(x, CTRL):
 
 
 ############################################# DSP SECTION
-def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz):
+def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0):
     CTRL.timebase += CTRL.CL_TS
 
     """ Current Measurement """
@@ -709,7 +715,7 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz):
 
     elif CTRL.index_voltage_model_flux_estimation == 1:
         # sensorless
-        RK4_ObserverSolver_CJH_Style(DYNAMICS_FluxEstimator, fe_htz.xFlux, CTRL.CL_TS, CTRL)
+        RK4_ObserverSolver_CJH_Style(DYNAMICS_FluxEstimator, fe_htz.xFlux, CTRL.CL_TS, CTRL, FE_param)
         fe_htz.psi_1[0] = fe_htz.xFlux[0]
         fe_htz.psi_1[1] = fe_htz.xFlux[1]
 
@@ -944,10 +950,29 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz):
         fe_htz.theta_d = ACM.theta_d
 
         if CTRL.theta_d * fe_htz.theta_d > 0:
-            CTRL.thetaerror = CTRL.theta_d - fe_htz.theta_d
+            CTRL.thetaerror = np.sin(fe_htz.theta_d - CTRL.theta_d)
         elif CTRL.theta_d * fe_htz.theta_d < 0:
-            CTRL.thetaerror = CTRL.theta_d + fe_htz.theta_d
+            CTRL.thetaerror = np.sin(CTRL.theta_d + fe_htz.theta_d)
         
+        
+        fe_htz.psi_e = ACM.KA * np.cos(ACM.theta_d) - fe_htz.psi_2[0]
+        if CTRL.bool_counter == True:
+            if CTRL.counter_theta < 3000: 
+                if CTRL.psi_max  < fe_htz.psi_e:
+                    CTRL.psi_max =  fe_htz.psi_e    
+                    CTRL.psi_max_fin = CTRL.psi_max 
+                if CTRL.psi_min > fe_htz.psi_e:
+                    CTRL.psi_min = fe_htz.psi_e
+                    CTRL.psi_min_fin = CTRL.psi_min
+                CTRL.psi_sum += fe_htz.psi_e
+                CTRL.counter_theta += 1
+            if CTRL.counter_theta == 3000:
+                CTRL.psi_avg = CTRL.psi_sum / 3000
+                CTRL.counter_theta = 0
+                CTRL.psi_sum = 0
+                CTRL.psi_min = 0
+                CTRL.psi_max = 0
+                CTRL.bool_counter = False
 
         CTRL.cosT = np.cos(CTRL.theta_d)
         CTRL.sinT = np.sin(CTRL.theta_d)
@@ -958,7 +983,7 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz):
         # CTRL.sinT = np.sin(CTRL.theta_d)
         CTRL.cmd_psi_mu[0] = CTRL.cmd_psi * CTRL.cosT
         CTRL.cmd_psi_mu[1] = CTRL.cmd_psi * CTRL.sinT 
-        RK4_ObserverSolver_CJH_Style(rhf_CmdErrFdkCorInFrameRho_Dynamics, fe_htz.xFlux, CTRL.CL_TS, CTRL)
+        RK4_ObserverSolver_CJH_Style(rhf_CmdErrFdkCorInFrameRho_Dynamics, fe_htz.xFlux, CTRL.CL_TS, CTRL, FE_param)
         #// Unpack x
         fe_htz.psi_1[0]                         = fe_htz.xFlux[0]
         fe_htz.psi_1[1]                         = fe_htz.xFlux[1]
@@ -981,10 +1006,12 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz):
         fe_htz.theta_d = ACM.theta_d
 
         if CTRL.theta_d * fe_htz.theta_d > 0:
-            CTRL.thetaerror = CTRL.theta_d - fe_htz.theta_d
+            CTRL.thetaerror = np.sin(CTRL.theta_d - fe_htz.theta_d)
         elif CTRL.theta_d * fe_htz.theta_d < 0:
-            CTRL.thetaerror = CTRL.theta_d + fe_htz.theta_d
+            CTRL.thetaerror = np.sin(CTRL.theta_d + fe_htz.theta_d)
+        
 
+    
     """ Park Transformation Essentials """
     # Park transformation
     CTRL.idq[0] = CTRL.iab[0] * CTRL.cosT + CTRL.iab[1] * CTRL.sinT
@@ -999,7 +1026,7 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz):
         #TODO simulate the encoder
         CTRL.omega_r_elec = ACM.omega_r_elec
     elif CTRL.index_separate_speed_estimation == 1:
-        RK4_ObserverSolver_CJH_Style(DYNAMICS_SpeedObserver, CTRL.xSpeed, CTRL.CL_TS, CTRL)
+        RK4_ObserverSolver_CJH_Style(DYNAMICS_SpeedObserver, CTRL.xSpeed, CTRL.CL_TS, CTRL, FE_param)
         while CTRL.xSpeed[0]> np.pi: CTRL.xSpeed[0] -= 2*np.pi
         while CTRL.xSpeed[0]<-np.pi: CTRL.xSpeed[0] += 2*np.pi
         # CTRL.uab_prev[0] = CTRL.uab_curr[0] # This is needed only if voltage is measured, e.g., by eCAP. Remember to update the code below marked by [$].
@@ -1223,7 +1250,7 @@ def vehicel_load_model(t, ACM):
     ACM.TLoad=FLoad*EVR          ##### 单侧转矩负载
     ACM.Js = EVJ = EVM*EVR*EVR*0.25  ##### 单轮等效转动惯量
 
-def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None, reg_speed=None, fe_htz=None):
+def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None, reg_speed=None, fe_htz=None, FE_param = 1.0):
 
     # RK4 simulation and controller execution relative freuqencies
     MACHINE_TS = CTRL.CL_TS / ACM.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD
@@ -1287,7 +1314,8 @@ def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None,
                 reg_speed=reg_speed,
                 reg_id=reg_id,
                 reg_iq=reg_iq,
-                fe_htz=fe_htz)
+                fe_htz=fe_htz, 
+                FE_param=FE_param)
 
             # DEBUG
             # CTRL.cmd_uab[0] = 10*np.cos(5*2*np.pi*CTRL.timebase)

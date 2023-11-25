@@ -52,7 +52,7 @@ class CustomDataFrame:
             f.write(f'''\twatch_index += 1\n\treturn watch_index''')
 
    
-    def plot(self, machine_times, watch_data):
+    def plot(self, machine_times, watch_data, ACM_param=1.0, FE_param=1.0):
         plt.style.use('bmh')  # https://matplotlib.org/stable/gallery/style_sheets/style_sheets_reference.html
         mpl.rc('font', family='Times New Roman', size=12.0)
         mpl.rc('legend', fontsize=12)
@@ -82,12 +82,13 @@ class CustomDataFrame:
             ax.legend(loc=1, fontsize=12)
             ax.grid(True)
         axes[-1].set_xlabel('Time [s]')
-        plt.show()
+        fig.savefig(f'images/saturation/TimeDomin_acmparam_{ACM_param}-peparam_{FE_param}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
+        #plt.show()
         # return
         return result
 
 
-    def lissajou(self, watch_data_as_dict, period, path):
+    def lissajou(self, watch_data_as_dict, period, path, ACM_param=1.0, FE_param=1.0):
         with open(path, 'r', encoding='utf-8') as f:
             user_figs = f.read()
         user_figs = user_figs.split('\n')
@@ -134,8 +135,8 @@ class CustomDataFrame:
             ax.set_ylim(x_lim_low - x_lim_shift, x_lim_high + x_lim_shift)
             ax.grid(True)
             ax.set_aspect(aspect='equal')
-        plt.savefig('images/lissajou_in_125.png', dpi=400, pad_inches=0.5, bbox_inches='tight')
-        plt.show()
+        #plt.show()
+        #fig.savefig(f'images/saturation/Lissajou_acmparam_{ACM_param}-peparam_{FE_param}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
         return None
 
 
@@ -150,7 +151,7 @@ custom.generate_function()
 d = d_user_input_motor_dict = {
     # Timing
     'CL_TS': 1e-4,
-    'TIME_SLICE': 5,
+    'TIME_SLICE': 10,
     'NUMBER_OF_SLICES': 1,
     'VL_EXE_PER_CL_EXE': 5,
     'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 1,
@@ -246,6 +247,7 @@ else:
     else:
         local_Ki = d['CL_SERIES_KP'] * d['CL_SERIES_KI']
     local_Kd = 0.0
+    
     local_tau = 0.0
     local_OutLimit = d['DC_BUS_VOLTAGE'] / 1.732
     local_IntLimit = 1.0 * d[
@@ -266,25 +268,59 @@ else:
 CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY, fe_htz
 
 # simulate to generate NUMBER_OF_SLICES*TIME_SLICE sec of data
-for ii in range(d['NUMBER_OF_SLICES']):
-    # perform animation step
-    machine_times, watch_data = ACMSimPyIncremental(t0=ii * d['TIME_SLICE'], TIME=d['TIME_SLICE'],
-                                                    ACM=ACM,
-                                                    CTRL=CTRL,
-                                                    reg_id=reg_id,
-                                                    reg_iq=reg_iq,
-                                                    reg_speed=reg_speed,
-                                                    fe_htz=fe_htz)
 
-# TODO:  程序员大哥，给我个好字典，谢谢您了！
-watch_data_as_dict = custom.plot(machine_times, watch_data)
-custom.lissajou(watch_data_as_dict, d['CL_TS'], os.path.dirname(__file__) + '/user_yzz.txt')
+
+
+    # for ii in range(d['NUMBER_OF_SLICES']):
+    #     # perform animation step
+    #     machine_times, watch_data = ACMSimPyIncremental(t0=ii * d['TIME_SLICE'], TIME=d['TIME_SLICE'],
+    #                                                     ACM=ACM,
+    #                                                     CTRL=CTRL,
+    #                                                     reg_id=reg_id,
+    #                                                     reg_iq=reg_iq,
+    #                                                     reg_speed=reg_speed,
+    #                                                     fe_htz=fe_htz)
+
+    # # TODO:  程序员大哥，给我个好字典，谢谢您了！
+    # watch_data_as_dict = custom.plot(machine_times, watch_data)
+    # custom.lissajou(watch_data_as_dict, d['CL_TS'], os.path.dirname(__file__) + '/user_yzz.txt')
 # Lissajour plot
 # plt.plot(watch_data_as_dict['fe_htz.psi_2[0]'], watch_data_as_dict['fe_htz.psi_2[1]'])
 # plt.show()
 
-
-
+ACM_param = [1]
+FE_param = [0.5, 0.75, 1, 1.25, 1.5]
+P2PIndex = 0
+e_p2p = np.zeros(5, dtype=np.float64)
+for acm_param in ACM_param:
+    for fe_param in FE_param:
+      
+        print(f'generate {acm_param} - {fe_param}')
+        d['ACM_param'] = acm_param
+        d['FE_param'] = fe_param
+        # simulate to generate NUMBER_OF_SLICES*TIME_SLICE sec of data
+        for ii in range(d['NUMBER_OF_SLICES']):
+            # perform animation step
+            ACM = The_AC_Machine(CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=d['MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD'],
+                                ACM_param=d['ACM_param'])
+            machine_times, watch_data = ACMSimPyIncremental(t0=ii * d['TIME_SLICE'], TIME=d['TIME_SLICE'],
+                                                            ACM=ACM,
+                                                            CTRL=CTRL,
+                                                            reg_id=reg_id,
+                                                            reg_iq=reg_iq,
+                                                            reg_speed=reg_speed,
+                                                            fe_htz=fe_htz,
+                                                            FE_param=d['FE_param'])
+            watch_data_as_dict = custom.plot(machine_times, watch_data, ACM_param=acm_param, FE_param=fe_param)
+            custom.lissajou(watch_data_as_dict, d['CL_TS'], os.path.dirname(__file__) + '/user_yzz.txt', ACM_param=acm_param, FE_param=fe_param)
+    e_p2p[P2PIndex] = CTRL.psi_max_fin - CTRL.psi_min_fin
+    print(f'ACM: {e_p2p[P2PIndex]}')
+    CTRL.psi_min_fin = 0
+    CTRL.psi_max_fin = 0
+    P2PIndex += 1
+plt.plot(FE_param, e_p2p)
+plt.show()
+print("finish!")
 
 
 

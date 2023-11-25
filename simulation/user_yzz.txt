@@ -2,4 +2,5 @@
 
 fe_htz.psi_2[0], fe_htz.psi_2[1], $\psi_\alpha$ [Wb], $\psi_\beta$ [Wb], 4, 5
 
-CTRL.iab[0], CTRL.iab[1], $I_{\alpha}$ [A], $I_{\beta}$ [A], 4,5
+
+fe_htz.psi_2[0], fe_htz.psi_2[1], $\psi_\alpha$ [Wb], $\psi_\beta$ [Wb], 4, 5
