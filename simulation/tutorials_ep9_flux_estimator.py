@@ -32,6 +32,7 @@ class The_Motor_Controller:
         # feedback / input
         self.theta_d = 0.0
         self. thetaerror = 0.0
+        self. thetaerror = 0.0
         self.omega_r_elec = 0.0
         self.omega_syn = 0.0
         self.omega_slip = 0.0
@@ -56,7 +57,7 @@ class The_Motor_Controller:
             self.cmd_psi = 0.9 # [Wb]
         else:
             self.cmd_psi = init_KE # [Wb]
-        self.index_voltage_model_flux_estimation = 1
+        self.index_voltage_model_flux_estimation = 2
         self.index_separate_speed_estimation = 1
         self.use_disturbance_feedforward_rejection = 0
         self.bool_apply_decoupling_voltages_to_current_regulation = False
@@ -71,6 +72,7 @@ class The_Motor_Controller:
         self.psi_max_fin = 0
         self.psi_min_fin = 0
         # sweep frequency
+        self.bool_apply_sweeping_frequency_excitation = True
         self.bool_apply_sweeping_frequency_excitation = True
         self.bool_overwrite_speed_commands = True
         self.bool_yanzhengzhang = False
@@ -111,6 +113,15 @@ class The_Motor_Controller:
         self.iQ_avg_prev = 0.0
         self.iQ_sum_prev = 0.0
         self.theta_tilde = 0.0
+
+        self.rotor_flux_error = np.zeros(2, dtype=np.float64)
+        self.OFFSET_VOLTAGE_ALPHA = 0.0
+        self.OFFSET_VOLTAGE_BETA = 0.0
+        self.VM_PROPOSED_PI_CORRECTION_GAIN_P = 10.000
+        self.VM_PROPOSED_PI_CORRECTION_GAIN_I = 0.1
+        self.correction_integral_term = np.zeros(2, dtype=np.float64)
+        self.emf_stator = np.zeros(2, dtype=np.float64)
+        self.cmd_psi_mu = np.zeros(2, dtype=np.float64)
 
         self.rotor_flux_error = np.zeros(2, dtype=np.float64)
         self.OFFSET_VOLTAGE_ALPHA = 0.0
@@ -270,9 +281,11 @@ class Variables_FluxEstimator_Holtz03:
         self.xFlux = np.zeros(NS_GLOBAL, dtype=np.float64)
 
         
+        
 
         self.psi_1 = np.zeros(2, dtype=np.float64)
         self.psi_2= np.zeros(2, dtype=np.float64)
+        self.psi_A= np.zeros(2, dtype=np.float64)
         self.psi_A= np.zeros(2, dtype=np.float64)
         self.psi_2_prev= np.zeros(2, dtype=np.float64)
         self.psi_e = 0
@@ -342,6 +355,7 @@ def DYNAMICS_SpeedObserver(x, CTRL, SO_param=1.0):
 
     # 机械子系统 (omega_r_elec, theta_d, theta_r_mech)
     fx[0] = CTRL.ell1*output_error + x[1]
+    fx[1] = CTRL.ell2*output_error + (CTRL.Tem + x[2]) * CTRL.npp/CTRL.Js # elec. angular rotor speed
     fx[1] = CTRL.ell2*output_error + (CTRL.Tem + x[2]) * CTRL.npp/CTRL.Js # elec. angular rotor speed
     fx[2] = CTRL.ell3*output_error + x[3]
     fx[3] = CTRL.ell4*output_error + 0.0
@@ -940,7 +954,14 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0):
         if fe_htz.psi_A_ampl == 0:
             fe_htz.psi_A_ampl = 1.0
         amplitude_inverse = 1.0 / fe_htz.psi_A_ampl
+        fe_htz.psi_A_ampl = np.sqrt(fe_htz.psi_A[0] **2 + fe_htz.psi_A[1] **2)
+        if fe_htz.psi_A_ampl == 0:
+            fe_htz.psi_A_ampl = 1.0
+        amplitude_inverse = 1.0 / fe_htz.psi_A_ampl
 
+        CTRL.cosT = fe_htz.psi_A[0] * amplitude_inverse
+        CTRL.sinT = fe_htz.psi_A[1] * amplitude_inverse
+        CTRL.theta_d = np.arctan2(fe_htz.psi_A[1], fe_htz.psi_A[0]) # Costly operation, but it is needed only once per control interrupt
         CTRL.cosT = fe_htz.psi_A[0] * amplitude_inverse
         CTRL.sinT = fe_htz.psi_A[1] * amplitude_inverse
         CTRL.theta_d = np.arctan2(fe_htz.psi_A[1], fe_htz.psi_A[0]) # Costly operation, but it is needed only once per control interrupt

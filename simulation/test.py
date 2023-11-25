@@ -57,11 +57,15 @@ class CustomDataFrame:
         mpl.rc('font', family='Times New Roman', size=12.0)
         mpl.rc('legend', fontsize=12)
         mpl.rcParams['lines.linewidth'] = 1.5  # mpl.rc('lines', linewidth=4, linestyle='-.')
+        mpl.rc('font', family='Times New Roman', size=12.0)
+        mpl.rc('legend', fontsize=12)
+        mpl.rcParams['lines.linewidth'] = 1.5  # mpl.rc('lines', linewidth=4, linestyle='-.')
         mpl.rcParams['mathtext.fontset'] = 'stix'
 
         total = len(self.plot_details)
         index = 0
         figure_index = 0
+        result = {}
         result = {}
 
         if total < 6:
@@ -77,6 +81,7 @@ class CustomDataFrame:
             for i in range(len(plot_detail['data_signal'])):
                 ax.plot(machine_times, watch_data[index], label=plot_detail['data_signal_label'][i])
                 result[plot_detail['data_signal'][i]] = watch_data[index]
+                result[plot_detail['data_signal'][i]] = watch_data[index]
                 index += 1
             ax.set_ylabel(plot_detail['data_axis'], multialignment='center')
             ax.legend(loc=1, fontsize=12)
@@ -85,6 +90,7 @@ class CustomDataFrame:
         fig.savefig(f'images/saturation/TimeDomin_acmparam_{ACM_param}-peparam_{FE_param}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
         #plt.show()
         # return
+        return result
         return result
 
 
@@ -112,6 +118,7 @@ class CustomDataFrame:
         total = len(user_fig_config)
         figure_index = 0
         axes = None
+        axes = None
 
         if total < 6:
             fig, axes = plt.subplots(nrows=total, ncols=1, dpi=150, facecolor='w', figsize=(8, 12))
@@ -122,6 +129,8 @@ class CustomDataFrame:
         for i in range(len(user_fig_config)):
             ax = axes[figure_index]
             figure_index += 1
+            x_lim_low = min(watch_data_as_dict[user_fig_config[i][0]][int(float(user_fig_config[i][4])/period): int(float(user_fig_config[i][5])/period)])
+            x_lim_high = max(watch_data_as_dict[user_fig_config[i][0]][int(float(user_fig_config[i][4])/period): int(float(user_fig_config[i][5])/period)])
             x_lim_low = min(watch_data_as_dict[user_fig_config[i][0]][int(float(user_fig_config[i][4])/period): int(float(user_fig_config[i][5])/period)])
             x_lim_high = max(watch_data_as_dict[user_fig_config[i][0]][int(float(user_fig_config[i][4])/period): int(float(user_fig_config[i][5])/period)])
             x_lim_shift = (x_lim_high - x_lim_low) / 10
@@ -142,6 +151,7 @@ class CustomDataFrame:
 
 
 
+
 custom = CustomDataFrame()
 import os
 custom.load(os.path.dirname(__file__) + '/user_cjh.txt', 
@@ -151,13 +161,13 @@ custom.generate_function()
 d = d_user_input_motor_dict = {
     # Timing
     'CL_TS': 1e-4,
-    'TIME_SLICE': 10,
+    'TIME_SLICE': 5,
     'NUMBER_OF_SLICES': 1,
     'VL_EXE_PER_CL_EXE': 5,
     'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 1,
     'CTRL.bool_apply_speed_closed_loop_control': True,
     'CTRL.bool_apply_decoupling_voltages_to_current_regulation': False,
-    'CTRL.bool_apply_sweeping_frequency_excitation': False,
+    'CTRL.bool_apply_sweeping_frequency_excitation': True,
     'CTRL.bool_overwrite_speed_commands': True,
     'CTRL.bool_zero_id_control': True,
     'FOC_delta': 10,  # 25, # 6.5
