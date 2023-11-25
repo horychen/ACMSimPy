@@ -87,7 +87,7 @@ class CustomDataFrame:
             ax.legend(loc=1, fontsize=12)
             ax.grid(True)
         axes[-1].set_xlabel('Time [s]')
-        fig.savefig(f'images/saturation/TimeDomin_acmparam_{ACM_param}-peparam_{FE_param}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
+        #fig.savefig(f'images/saturation/TimeDomin_acmparam_{ACM_param}-peparam_{FE_param}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
         #plt.show()
         # return
         return result
@@ -161,13 +161,13 @@ custom.generate_function()
 d = d_user_input_motor_dict = {
     # Timing
     'CL_TS': 1e-4,
-    'TIME_SLICE': 5,
+    'TIME_SLICE': 10,
     'NUMBER_OF_SLICES': 1,
     'VL_EXE_PER_CL_EXE': 5,
     'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 1,
     'CTRL.bool_apply_speed_closed_loop_control': True,
     'CTRL.bool_apply_decoupling_voltages_to_current_regulation': False,
-    'CTRL.bool_apply_sweeping_frequency_excitation': True,
+    'CTRL.bool_apply_sweeping_frequency_excitation': False,
     'CTRL.bool_overwrite_speed_commands': True,
     'CTRL.bool_zero_id_control': True,
     'FOC_delta': 10,  # 25, # 6.5
@@ -299,7 +299,8 @@ CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY, fe_htz
 # plt.show()
 
 ACM_param = [1]
-FE_param = [0.5, 0.75, 1, 1.25, 1.5]
+FE_param = [1]
+#FE_param = [0.5, 0.75, 1, 1.25, 1.5]
 P2PIndex = 0
 e_p2p = np.zeros(5, dtype=np.float64)
 for acm_param in ACM_param:
@@ -322,14 +323,14 @@ for acm_param in ACM_param:
                                                             fe_htz=fe_htz,
                                                             FE_param=d['FE_param'])
             watch_data_as_dict = custom.plot(machine_times, watch_data, ACM_param=acm_param, FE_param=fe_param)
-            custom.lissajou(watch_data_as_dict, d['CL_TS'], os.path.dirname(__file__) + '/user_yzz.txt', ACM_param=acm_param, FE_param=fe_param)
-    e_p2p[P2PIndex] = CTRL.psi_max_fin - CTRL.psi_min_fin
-    print(f'ACM: {e_p2p[P2PIndex]}')
-    CTRL.psi_min_fin = 0
-    CTRL.psi_max_fin = 0
-    P2PIndex += 1
+            #custom.lissajou(watch_data_as_dict, d['CL_TS'], os.path.dirname(__file__) + '/user_yzz.txt', ACM_param=acm_param, FE_param=fe_param)
+        e_p2p[P2PIndex] = CTRL.psi_max_fin - CTRL.psi_min_fin
+        print(f'ACM: {e_p2p[P2PIndex]}')
+        CTRL.psi_min_fin = 0
+        CTRL.psi_max_fin = 0
+        P2PIndex += 1
 #likeshit 
-plt.plot(FE_param, e_p2p)
+#plt.plot(FE_param, e_p2p)
 plt.show()
 print("finish!")
 

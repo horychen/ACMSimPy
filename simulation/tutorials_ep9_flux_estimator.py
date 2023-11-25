@@ -57,12 +57,13 @@ class The_Motor_Controller:
             self.cmd_psi = 0.9 # [Wb]
         else:
             self.cmd_psi = init_KE # [Wb]
-        self.index_voltage_model_flux_estimation = 2
+        self.index_voltage_model_flux_estimation = 1
         self.index_separate_speed_estimation = 1
         self.use_disturbance_feedforward_rejection = 0
         self.bool_apply_decoupling_voltages_to_current_regulation = False
         self.bool_apply_speed_closed_loop_control = True
         self.bool_zero_id_control = False
+
         self.bool_counter = False
         self.counter_theta = 0 
         self.psi_max = 0
@@ -974,7 +975,6 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0):
             CTRL.thetaerror = np.sin(fe_htz.theta_d - CTRL.theta_d)
         elif CTRL.theta_d * fe_htz.theta_d < 0:
             CTRL.thetaerror = np.sin(CTRL.theta_d + fe_htz.theta_d)
-        
         
         fe_htz.psi_e = ACM.KA * np.cos(ACM.theta_d) - fe_htz.psi_2[0]
         if CTRL.bool_counter == True:

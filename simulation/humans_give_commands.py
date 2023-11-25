@@ -15,8 +15,8 @@ def humans_give_commands(CTRL, ACM, t):
     elif t < 4:
         CTRL.cmd_rpm = 300
     elif t < 5:
-        CTRL.apply_pulse_4_evaluating_position_estimator_accuracy = False
-    elif t < 6.4:
+        CTRL.cmd_rpm = 300
+    elif t < 6:
         CTRL.cmd_rpm = 300
     elif t < 7:
         CTRL.bool_counter = True
