@@ -2,22 +2,30 @@ import numpy as np
 def humans_give_commands(CTRL, ACM, t):
     """ Console @ CL_TS """
 
-    if t < 1:
+    if t < 0.1:
+        CTRL.cmd_rpm = 0
+    elif t < 0.8:
         CTRL.cmd_rpm = 100
-    elif t < 1.5:
+    elif t < 1.4:
         CTRL.cmd_rpm = 200
     elif t < 2:
-         ACM.TLoad = 2
+        CTRL.cmd_rpm = 300
+    elif t < 2.8:
+        CTRL.cmd_rpm = 400
     # elif t < 4:
     #     CTRL.cmd_rpm = 600
-    elif t < 3:
-        CTRL.cmd_rpm = 300
-    elif t < 4:
-        CTRL.cmd_rpm = 300
+    elif t < 3.5:
+        CTRL.cmd_rpm = 500
+    elif t < 4.3:
+        CTRL.cmd_rpm = 600
+    elif t < 5.1:
+        CTRL.cmd_rpm = 600
+    elif t < 6.9:
+        CTRL.cmd_rpm = 600
     elif t < 5:
-        CTRL.cmd_rpm = 300
+         ACM.TLoad = 1
     elif t < 6:
-        CTRL.cmd_rpm = 300
+         ACM.TLoad = 2
     elif t < 7:
         CTRL.bool_counter = True
     # elif t < 2.40:

@@ -211,71 +211,84 @@ if d['CL_SERIES_KP'] is None:
 else:
     print('\tSkip tuning.')
 
-CTRL = The_Motor_Controller(CL_TS=d['CL_TS'],
-                            VL_TS=d['VL_EXE_PER_CL_EXE'] * d['CL_TS'],
-                            init_npp=d['init_npp'],
-                            init_IN=d['init_IN'],
-                            init_R=d['init_R'],
-                            init_Ld=d['init_Ld'],
-                            init_Lq=d['init_Lq'],
-                            init_KE=d['init_KE'],
-                            init_Rreq=d['init_Rreq'],
-                            init_Js=d['init_Js'],
-                            DC_BUS_VOLTAGE=d['DC_BUS_VOLTAGE'])
-CTRL.bool_apply_decoupling_voltages_to_current_regulation = d[
-    'CTRL.bool_apply_decoupling_voltages_to_current_regulation']
-CTRL.bool_apply_sweeping_frequency_excitation = d['CTRL.bool_apply_sweeping_frequency_excitation']
-CTRL.bool_yanzhengzhang = False  ####
-# CTRL.bool_overwrite_speed_commands = d['CTRL.bool_overwrite_speed_commands']
-CTRL.bool_zero_id_control = d['CTRL.bool_zero_id_control']
-ACM = The_AC_Machine(CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=d['MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD'])
-
-fe_htz = Variables_FluxEstimator_Holtz03(CTRL.R)
-
-reg_dispX = The_PID_Regulator(d['disp.Kp'], d['disp.Ki'], d['disp.Kd'], d['disp.tau'], d['disp.OutLimit'],
-                              d['disp.IntLimit'], d['CL_TS'])
-reg_dispY = The_PID_Regulator(d['disp.Kp'], d['disp.Ki'], d['disp.Kd'], d['disp.tau'], d['disp.OutLimit'],
-                              d['disp.IntLimit'], d['CL_TS'])
-
-if False:
-    # Use incremental_pi codes
-    reg_id = The_PI_Regulator(d['CL_SERIES_KP'], d['CL_SERIES_KP'] * d['CL_SERIES_KI'] * CTRL.CL_TS,
-                              d['DC_BUS_VOLTAGE'] / 1.732)  # 我们假设调制方式是SVPWM，所以母线电压就是输出电压的线电压最大值，而我们用的是恒相幅值变换，所以限幅是相电压。
-    reg_iq = The_PI_Regulator(d['CL_SERIES_KP'], d['CL_SERIES_KP'] * d['CL_SERIES_KI'] * CTRL.CL_TS,
-                              d['DC_BUS_VOLTAGE'] / 1.732)  # 我们假设调制方式是SVPWM，所以母线电压就是输出电压的线电压最大值，而我们用的是恒相幅值变换，所以限幅是相电压。
-    reg_speed = The_PI_Regulator(d['VL_SERIES_KP'], d['VL_SERIES_KP'] * d['VL_SERIES_KI'] * CTRL.VL_TS,
-                                 d['VL_LIMIT_OVERLOAD_FACTOR'] * 1.414 * d['init_IN'])  # IN 是线电流有效值，我们这边限幅是用的电流幅值。
-else:
-    # Use tustin_pi codes
-    local_Kp = d['CL_SERIES_KP']
-    if d['CTRL.bool_apply_decoupling_voltages_to_current_regulation'] == False:
-        local_Ki = d['CL_SERIES_KP'] * d['CL_SERIES_KI'] * d[
-            'FOC_CL_KI_factor_when__bool_apply_decoupling_voltages_to_current_regulation__is_False']
-        print(
-            '\tNote bool_apply_decoupling_voltages_to_current_regulation is False, to improve the current regulator performance a factor of %g has been multiplied to CL KI.' % (
-                d['FOC_CL_KI_factor_when__bool_apply_decoupling_voltages_to_current_regulation__is_False']))
-    else:
-        local_Ki = d['CL_SERIES_KP'] * d['CL_SERIES_KI']
-    local_Kd = 0.0
+def InitialAllGlobalClass():
     
-    local_tau = 0.0
-    local_OutLimit = d['DC_BUS_VOLTAGE'] / 1.732
-    local_IntLimit = 1.0 * d[
-        'DC_BUS_VOLTAGE'] / 1.732  # Integrator having a lower output limit makes no sense. For example, the q-axis current regulator needs to cancel back emf using the integrator output for almost full dc bus voltage at maximum speed.
-    reg_id = The_PID_Regulator(local_Kp, local_Ki, local_Kd, local_tau, local_OutLimit, local_IntLimit, d['CL_TS'])
-    reg_iq = The_PID_Regulator(local_Kp, local_Ki, local_Kd, local_tau, local_OutLimit, local_IntLimit, d['CL_TS'])
-    print(f'\t{reg_id.OutLimit=} V')
 
-    local_Kp = d['VL_SERIES_KP']
-    local_Ki = d['VL_SERIES_KP'] * d['VL_SERIES_KI']
-    local_Kd = 0.0
-    local_tau = 0.0
-    local_OutLimit = d['VL_LIMIT_OVERLOAD_FACTOR'] * 1.414 * d['init_IN']
-    local_IntLimit = 1.0 * d['VL_LIMIT_OVERLOAD_FACTOR'] * 1.414 * d['init_IN']
-    reg_speed = The_PID_Regulator(local_Kp, local_Ki, local_Kd, local_tau, local_OutLimit, local_IntLimit, CTRL.VL_TS)
-    print(f'\t{reg_speed.OutLimit=} A')
+    CTRL = The_Motor_Controller(CL_TS=d['CL_TS'],
+                                VL_TS=d['VL_EXE_PER_CL_EXE'] * d['CL_TS'],
+                                init_npp=d['init_npp'],
+                                init_IN=d['init_IN'],
+                                init_R=d['init_R'],
+                                init_Ld=d['init_Ld'],
+                                init_Lq=d['init_Lq'],
+                                init_KE=d['init_KE'],
+                                init_Rreq=d['init_Rreq'],
+                                init_Js=d['init_Js'],
+                                DC_BUS_VOLTAGE=d['DC_BUS_VOLTAGE'])
+    CTRL.bool_apply_decoupling_voltages_to_current_regulation = d[
+        'CTRL.bool_apply_decoupling_voltages_to_current_regulation']
+    CTRL.bool_apply_sweeping_frequency_excitation = d['CTRL.bool_apply_sweeping_frequency_excitation']
+    CTRL.bool_yanzhengzhang = False  ####
+    # CTRL.bool_overwrite_speed_commands = d['CTRL.bool_overwrite_speed_commands']
+    CTRL.bool_zero_id_control = d['CTRL.bool_zero_id_control']
+    ACM = The_AC_Machine(CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=d['MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD'])
 
-CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY, fe_htz
+
+
+    fe_htz = Variables_FluxEstimator_Holtz03(CTRL.R)
+
+    reg_dispX = The_PID_Regulator(d['disp.Kp'], d['disp.Ki'], d['disp.Kd'], d['disp.tau'], d['disp.OutLimit'],
+                                d['disp.IntLimit'], d['CL_TS'])
+    reg_dispY = The_PID_Regulator(d['disp.Kp'], d['disp.Ki'], d['disp.Kd'], d['disp.tau'], d['disp.OutLimit'],
+                                d['disp.IntLimit'], d['CL_TS'])
+
+    if False:
+        # Use incremental_pi codes
+        reg_id = The_PI_Regulator(d['CL_SERIES_KP'], d['CL_SERIES_KP'] * d['CL_SERIES_KI'] * CTRL.CL_TS,
+                                d['DC_BUS_VOLTAGE'] / 1.732)  # 我们假设调制方式是SVPWM，所以母线电压就是输出电压的线电压最大值，而我们用的是恒相幅值变换，所以限幅是相电压。
+        reg_iq = The_PI_Regulator(d['CL_SERIES_KP'], d['CL_SERIES_KP'] * d['CL_SERIES_KI'] * CTRL.CL_TS,
+                                d['DC_BUS_VOLTAGE'] / 1.732)  # 我们假设调制方式是SVPWM，所以母线电压就是输出电压的线电压最大值，而我们用的是恒相幅值变换，所以限幅是相电压。
+        reg_speed = The_PI_Regulator(d['VL_SERIES_KP'], d['VL_SERIES_KP'] * d['VL_SERIES_KI'] * CTRL.VL_TS,
+                                    d['VL_LIMIT_OVERLOAD_FACTOR'] * 1.414 * d['init_IN'])  # IN 是线电流有效值，我们这边限幅是用的电流幅值。
+    else:
+        # Use tustin_pi codes
+        local_Kp = d['CL_SERIES_KP']
+        if d['CTRL.bool_apply_decoupling_voltages_to_current_regulation'] == False:
+            local_Ki = d['CL_SERIES_KP'] * d['CL_SERIES_KI'] * d[
+                'FOC_CL_KI_factor_when__bool_apply_decoupling_voltages_to_current_regulation__is_False']
+            print(
+                '\tNote bool_apply_decoupling_voltages_to_current_regulation is False, to improve the current regulator performance a factor of %g has been multiplied to CL KI.' % (
+                    d['FOC_CL_KI_factor_when__bool_apply_decoupling_voltages_to_current_regulation__is_False']))
+        else:
+            local_Ki = d['CL_SERIES_KP'] * d['CL_SERIES_KI']
+        local_Kd = 0.0
+        
+        local_tau = 0.0
+        local_OutLimit = d['DC_BUS_VOLTAGE'] / 1.732
+        local_IntLimit = 1.0 * d[
+            'DC_BUS_VOLTAGE'] / 1.732  # Integrator having a lower output limit makes no sense. For example, the q-axis current regulator needs to cancel back emf using the integrator output for almost full dc bus voltage at maximum speed.
+        reg_id = The_PID_Regulator(local_Kp, local_Ki, local_Kd, local_tau, local_OutLimit, local_IntLimit, d['CL_TS'])
+        reg_iq = The_PID_Regulator(local_Kp, local_Ki, local_Kd, local_tau, local_OutLimit, local_IntLimit, d['CL_TS'])
+        print(f'\t{reg_id.OutLimit=} V')
+
+        local_Kp = d['VL_SERIES_KP']
+        local_Ki = d['VL_SERIES_KP'] * d['VL_SERIES_KI']
+        local_Kd = 0.0
+        local_tau = 0.0
+        local_OutLimit = d['VL_LIMIT_OVERLOAD_FACTOR'] * 1.414 * d['init_IN']
+        local_IntLimit = 1.0 * d['VL_LIMIT_OVERLOAD_FACTOR'] * 1.414 * d['init_IN']
+        reg_speed = The_PID_Regulator(local_Kp, local_Ki, local_Kd, local_tau, local_OutLimit, local_IntLimit, CTRL.VL_TS)
+        print(f'\t{reg_speed.OutLimit=} A')
+    AllClass = (CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY, fe_htz)
+    return  AllClass
+# CTRL  = InitialAllGlobalClass()
+# ACM = InitialAllGlobalClass()
+# reg_id = InitialAllGlobalClass()
+# reg_iq = InitialAllGlobalClass()
+# reg_speed = InitialAllGlobalClass()
+# reg_dispX = InitialAllGlobalClass()
+# reg_dispY = InitialAllGlobalClass()
+# fe_htz = InitialAllGlobalClass()
 
 # simulate to generate NUMBER_OF_SLICES*TIME_SLICE sec of data
 
@@ -297,15 +310,19 @@ CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY, fe_htz
 # Lissajour plot
 # plt.plot(watch_data_as_dict['fe_htz.psi_2[0]'], watch_data_as_dict['fe_htz.psi_2[1]'])
 # plt.show()
-
 ACM_param = [1]
-FE_param = [1]
-#FE_param = [0.5, 0.75, 1, 1.25, 1.5]
+#FE_param = [1.5, 1.25, 1, 0.75 ,0.5]
+FE_param = [0.5, 0.75, 1, 1.25, 1.5]
 P2PIndex = 0
 e_p2p = np.zeros(5, dtype=np.float64)
+e_p2p_boldea = np.zeros(5, dtype=np.float64)
+e_p2p_saturation = np.zeros(5, dtype=np.float64)
+e_avg = np.zeros(5, dtype=np.float64)
+e_avg_boldea = np.zeros(5, dtype=np.float64)
+e_avg_saturation = np.zeros(5, dtype=np.float64)
 for acm_param in ACM_param:
     for fe_param in FE_param:
-      
+        CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY, fe_htz  = InitialAllGlobalClass()
         print(f'generate {acm_param} - {fe_param}')
         d['ACM_param'] = acm_param
         d['FE_param'] = fe_param
@@ -323,14 +340,67 @@ for acm_param in ACM_param:
                                                             fe_htz=fe_htz,
                                                             FE_param=d['FE_param'])
             watch_data_as_dict = custom.plot(machine_times, watch_data, ACM_param=acm_param, FE_param=fe_param)
+
             #custom.lissajou(watch_data_as_dict, d['CL_TS'], os.path.dirname(__file__) + '/user_yzz.txt', ACM_param=acm_param, FE_param=fe_param)
         e_p2p[P2PIndex] = CTRL.psi_max_fin - CTRL.psi_min_fin
-        print(f'ACM: {e_p2p[P2PIndex]}')
+        e_avg[P2PIndex] = CTRL.psi_avg
+        print(f'e_p2p_{P2PIndex}: {e_p2p[P2PIndex]}')
+        print(f'e_avg_{P2PIndex}: {e_avg[P2PIndex]}')
         CTRL.psi_min_fin = 0
         CTRL.psi_max_fin = 0
         P2PIndex += 1
-#likeshit 
-#plt.plot(FE_param, e_p2p)
+    e_p2p_boldea = e_p2p.copy()
+    e_avg_boldea = e_avg.copy()
+    print(f'e_p2p: {e_p2p_boldea}')
+    print(f'e_avg: {e_avg_boldea}')
+    P2PIndex = 0
+    for fe_param in FE_param:
+        CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY, fe_htz  = InitialAllGlobalClass()
+        CTRL.index_voltage_model_flux_estimation = 1
+        print(f'generate {acm_param} - {fe_param}')
+        d['ACM_param'] = acm_param
+        d['FE_param'] = fe_param
+        # simulate to generate NUMBER_OF_SLICES*TIME_SLICE sec of data
+        for ii in range(d['NUMBER_OF_SLICES']):
+            # perform animation step
+            ACM = The_AC_Machine(CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=d['MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD'],
+                                ACM_param=d['ACM_param'])
+            machine_times, watch_data = ACMSimPyIncremental(t0=ii * d['TIME_SLICE'], TIME=d['TIME_SLICE'],
+                                                            ACM=ACM,
+                                                            CTRL=CTRL,
+                                                            reg_id=reg_id,
+                                                            reg_iq=reg_iq,
+                                                            reg_speed=reg_speed,
+                                                            fe_htz=fe_htz,
+                                                            FE_param=d['FE_param'])
+            watch_data_as_dict = custom.plot(machine_times, watch_data, ACM_param=acm_param, FE_param=fe_param)
+
+            #custom.lissajou(watch_data_as_dict, d['CL_TS'], os.path.dirname(__file__) + '/user_yzz.txt', ACM_param=acm_param, FE_param=fe_param)
+        e_p2p[P2PIndex] = CTRL.psi_max_fin - CTRL.psi_min_fin
+        e_avg[P2PIndex] = CTRL.psi_avg
+        print(f'e_p2p_{P2PIndex}: {e_p2p[P2PIndex]}')
+        print(f'e_avg_{P2PIndex}: {e_avg[P2PIndex]}')
+        CTRL.psi_min_fin = 0
+        CTRL.psi_max_fin = 0
+        P2PIndex += 1
+    e_p2p_saturation = e_p2p.copy()
+    e_avg_saturation = e_avg.copy()
+    print(f'e_p2p: {e_p2p_saturation}')
+    print(f'e_avg: {e_avg_saturation}')
+print(f'e_p2p: {e_p2p_boldea}')
+print(f'e_avg: {e_avg_boldea}')
+plt.figure()
+plt.plot(FE_param, e_p2p_saturation)
+plt.plot(FE_param, e_p2p_boldea)
+plt.xlabel('Resistance Dismatch (%)')#x轴标签
+plt.ylabel('$\psi_{e,p2p}$ [Wb]')#y轴标签
+
+plt.figure()
+plt.plot(FE_param, e_avg_saturation)
+plt.plot(FE_param, e_avg_boldea)
+plt.xlabel('Resistance Dismatch (%)')#x轴标签
+plt.ylabel('$\psi_{avg}$ [Wb]')#y轴标签
+
 plt.show()
 print("finish!")
 

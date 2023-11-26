@@ -57,7 +57,7 @@ class The_Motor_Controller:
             self.cmd_psi = 0.9 # [Wb]
         else:
             self.cmd_psi = init_KE # [Wb]
-        self.index_voltage_model_flux_estimation = 1
+        self.index_voltage_model_flux_estimation = 2
         self.index_separate_speed_estimation = 1
         self.use_disturbance_feedforward_rejection = 0
         self.bool_apply_decoupling_voltages_to_current_regulation = False
@@ -72,6 +72,7 @@ class The_Motor_Controller:
         self.psi_avg = 0
         self.psi_max_fin = 0
         self.psi_min_fin = 0
+        self.psi_avg_fin = 0
         # sweep frequency
         self.bool_apply_sweeping_frequency_excitation = True
         self.bool_apply_sweeping_frequency_excitation = True
@@ -1025,6 +1026,24 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0):
         while ACM.theta_d> np.pi: ACM.theta_d -= 2*np.pi
         while ACM.theta_d<-np.pi: ACM.theta_d += 2*np.pi
         fe_htz.theta_d = ACM.theta_d
+        fe_htz.psi_e = ACM.KA * np.cos(ACM.theta_d) - fe_htz.psi_2[0]
+        if CTRL.bool_counter == True:
+            if CTRL.counter_theta < 3000: 
+                if CTRL.psi_max  < fe_htz.psi_e:
+                    CTRL.psi_max =  fe_htz.psi_e    
+                    CTRL.psi_max_fin = CTRL.psi_max 
+                if CTRL.psi_min > fe_htz.psi_e:
+                    CTRL.psi_min = fe_htz.psi_e
+                    CTRL.psi_min_fin = CTRL.psi_min
+                CTRL.psi_sum += fe_htz.psi_e
+                CTRL.counter_theta += 1
+            if CTRL.counter_theta == 3000:
+                CTRL.psi_avg = CTRL.psi_sum / 3000
+                CTRL.counter_theta = 0
+                CTRL.psi_sum = 0
+                CTRL.psi_min = 0
+                CTRL.psi_max = 0
+                CTRL.bool_counter = False
 
         if CTRL.theta_d * fe_htz.theta_d > 0:
             CTRL.thetaerror = np.sin(CTRL.theta_d - fe_htz.theta_d)
