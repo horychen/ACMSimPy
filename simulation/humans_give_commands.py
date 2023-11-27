@@ -5,29 +5,33 @@ def humans_give_commands(CTRL, ACM, t):
     if t < 0.1:
         CTRL.cmd_rpm = 0
     elif t < 0.8:
-        CTRL.cmd_rpm = 100
+        CTRL.cmd_rpm = 5
     elif t < 1.4:
-        CTRL.cmd_rpm = 200
+        CTRL.cmd_rpm = 15
     elif t < 2:
-        CTRL.cmd_rpm = 300
+        CTRL.cmd_rpm = 15
     elif t < 2.8:
-        CTRL.cmd_rpm = 400
+        CTRL.cmd_rpm = 15
     # elif t < 4:
     #     CTRL.cmd_rpm = 600
     elif t < 3.5:
-        CTRL.cmd_rpm = 500
+        CTRL.cmd_rpm = 15
     elif t < 4.3:
-        CTRL.cmd_rpm = 600
-    elif t < 5.1:
-        CTRL.cmd_rpm = 600
-    elif t < 6.9:
-        CTRL.cmd_rpm = 600
+        CTRL.cmd_rpm = 15
     elif t < 5:
-         ACM.TLoad = 1
+        ACM.TLoad = 0.5
+    elif t < 5.1:
+        CTRL.cmd_rpm = 15
     elif t < 6:
-         ACM.TLoad = 2
+        ACM.TLoad = 0.5
+    elif t < 6.9:
+        CTRL.cmd_rpm = 15
     elif t < 7:
         CTRL.bool_counter = True
+        CTRL.bool_counter_theta_error = True
+    elif t < 8:
+        CTRL.bool_counter = True
+        CTRL.bool_counter_theta_error = True
     # elif t < 2.40:
     #     CTRL.apply_pulse_4_evaluating_position_estimator_accuracy = False
     # elif t < 4:

@@ -32,7 +32,6 @@ class The_Motor_Controller:
         # feedback / input
         self.theta_d = 0.0
         self. thetaerror = 0.0
-        self. thetaerror = 0.0
         self.omega_r_elec = 0.0
         self.omega_syn = 0.0
         self.omega_slip = 0.0
@@ -63,9 +62,9 @@ class The_Motor_Controller:
         self.bool_apply_decoupling_voltages_to_current_regulation = False
         self.bool_apply_speed_closed_loop_control = True
         self.bool_zero_id_control = False
-
+        #psi error calculate
         self.bool_counter = False
-        self.counter_theta = 0 
+        self.counter_psi = 0 
         self.psi_max = 0
         self.psi_min = 0
         self.psi_sum = 0
@@ -73,6 +72,17 @@ class The_Motor_Controller:
         self.psi_max_fin = 0
         self.psi_min_fin = 0
         self.psi_avg_fin = 0
+        #theta error calculate
+        self.bool_counter_theta_error = False
+        self.counter_theta_error = 0 
+        self.thetaerror_max = 0
+        self.thetaerror_min = 0
+        self.thetaerror_sum = 0
+        self.thetaerror_avg = 0
+        self.thetaerror_max_fin = 0
+        self.thetaerror_min_fin = 0
+        self.thetaerror_avg_fin = 0
+        self.bool_theta_overwrite = 1
         # sweep frequency
         self.bool_apply_sweeping_frequency_excitation = True
         self.bool_apply_sweeping_frequency_excitation = True
@@ -971,15 +981,32 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0):
         while ACM.theta_d> np.pi: ACM.theta_d -= 2*np.pi
         while ACM.theta_d<-np.pi: ACM.theta_d += 2*np.pi
         fe_htz.theta_d = ACM.theta_d
-
         if CTRL.theta_d * fe_htz.theta_d > 0:
             CTRL.thetaerror = np.sin(fe_htz.theta_d - CTRL.theta_d)
         elif CTRL.theta_d * fe_htz.theta_d < 0:
             CTRL.thetaerror = np.sin(CTRL.theta_d + fe_htz.theta_d)
         
+        if CTRL.bool_counter_theta_error == True:
+            if CTRL.counter_theta_error < 3000: 
+                if CTRL.thetaerror_max  < CTRL.thetaerror:
+                    CTRL.thetaerror_max =  CTRL.thetaerror   
+                    CTRL.thetaerror_max_fin = CTRL.thetaerror_max 
+                if CTRL.thetaerror_min > CTRL.thetaerror:
+                    CTRL.thetaerror_min = CTRL.thetaerror
+                    CTRL.thetaerror_min_fin = CTRL.thetaerror_min
+                CTRL.thetaerror_sum += CTRL.thetaerror
+                CTRL.counter_theta_error += 1
+            if CTRL.counter_theta_error == 3000:
+                CTRL.thetaerror_avg = CTRL.thetaerror_sum / 3000
+                CTRL.counter_theta_error = 0
+                CTRL.thetaerror_sum = 0
+                CTRL.thetaerror_min = 0
+                CTRL.thetaerror_max = 0
+                CTRL.bool_counter_theta_error = False
+
         fe_htz.psi_e = ACM.KA * np.cos(ACM.theta_d) - fe_htz.psi_2[0]
         if CTRL.bool_counter == True:
-            if CTRL.counter_theta < 3000: 
+            if CTRL.counter_psi < 3000: 
                 if CTRL.psi_max  < fe_htz.psi_e:
                     CTRL.psi_max =  fe_htz.psi_e    
                     CTRL.psi_max_fin = CTRL.psi_max 
@@ -987,14 +1014,17 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0):
                     CTRL.psi_min = fe_htz.psi_e
                     CTRL.psi_min_fin = CTRL.psi_min
                 CTRL.psi_sum += fe_htz.psi_e
-                CTRL.counter_theta += 1
-            if CTRL.counter_theta == 3000:
+                CTRL.counter_psi += 1
+            if CTRL.counter_psi == 3000:
                 CTRL.psi_avg = CTRL.psi_sum / 3000
-                CTRL.counter_theta = 0
+                CTRL.counter_psi = 0
                 CTRL.psi_sum = 0
                 CTRL.psi_min = 0
                 CTRL.psi_max = 0
                 CTRL.bool_counter = False
+        if CTRL.bool_theta_overwrite == 1:
+            CTRL.theta_d = ACM.theta_d
+        # do this once per control interrupt
 
         CTRL.cosT = np.cos(CTRL.theta_d)
         CTRL.sinT = np.sin(CTRL.theta_d)
@@ -1020,15 +1050,36 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0):
         fe_htz.psi_2[1] = fe_htz.psi_1[1] - CTRL.Lq * CTRL.iab_curr[1]
 
         CTRL.theta_d = np.arctan2(fe_htz.psi_2[1], fe_htz.psi_2[0]) 
-        CTRL.cosT = np.cos(CTRL.theta_d)
-        CTRL.sinT = np.sin(CTRL.theta_d)
-         
+
         while ACM.theta_d> np.pi: ACM.theta_d -= 2*np.pi
         while ACM.theta_d<-np.pi: ACM.theta_d += 2*np.pi
         fe_htz.theta_d = ACM.theta_d
+        if CTRL.theta_d * fe_htz.theta_d > 0:
+            CTRL.thetaerror = np.sin(CTRL.theta_d - fe_htz.theta_d)
+        elif CTRL.theta_d * fe_htz.theta_d < 0:
+            CTRL.thetaerror = np.sin(CTRL.theta_d + fe_htz.theta_d)
+        
+        if CTRL.bool_counter_theta_error == True:
+            if CTRL.counter_theta_error < 3000: 
+                if CTRL.thetaerror_max  < CTRL.thetaerror:
+                    CTRL.thetaerror_max =  CTRL.thetaerror   
+                    CTRL.thetaerror_max_fin = CTRL.thetaerror_max 
+                if CTRL.thetaerror_min > CTRL.thetaerror:
+                    CTRL.thetaerror_min = CTRL.thetaerror
+                    CTRL.thetaerror_min_fin = CTRL.thetaerror_min
+                CTRL.thetaerror_sum += CTRL.thetaerror
+                CTRL.counter_theta_error += 1
+            if CTRL.counter_theta_error == 3000:
+                CTRL.thetaerror_avg = CTRL.thetaerror_sum / 3000
+                CTRL.counter_theta_error = 0
+                CTRL.thetaerror_sum = 0
+                CTRL.thetaerror_min = 0
+                CTRL.thetaerror_max = 0
+                CTRL.bool_counter_theta_error = False
+         
         fe_htz.psi_e = ACM.KA * np.cos(ACM.theta_d) - fe_htz.psi_2[0]
         if CTRL.bool_counter == True:
-            if CTRL.counter_theta < 3000: 
+            if CTRL.counter_psi < 3000: 
                 if CTRL.psi_max  < fe_htz.psi_e:
                     CTRL.psi_max =  fe_htz.psi_e    
                     CTRL.psi_max_fin = CTRL.psi_max 
@@ -1036,22 +1087,19 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0):
                     CTRL.psi_min = fe_htz.psi_e
                     CTRL.psi_min_fin = CTRL.psi_min
                 CTRL.psi_sum += fe_htz.psi_e
-                CTRL.counter_theta += 1
-            if CTRL.counter_theta == 3000:
+                CTRL.counter_psi += 1
+            if CTRL.counter_psi == 3000:
                 CTRL.psi_avg = CTRL.psi_sum / 3000
-                CTRL.counter_theta = 0
+                CTRL.counter_psi = 0
                 CTRL.psi_sum = 0
                 CTRL.psi_min = 0
                 CTRL.psi_max = 0
                 CTRL.bool_counter = False
+        if CTRL.bool_theta_overwrite == 1:
+            CTRL.theta_d = ACM.theta_d
 
-        if CTRL.theta_d * fe_htz.theta_d > 0:
-            CTRL.thetaerror = np.sin(CTRL.theta_d - fe_htz.theta_d)
-        elif CTRL.theta_d * fe_htz.theta_d < 0:
-            CTRL.thetaerror = np.sin(CTRL.theta_d + fe_htz.theta_d)
-        
-
-    
+        CTRL.cosT = np.cos(CTRL.theta_d)
+        CTRL.sinT = np.sin(CTRL.theta_d)
     """ Park Transformation Essentials """
     # Park transformation
     CTRL.idq[0] = CTRL.iab[0] * CTRL.cosT + CTRL.iab[1] * CTRL.sinT

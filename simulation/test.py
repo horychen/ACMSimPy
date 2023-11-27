@@ -87,7 +87,12 @@ class CustomDataFrame:
             ax.legend(loc=1, fontsize=12)
             ax.grid(True)
         axes[-1].set_xlabel('Time [s]')
-        #fig.savefig(f'images/saturation/TimeDomin_acmparam_{ACM_param}-peparam_{FE_param}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
+        if CTRL.index_voltage_model_flux_estimation == 1:
+            plt.title('Saturation_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+            fig.savefig(f'images/saturation/TimeDomain_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
+        elif CTRL.index_voltage_model_flux_estimation == 2:
+            plt.title('Boldea_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+            fig.savefig(f'images/boldea/TimeDomain_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
         #plt.show()
         # return
         return result
@@ -310,18 +315,27 @@ def InitialAllGlobalClass():
 # Lissajour plot
 # plt.plot(watch_data_as_dict['fe_htz.psi_2[0]'], watch_data_as_dict['fe_htz.psi_2[1]'])
 # plt.show()
-ACM_param = [1]
-#FE_param = [1.5, 1.25, 1, 0.75 ,0.5]
-FE_param = [0.5, 0.75, 1, 1.25, 1.5]
-P2PIndex = 0
+
+
 e_p2p = np.zeros(5, dtype=np.float64)
 e_p2p_boldea = np.zeros(5, dtype=np.float64)
 e_p2p_saturation = np.zeros(5, dtype=np.float64)
 e_avg = np.zeros(5, dtype=np.float64)
 e_avg_boldea = np.zeros(5, dtype=np.float64)
 e_avg_saturation = np.zeros(5, dtype=np.float64)
-for acm_param in ACM_param:
-    for fe_param in FE_param:
+thetaerror_p2p = np.zeros(5, dtype=np.float64)
+thetaerror_p2p_boldea = np.zeros(5, dtype=np.float64)
+thetaerror_p2p_saturation = np.zeros(5, dtype=np.float64)
+thetaerror_avg = np.zeros(5, dtype=np.float64)
+thetaerror_avg_boldea = np.zeros(5, dtype=np.float64)
+thetaerror_avg_saturation = np.zeros(5, dtype=np.float64)
+
+ACM_param = [0.5, 0.75, 1, 1.25, 1.5]
+#FE_param = [1.5, 1.25, 1, 0.75 ,0.5]
+FE_param = [1]
+P2PIndex = 0
+for fe_param in FE_param:
+    for acm_param in ACM_param:
         CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY, fe_htz  = InitialAllGlobalClass()
         print(f'generate {acm_param} - {fe_param}')
         d['ACM_param'] = acm_param
@@ -344,15 +358,147 @@ for acm_param in ACM_param:
             #custom.lissajou(watch_data_as_dict, d['CL_TS'], os.path.dirname(__file__) + '/user_yzz.txt', ACM_param=acm_param, FE_param=fe_param)
         e_p2p[P2PIndex] = CTRL.psi_max_fin - CTRL.psi_min_fin
         e_avg[P2PIndex] = CTRL.psi_avg
+        thetaerror_p2p [P2PIndex] = CTRL.thetaerror_max_fin - CTRL.thetaerror_min_fin
+        thetaerror_avg [P2PIndex] = CTRL.thetaerror_avg
         print(f'e_p2p_{P2PIndex}: {e_p2p[P2PIndex]}')
         print(f'e_avg_{P2PIndex}: {e_avg[P2PIndex]}')
+        print(f'thetaerror_p2p_{P2PIndex}: {thetaerror_p2p[P2PIndex]}')
+        print(f'thetaerror_avg_{P2PIndex}: {thetaerror_avg[P2PIndex]}')
         CTRL.psi_min_fin = 0
         CTRL.psi_max_fin = 0
+        CTRL.thetaerror_max_fin = 0
+        CTRL.thetaerror_min_fin = 0
         P2PIndex += 1
     e_p2p_boldea = e_p2p.copy()
     e_avg_boldea = e_avg.copy()
+    thetaerror_p2p_boldea = thetaerror_p2p.copy()
+    thetaerror_avg_boldea = thetaerror_avg.copy()
     print(f'e_p2p: {e_p2p_boldea}')
     print(f'e_avg: {e_avg_boldea}')
+    print(f'thetaeror_p2p: {thetaerror_p2p_boldea}')
+    print(f'thetaeror_avg: {thetaerror_avg_boldea}')
+    P2PIndex = 0
+    for acm_param in ACM_param:
+        CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY, fe_htz  = InitialAllGlobalClass()
+        CTRL.index_voltage_model_flux_estimation = 1
+        print(f'generate {acm_param} - {fe_param}')
+        d['ACM_param'] = acm_param
+        d['FE_param'] = fe_param
+        # simulate to generate NUMBER_OF_SLICES*TIME_SLICE sec of data
+        for ii in range(d['NUMBER_OF_SLICES']):
+            # perform animation step
+            ACM = The_AC_Machine(CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=d['MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD'],
+                                ACM_param=d['ACM_param'])
+            machine_times, watch_data = ACMSimPyIncremental(t0=ii * d['TIME_SLICE'], TIME=d['TIME_SLICE'],
+                                                            ACM=ACM,
+                                                            CTRL=CTRL,
+                                                            reg_id=reg_id,
+                                                            reg_iq=reg_iq,
+                                                            reg_speed=reg_speed,
+                                                            fe_htz=fe_htz,
+                                                            FE_param=d['FE_param'])
+            watch_data_as_dict = custom.plot(machine_times, watch_data, ACM_param=acm_param, FE_param=fe_param)
+
+            #custom.lissajou(watch_data_as_dict, d['CL_TS'], os.path.dirname(__file__) + '/user_yzz.txt', ACM_param=acm_param, FE_param=fe_param)
+        e_p2p[P2PIndex] = CTRL.psi_max_fin - CTRL.psi_min_fin
+        e_avg[P2PIndex] = CTRL.psi_avg
+        thetaerror_p2p [P2PIndex] = CTRL.thetaerror_max_fin - CTRL.thetaerror_min_fin
+        thetaerror_avg [P2PIndex] = CTRL.thetaerror_avg
+        print(f'e_p2p_{P2PIndex}: {e_p2p[P2PIndex]}')
+        print(f'e_avg_{P2PIndex}: {e_avg[P2PIndex]}')
+        print(f'thetaerror_p2p_{P2PIndex}: {thetaerror_p2p[P2PIndex]}')
+        print(f'thetaerror_avg_{P2PIndex}: {thetaerror_avg[P2PIndex]}')
+        CTRL.psi_min_fin = 0
+        CTRL.psi_max_fin = 0
+        CTRL.thetaerror_max_fin = 0
+        CTRL.thetaerror_min_fin = 0
+        P2PIndex += 1
+    e_p2p_saturation = e_p2p.copy()
+    e_avg_saturation = e_avg.copy()
+    thetaerror_p2p_saturation = thetaerror_p2p.copy()
+    thetaerror_avg_saturation = thetaerror_avg.copy()
+    print(f'e_p2p: {e_p2p_saturation}')
+    print(f'e_avg: {e_avg_saturation}')
+    print(f'thetaeror_p2p: {thetaerror_p2p_saturation}')
+    print(f'thetaeror_avg: {thetaerror_avg_saturation}')
+plt.figure()
+plt.plot(ACM_param, e_p2p_saturation, label='$Saturation$')
+plt.plot(ACM_param, e_p2p_boldea, label='$Boldea$')
+plt.xlabel('Inductance Dismatch [%]', fontsize = 14)#x轴标签
+plt.ylabel('$\psi_{e,p2p}$ [Wb]', fontsize = 14)#y轴标签
+plt.title('theta_avg_BandS_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+plt.savefig(f'images/e_p2p_BandS_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
+plt.figure()
+plt.plot(ACM_param, e_p2p_saturation, label='$Saturation$')
+plt.plot(ACM_param, e_p2p_boldea, label='$Boldea$')
+plt.xlabel('Inductance Dismatch [%]', fontsize = 14)#x轴标签
+plt.ylabel('$\psi_{avg}$ [Wb]', fontsize = 14)#y轴标签
+plt.title('theta_avg_BandS_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+plt.savefig(f'images/e_avg_BandS_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
+
+plt.figure()
+plt.plot(ACM_param, e_p2p_saturation, label='$Saturation$')
+plt.plot(ACM_param, e_p2p_boldea, label='$Boldea$')
+plt.xlabel('Inductance Dismatch [%]', fontsize = 14)#x轴标签
+plt.ylabel('$\theta_{e,p2p}$ [Wb]', fontsize = 14)#y轴标签
+plt.title('theta_avg_BandS_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+plt.savefig(f'images/theta_p2p_BandS_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
+plt.figure()
+plt.plot(ACM_param, e_p2p_saturation, label='$Saturation$')
+plt.plot(ACM_param, e_p2p_boldea, label='$Boldea$')
+plt.xlabel('Inductance Dismatch [%]', fontsize = 14)#x轴标签
+plt.ylabel('$theta_{avg}$ [Wb]', fontsize = 14)#y轴标签
+plt.title('theta_avg_BandS_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+plt.savefig(f'images/theta_avg_BandS_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
+
+ACM_param = [1]
+#FE_param = [1.5, 1.25, 1, 0.75 ,0.5]
+FE_param = [0.5, 0.75, 1, 1.25, 1.5]
+P2PIndex = 0
+for acm_param in ACM_param:
+    for fe_param in FE_param:
+        CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY, fe_htz  = InitialAllGlobalClass()
+        CTRL.index_voltage_model_flux_estimation = 2
+        print(f'generate {acm_param} - {fe_param}')
+        d['ACM_param'] = acm_param
+        d['FE_param'] = fe_param
+        # simulate to generate NUMBER_OF_SLICES*TIME_SLICE sec of data
+        for ii in range(d['NUMBER_OF_SLICES']):
+            # perform animation step
+            ACM = The_AC_Machine(CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=d['MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD'],
+                                ACM_param=d['ACM_param'])
+            machine_times, watch_data = ACMSimPyIncremental(t0=ii * d['TIME_SLICE'], TIME=d['TIME_SLICE'],
+                                                            ACM=ACM,
+                                                            CTRL=CTRL,
+                                                            reg_id=reg_id,
+                                                            reg_iq=reg_iq,
+                                                            reg_speed=reg_speed,
+                                                            fe_htz=fe_htz,
+                                                            FE_param=d['FE_param'])
+            watch_data_as_dict = custom.plot(machine_times, watch_data, ACM_param=acm_param, FE_param=fe_param)
+
+            #custom.lissajou(watch_data_as_dict, d['CL_TS'], os.path.dirname(__file__) + '/user_yzz.txt', ACM_param=acm_param, FE_param=fe_param)
+        e_p2p[P2PIndex] = CTRL.psi_max_fin - CTRL.psi_min_fin
+        e_avg[P2PIndex] = CTRL.psi_avg
+        thetaerror_p2p [P2PIndex] = CTRL.thetaerror_max_fin - CTRL.thetaerror_min_fin
+        thetaerror_avg [P2PIndex] = CTRL.thetaerror_avg
+        print(f'e_p2p_{P2PIndex}: {e_p2p[P2PIndex]}')
+        print(f'e_avg_{P2PIndex}: {e_avg[P2PIndex]}')
+        print(f'thetaerror_p2p_{P2PIndex}: {thetaerror_p2p[P2PIndex]}')
+        print(f'thetaerror_avg_{P2PIndex}: {thetaerror_avg[P2PIndex]}')
+        CTRL.psi_min_fin = 0
+        CTRL.psi_max_fin = 0
+        CTRL.thetaerror_max_fin = 0
+        CTRL.thetaerror_min_fin = 0
+        P2PIndex += 1
+    e_p2p_boldea = e_p2p.copy()
+    e_avg_boldea = e_avg.copy()
+    thetaerror_p2p_boldea = thetaerror_p2p.copy()
+    thetaerror_avg_boldea = thetaerror_avg.copy()
+    print(f'e_p2p: {e_p2p_boldea}')
+    print(f'e_avg: {e_avg_boldea}')
+    print(f'thetaeror_p2p: {thetaerror_p2p_boldea}')
+    print(f'thetaeror_avg: {thetaerror_avg_boldea}')
     P2PIndex = 0
     for fe_param in FE_param:
         CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY, fe_htz  = InitialAllGlobalClass()
@@ -378,30 +524,56 @@ for acm_param in ACM_param:
             #custom.lissajou(watch_data_as_dict, d['CL_TS'], os.path.dirname(__file__) + '/user_yzz.txt', ACM_param=acm_param, FE_param=fe_param)
         e_p2p[P2PIndex] = CTRL.psi_max_fin - CTRL.psi_min_fin
         e_avg[P2PIndex] = CTRL.psi_avg
+        thetaerror_p2p [P2PIndex] = CTRL.thetaerror_max_fin - CTRL.thetaerror_min_fin
+        thetaerror_avg [P2PIndex] = CTRL.thetaerror_avg
         print(f'e_p2p_{P2PIndex}: {e_p2p[P2PIndex]}')
         print(f'e_avg_{P2PIndex}: {e_avg[P2PIndex]}')
+        print(f'thetaerror_p2p_{P2PIndex}: {thetaerror_p2p[P2PIndex]}')
+        print(f'thetaerror_avg_{P2PIndex}: {thetaerror_avg[P2PIndex]}')
         CTRL.psi_min_fin = 0
         CTRL.psi_max_fin = 0
+        CTRL.thetaerror_max_fin = 0
+        CTRL.thetaerror_min_fin = 0
         P2PIndex += 1
-    e_p2p_saturation = e_p2p.copy()
-    e_avg_saturation = e_avg.copy()
-    print(f'e_p2p: {e_p2p_saturation}')
-    print(f'e_avg: {e_avg_saturation}')
-print(f'e_p2p: {e_p2p_boldea}')
-print(f'e_avg: {e_avg_boldea}')
-plt.figure()
-plt.plot(FE_param, e_p2p_saturation)
-plt.plot(FE_param, e_p2p_boldea)
-plt.xlabel('Resistance Dismatch (%)')#x轴标签
-plt.ylabel('$\psi_{e,p2p}$ [Wb]')#y轴标签
+    e_p2p_boldea = e_p2p.copy()
+    e_avg_boldea = e_avg.copy()
+    thetaerror_p2p_boldea = thetaerror_p2p.copy()
+    thetaerror_avg_boldea = thetaerror_avg.copy()
+    print(f'e_p2p: {e_p2p_boldea}')
+    print(f'e_avg: {e_avg_boldea}')
+    print(f'thetaeror_p2p: {thetaerror_p2p_boldea}')
+    print(f'thetaeror_avg: {thetaerror_avg_boldea}')
 
 plt.figure()
-plt.plot(FE_param, e_avg_saturation)
-plt.plot(FE_param, e_avg_boldea)
-plt.xlabel('Resistance Dismatch (%)')#x轴标签
-plt.ylabel('$\psi_{avg}$ [Wb]')#y轴标签
+plt.plot(FE_param, e_p2p_saturation, label='$Saturation$')
+plt.plot(FE_param, e_p2p_boldea, label='$Boldea$')
+plt.xlabel('Resistance Dismatch [%]', fontsize = 14)#x轴标签
+plt.ylabel('$\psi_{e,p2p}$ [Wb]', fontsize = 14)#y轴标签
+plt.title('theta_p2p_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+plt.savefig(f'images/e_p2p_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
+plt.figure()
+plt.plot(FE_param, e_p2p_saturation, label='$Saturation$')
+plt.plot(FE_param, e_p2p_boldea, label='$Boldea$')
+plt.xlabel('Resistance Dismatch [%]', fontsize = 14)#x轴标签
+plt.ylabel('$\psi_{avg}$ [Wb]', fontsize = 14)#y轴标签
+plt.title('theta_avg_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+plt.savefig(f'images/e_avg_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
 
-plt.show()
+plt.figure()
+plt.plot(FE_param, e_p2p_saturation, label='$Saturation$')
+plt.plot(FE_param, e_p2p_boldea, label='$Boldea$')
+plt.xlabel('Resistance Dismatch [%]', fontsize = 14)#x轴标签
+plt.ylabel('$theta_{e,p2p}$ [Wb]', fontsize = 14)#y轴标签
+plt.title('theta_p2p_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+plt.savefig(f'images/theta_p2p_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
+plt.figure()
+plt.plot(FE_param, e_p2p_saturation, label='$Saturation$')
+plt.plot(FE_param, e_p2p_boldea, label='$Boldea$')
+plt.xlabel('Resistance Dismatch [%]', fontsize = 14)#x轴标签
+plt.ylabel('$theta_{avg}$ [Wb]', fontsize = 14)#y轴标签
+plt.title('theta_avg_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+plt.savefig(f'images/theta_avg_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
+
 print("finish!")
 
 
