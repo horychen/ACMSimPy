@@ -52,7 +52,7 @@ class CustomDataFrame:
             f.write(f'''\twatch_index += 1\n\treturn watch_index''')
 
    
-    def plot(self, machine_times, watch_data, ACM_param=1.0, FE_param=1.0):
+    def plot(self, machine_times, watch_data, ACM_param=1.0, FE_param=1.0, ELL_param = 0.1):
         plt.style.use('bmh')  # https://matplotlib.org/stable/gallery/style_sheets/style_sheets_reference.html
         mpl.rc('font', family='Times New Roman', size=12.0)
         mpl.rc('legend', fontsize=12)
@@ -88,20 +88,20 @@ class CustomDataFrame:
             ax.grid(True)
         axes[-1].set_xlabel('Time [s]')
         if CTRL.index_voltage_model_flux_estimation == 1:
-            plt.title(f'Saturation_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_max_{fe_htz.psi_aster_max}')
-            fig.savefig(f'images/saturation/TimeDomain_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_max_{fe_htz.psi_aster_max}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
+            plt.title(f'Saturation_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}')
+            fig.savefig(f'images/saturation/TimeDomain_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
         elif CTRL.index_voltage_model_flux_estimation == 2:
             plt.title(f'Boldea_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
             fig.savefig(f'images/boldea/TimeDomain_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
         elif CTRL.index_voltage_model_flux_estimation == 3:
-            plt.title(f'Saturation_sudden_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_max_{fe_htz.psi_aster_max}')
-            fig.savefig(f'images/saturation_sudden/TimeDomain_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_max_{fe_htz.psi_aster_max}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
+            plt.title(f'Saturation_sudden_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}')
+            fig.savefig(f'images/saturation_sudden/TimeDomain_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
         #plt.show()
         # return
         return result
 
 
-    def lissajou(self, watch_data_as_dict, period, path, ACM_param=1.0, FE_param=1.0):
+    def lissajou(self, watch_data_as_dict, period, path, ACM_param=1.0, FE_param=1.0, ELL_param = 0.1):
         with open(path, 'r', encoding='utf-8') as f:
             user_figs = f.read()
         user_figs = user_figs.split('\n')
@@ -152,14 +152,14 @@ class CustomDataFrame:
             ax.grid(True)
             ax.set_aspect(aspect='equal')
         if CTRL.index_voltage_model_flux_estimation == 1:
-            plt.title(f'Saturation_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_max_{fe_htz.psi_aster_max}')
-            fig.savefig(f'images/saturation/Lissajou_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_max_{fe_htz.psi_aster_max}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
+            plt.title(f'Saturation_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}')
+            fig.savefig(f'images/saturation/Lissajou_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
         elif CTRL.index_voltage_model_flux_estimation == 2:
             plt.title(f'Boldea_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
             fig.savefig(f'images/boldea/Lissajou_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
         elif CTRL.index_voltage_model_flux_estimation == 3:
-            plt.title(f'Saturation_sudden_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_max_{fe_htz.psi_aster_max}')
-            fig.savefig(f'images/saturation_sudden/Lissajou_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_max_{fe_htz.psi_aster_max}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
+            plt.title(f'Saturation_sudden_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}')
+            fig.savefig(f'images/saturation_sudden/Lissajou_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
         
         #plt.show()
         #fig.savefig(f'images/saturation/Lissajou_acmparam_{ACM_param}-peparam_{FE_param}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
@@ -337,17 +337,20 @@ thetaerror_p2p_saturation = np.zeros(5, dtype=np.float64)
 thetaerror_avg = np.zeros(5, dtype=np.float64)
 thetaerror_avg_Saturation_sudden = np.zeros(5, dtype=np.float64)
 thetaerror_avg_saturation = np.zeros(5, dtype=np.float64)
-
-FE_param = [0.5, 0.75, 1 , 1.25, 1.5]
-#FE_param = [1.5, 1.25, 1, 0.75 ,0.5]
+ELL_param = [0.03, 0.05, 0.07, 0.1, 0.12]
+#ell_param = 0.1
+#FE_param = [0.5, 0.75, 1 , 1.25, 1.5]
+FE_param = 1
 ACM_param = [1]
 P2PIndex = 0
 for acm_param in ACM_param:
-    for fe_param in FE_param:
+    fe_param = 1
+    for ell_param in ELL_param:
         CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY, fe_htz  = InitialAllGlobalClass()
-        print(f'generate {acm_param} - {fe_param}')
+        print(f'generate {acm_param} - {fe_param} - {ell_param}')
         d['ACM_param'] = acm_param
         d['FE_param'] = fe_param
+        d['ELL_param'] = ell_param
         # simulate to generate NUMBER_OF_SLICES*TIME_SLICE sec of data
         for ii in range(d['NUMBER_OF_SLICES']):
             # perform animation step
@@ -360,9 +363,10 @@ for acm_param in ACM_param:
                                                             reg_iq=reg_iq,
                                                             reg_speed=reg_speed,
                                                             fe_htz=fe_htz,
-                                                            FE_param=d['FE_param'])
-            watch_data_as_dict = custom.plot(machine_times, watch_data, ACM_param=acm_param, FE_param=fe_param)
-            custom.lissajou(watch_data_as_dict, d['CL_TS'], os.path.dirname(__file__) + '/user_yzz.txt', ACM_param=acm_param, FE_param=fe_param)
+                                                            FE_param=d['FE_param'],
+                                                            ELL_param=d['ELL_param'])
+            watch_data_as_dict = custom.plot(machine_times, watch_data, ACM_param=acm_param, FE_param=fe_param, ELL_param = ell_param)
+            custom.lissajou(watch_data_as_dict, d['CL_TS'], os.path.dirname(__file__) + '/user_yzz.txt', ACM_param=acm_param, FE_param=fe_param, ELL_param = ell_param)
         e_p2p[P2PIndex] = CTRL.psi_max_fin - CTRL.psi_min_fin
         e_avg[P2PIndex] = CTRL.psi_avg
         thetaerror_p2p [P2PIndex] = CTRL.thetaerror_max_fin - CTRL.thetaerror_min_fin
@@ -385,12 +389,13 @@ for acm_param in ACM_param:
     print(f'thetaeror_p2p: {thetaerror_p2p_Saturation_sudden}')
     print(f'thetaeror_avg: {thetaerror_avg_Saturation_sudden}')
     P2PIndex = 0
-    for fe_param in FE_param:
+    for ell_param in ELL_param:
         CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY, fe_htz  = InitialAllGlobalClass()
         CTRL.index_voltage_model_flux_estimation = 1
-        print(f'generate {acm_param} - {fe_param}')
+        print(f'generate {acm_param} - {fe_param} - {ell_param}')
         d['ACM_param'] = acm_param
         d['FE_param'] = fe_param
+        d['ELL_param'] = ell_param
         # simulate to generate NUMBER_OF_SLICES*TIME_SLICE sec of data
         for ii in range(d['NUMBER_OF_SLICES']):
             # perform animation step
@@ -403,9 +408,10 @@ for acm_param in ACM_param:
                                                             reg_iq=reg_iq,
                                                             reg_speed=reg_speed,
                                                             fe_htz=fe_htz,
-                                                            FE_param=d['FE_param'])
-            watch_data_as_dict = custom.plot(machine_times, watch_data, ACM_param=acm_param, FE_param=fe_param)
-            custom.lissajou(watch_data_as_dict, d['CL_TS'], os.path.dirname(__file__) + '/user_yzz.txt', ACM_param=acm_param, FE_param=fe_param)
+                                                            FE_param=d['FE_param'],
+                                                            ELL_param=d['ELL_param'])
+            watch_data_as_dict = custom.plot(machine_times, watch_data, ACM_param=acm_param, FE_param=fe_param, ELL_param = ell_param)
+            custom.lissajou(watch_data_as_dict, d['CL_TS'], os.path.dirname(__file__) + '/user_yzz.txt', ACM_param=acm_param, FE_param=fe_param, ELL_param = ell_param)
         e_p2p[P2PIndex] = CTRL.psi_max_fin - CTRL.psi_min_fin
         e_avg[P2PIndex] = CTRL.psi_avg
         thetaerror_p2p [P2PIndex] = CTRL.thetaerror_max_fin - CTRL.thetaerror_min_fin
@@ -428,38 +434,38 @@ for acm_param in ACM_param:
     print(f'thetaeror_p2p: {thetaerror_p2p_saturation}')
     print(f'thetaeror_avg: {thetaerror_avg_saturation}')
 plt.figure()
-plt.plot(FE_param, e_p2p_saturation, label='$Saturation$')
-plt.plot(FE_param, e_p2p_Saturation_sudden, label='$Saturation_sudden$')
+plt.plot(ELL_param, e_p2p_saturation, label='$Saturation$', linestyle = ':', color = '#B8860B', marker = 'o')
+plt.plot(ELL_param, e_p2p_Saturation_sudden, label='$Saturation_sudden$', linestyle = ':', color = '#808000', marker = 'o')
 plt.legend()
 plt.xlabel('Inductance Dismatch [%]', fontsize = 14)#x轴标签
 plt.ylabel('$\psi_{e,p2p}$ [Wb]', fontsize = 14)#y轴标签
-plt.title(f'psi_avg_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_max_{fe_htz.psi_aster_max}')
-plt.savefig(f'images/e_p2p_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_max_{fe_htz.psi_aster_max}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
+plt.title(f'psi_avg_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+plt.savefig(f'images/e_p2p_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
 plt.figure()
-plt.plot(FE_param, e_avg_saturation, label='$Saturation$')
-plt.plot(FE_param, e_avg_Saturation_sudden, label='$Saturation_sudden$')
+plt.plot(ELL_param, e_avg_saturation, label='$Saturation$', linestyle = ':', color = '#B8860B', marker = 'o')
+plt.plot(ELL_param, e_avg_Saturation_sudden, label='$Saturation_sudden$', linestyle = ':', color = '#808000', marker = 'o')
 plt.legend()
 plt.xlabel('Inductance Dismatch [%]', fontsize = 14)#x轴标签
 plt.ylabel('$\psi_{avg}$ [Wb]', fontsize = 14)#y轴标签
-plt.title(f'theta_avg_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_max_{fe_htz.psi_aster_max}')
-plt.savefig(f'images/e_avg_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_max_{fe_htz.psi_aster_max}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
+plt.title(f'psi_avg_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+plt.savefig(f'images/e_avg_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
 
 plt.figure()
-plt.plot(FE_param, thetaerror_p2p_saturation, label='$Saturation$')
-plt.plot(FE_param, thetaerror_p2p_Saturation_sudden, label='$Saturation_sudden$')
+plt.plot(ELL_param, thetaerror_p2p_saturation, label='$Saturation$', linestyle = ':', color = '#B8860B', marker = 'o')
+plt.plot(ELL_param, thetaerror_p2p_Saturation_sudden, label='$Saturation_sudden$', linestyle = ':', color = '#808000', marker = 'o')
 plt.legend()
 plt.xlabel('Inductance Dismatch [%]', fontsize = 14)#x轴标签
 plt.ylabel('$theta_{e,p2p}$ [Wb]', fontsize = 14)#y轴标签
-plt.title(f'theta_p2p_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_max_{fe_htz.psi_aster_max}')
-plt.savefig(f'images/theta_p2p_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_max_{fe_htz.psi_aster_max}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
+plt.title(f'theta_p2p_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+plt.savefig(f'images/theta_p2p_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
 plt.figure()
-plt.plot(FE_param, thetaerror_avg_saturation, label='$Saturation$')
-plt.plot(FE_param, thetaerror_avg_Saturation_sudden, label='$Saturation_sudden$')
+plt.plot(ELL_param, thetaerror_avg_saturation, label='$Saturation$', linestyle = ':', color = '#B8860B', marker = 'o')
+plt.plot(ELL_param, thetaerror_avg_Saturation_sudden, label='$Saturation_sudden$', linestyle = ':', color = '#808000', marker = 'o')
 plt.legend()
 plt.xlabel('Inductance Dismatch [%]', fontsize = 14)#x轴标签
 plt.ylabel('$theta_{avg}$ [Wb]', fontsize = 14)#y轴标签
-plt.title(f'theta_avg_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_max_{fe_htz.psi_aster_max}')
-plt.savefig(f'images/theta_avg_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_max_{fe_htz.psi_aster_max}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
+plt.title(f'theta_avg_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+plt.savefig(f'images/theta_avg_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
 
 # ACM_param = [1]
 # #FE_param = [1.5, 1.25, 1, 0.75 ,0.5]

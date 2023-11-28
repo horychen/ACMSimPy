@@ -376,14 +376,14 @@ def DYNAMICS_SpeedObserver(x, CTRL, SO_param=1.0):
 
 def DYNAMICS_FluxEstimator(x, CTRL, FE_param=1.0):
     fx = np.zeros(NS_GLOBAL)
-    fx[0] = CTRL.uab[0] - CTRL.R * 1 * CTRL.iab[0] - x[2]
-    fx[1] = CTRL.uab[1] - CTRL.R * 1 * CTRL.iab[1] - x[3]
+    fx[0] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] - x[2]
+    fx[1] = CTRL.uab[1] - CTRL.R * FE_param * CTRL.iab[1] - x[3]
 
     uhf_alfa = CTRL.cosT * (CTRL.cmd_psi - CTRL.flux_estimate_amplitude) * -10
     uhf_beta = CTRL.sinT * (CTRL.cmd_psi - CTRL.flux_estimate_amplitude) * -10
 
-    fx[4] = CTRL.uab[0] - CTRL.R * 1 * CTRL.iab[0] - (x[2] + uhf_alfa)
-    fx[5] = CTRL.uab[1] - CTRL.R * 1 * CTRL.iab[1] - (x[3] + uhf_beta)
+    fx[4] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] - (x[2] + uhf_alfa)
+    fx[5] = CTRL.uab[1] - CTRL.R * FE_param * CTRL.iab[1] - (x[3] + uhf_beta)
     return fx
 
 def RK4_ObserverSolver_CJH_Style(THE_DYNAMICS, x, hs, CTRL, param=1.0):
@@ -734,7 +734,7 @@ def rhf_CmdErrFdkCorInFrameRho_Dynamics(x, CTRL,FE_param=1):
 
 
 ############################################# DSP SECTION
-def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0):
+def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0.1):
     CTRL.timebase += CTRL.CL_TS
 
     """ Current Measurement """
@@ -775,7 +775,7 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0):
         # fe_htz.psi_2_nonSat[0] = fe_htz.psi_1_nonSat[0] - CTRL.Lq*CTRL.iab[0]
         # fe_htz.psi_2_nonSat[1] = fe_htz.psi_1_nonSat[1] - CTRL.Lq*CTRL.iab[1]
 
-        fe_htz.psi_aster_max = 0.07
+        fe_htz.psi_aster_max = ELL_param
 
         # 限幅是针对转子磁链限幅的
         for ind in range(0,2):
@@ -1138,7 +1138,7 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0):
         # fe_htz.psi_2_nonSat[0] = fe_htz.psi_1_nonSat[0] - CTRL.Lq*CTRL.iab[0]
         # fe_htz.psi_2_nonSat[1] = fe_htz.psi_1_nonSat[1] - CTRL.Lq*CTRL.iab[1]
 
-        fe_htz.psi_aster_max = 0.07
+        fe_htz.psi_aster_max = ELL_param
 
         # 限幅是针对转子磁链限幅的
         for ind in range(0,2):
@@ -1644,7 +1644,7 @@ def vehicel_load_model(t, ACM):
     ACM.TLoad=FLoad*EVR          ##### 单侧转矩负载
     ACM.Js = EVJ = EVM*EVR*EVR*0.25  ##### 单轮等效转动惯量
 
-def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None, reg_speed=None, fe_htz=None, FE_param = 1.0):
+def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None, reg_speed=None, fe_htz=None, FE_param = 1.0, ELL_param = 0.1):
 
     # RK4 simulation and controller execution relative freuqencies
     MACHINE_TS = CTRL.CL_TS / ACM.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD
@@ -1709,7 +1709,8 @@ def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None,
                 reg_id=reg_id,
                 reg_iq=reg_iq,
                 fe_htz=fe_htz, 
-                FE_param=FE_param)
+                FE_param=FE_param,
+                ELL_param=ELL_param)
 
             # DEBUG
             # CTRL.cmd_uab[0] = 10*np.cos(5*2*np.pi*CTRL.timebase)
