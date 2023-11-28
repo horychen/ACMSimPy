@@ -41,7 +41,7 @@ class CustomDataFrame:
             raise Exception('user_cjh.txt or signals_library is not in the correct format.')
 
     def generate_function(self):
-        with open('collect_data.py', 'w') as f:
+        with open(os.path.dirname(__file__) + '/collect_data.py', 'w') as f:
             f.write(
                 f'''import numpy as np\ndef collect_data(watch_data, watch_index, CTRL, ACM, reg_id, reg_iq, reg_speed, fe_htz):\n''')
             index = 0
