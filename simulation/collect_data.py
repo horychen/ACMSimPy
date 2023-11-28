@@ -1,7 +1,7 @@
 import numpy as np
 def collect_data(watch_data, watch_index, CTRL, ACM, reg_id, reg_iq, reg_speed, fe_htz):
-	watch_data[0][watch_index] = fe_htz.psi_2[0]
-	watch_data[1][watch_index] = fe_htz.psi_2[1]
+	watch_data[0][watch_index] = fe_htz.psi_2[1]
+	watch_data[1][watch_index] = fe_htz.psi_A[1]
 	watch_data[2][watch_index] = fe_htz.u_offset[0]
 	watch_data[3][watch_index] = fe_htz.u_offset[1]
 	watch_data[4][watch_index] = CTRL.cmd_rpm
@@ -27,5 +27,7 @@ def collect_data(watch_data, watch_index, CTRL, ACM, reg_id, reg_iq, reg_speed, 
 	watch_data[24][watch_index] = CTRL.iQ_avg_prev
 	watch_data[25][watch_index] = CTRL.iQ_sum_curr
 	watch_data[26][watch_index] = CTRL.iQ_sum_prev
+	watch_data[27][watch_index] = fe_htz.psi_2[0]
+	watch_data[28][watch_index] = fe_htz.psi_A[0]
 	watch_index += 1
 	return watch_index

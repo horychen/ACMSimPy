@@ -55,7 +55,7 @@ class The_Motor_Controller:
         if init_Rreq >0:
             self.cmd_psi = 0.9 # [Wb]
         else:
-            self.cmd_psi = init_KE # [Wb]
+            self.cmd_psi = 0.8 * init_KE # [Wb]
         self.index_voltage_model_flux_estimation = 1
         self.index_separate_speed_estimation = 1
         self.use_disturbance_feedforward_rejection = 0
@@ -84,7 +84,7 @@ class The_Motor_Controller:
         self.Rreq = init_Rreq
         self.Js   = init_Js
         self.DC_BUS_VOLTAGE = DC_BUS_VOLTAGE
-        
+
         ''' OBSERVER '''
         # feedback / input
         self.idq = np.zeros(2, dtype=np.float64)
@@ -133,6 +133,9 @@ class The_Motor_Controller:
             self.ell4 =     omega_ob**4
 
         self.one_over_six = 1.0 / 6.0
+
+        self.use_encoder_angle_no_matter_what = True
+        self.flux_estimate_amplitude = init_KE
 
 class The_AC_Machine:
     def __init__(self, CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=1):
@@ -272,6 +275,9 @@ class Variables_FluxEstimator_Holtz03:
         self.psi_2_min= np.zeros(2, dtype=np.float64)
         self.psi_2_max= np.zeros(2, dtype=np.float64)
 
+        self.psi_s= np.zeros(2, dtype=np.float64)
+        self.psi_A= np.zeros(2, dtype=np.float64)
+
         self.rs_est   = IM_STAOTR_RESISTANCE
         # self.rreq_est = IM_ROTOR_RESISTANCE
 
@@ -339,8 +345,12 @@ def DYNAMICS_FluxEstimator(x, CTRL):
     fx = np.zeros(NS_GLOBAL)
     fx[0] = CTRL.uab[0] - CTRL.R * 1 * CTRL.iab[0] - x[2]
     fx[1] = CTRL.uab[1] - CTRL.R * 1 * CTRL.iab[1] - x[3]
-    fx[4] = CTRL.uab[0] - CTRL.R * 1 * CTRL.iab[0] - x[2]
-    fx[5] = CTRL.uab[1] - CTRL.R * 1 * CTRL.iab[1] - x[3]
+
+    uhf_alfa = CTRL.cosT * (CTRL.cmd_psi - CTRL.flux_estimate_amplitude) * -10
+    uhf_beta = CTRL.sinT * (CTRL.cmd_psi - CTRL.flux_estimate_amplitude) * -10
+
+    fx[4] = CTRL.uab[0] - CTRL.R * 1 * CTRL.iab[0] - (x[2] + uhf_alfa)
+    fx[5] = CTRL.uab[1] - CTRL.R * 1 * CTRL.iab[1] - (x[3] + uhf_beta)
     return fx
 
 def RK4_ObserverSolver_CJH_Style(THE_DYNAMICS, x, hs, CTRL):
@@ -704,7 +714,7 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz):
         # 疯狂限幅的
         fe_htz.psi_2[0] = fe_htz.psi_1[0] - CTRL.Lq*CTRL.iab[0]
         fe_htz.psi_2[1] = fe_htz.psi_1[1] - CTRL.Lq*CTRL.iab[1]
-        fe_htz.psi_2_ampl = np.sqrt(fe_htz.psi_2[0]*fe_htz.psi_2[0]+fe_htz.psi_2[1]*fe_htz.psi_2[1])
+        # fe_htz.psi_2_ampl = np.sqrt(fe_htz.psi_2[0]*fe_htz.psi_2[0]+fe_htz.psi_2[1]*fe_htz.psi_2[1])
 
         # 限幅前求角度还是应该限幅后？
         # fe_htz.theta_d = np.arctan2(fe_htz.psi_2[1], fe_htz.psi_2[0])
@@ -916,26 +926,31 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz):
         fe_htz.psi_2_prev[0] = fe_htz.psi_2[0]
         fe_htz.psi_2_prev[1] = fe_htz.psi_2[1]
 
-        # psi_2_ampl 在限幅前已经算过了，还有必要限幅后在这里再算一次吗？
-        fe_htz.psi_2_ampl = np.sqrt(fe_htz.psi_2[0]**2 + fe_htz.psi_2[1]**2)
-        if fe_htz.psi_2_ampl == 0:
-            fe_htz.psi_2_ampl = 1.0
-        amplitude_inverse = 1.0 / fe_htz.psi_2_ampl
+        # psi_2_ampl 在限幅前已经算过了，还有必要限幅后在这里再算一次吗？答：感觉限幅前没有必要算。
+        # fe_htz.psi_2_ampl = np.sqrt(fe_htz.psi_2[0]**2 + fe_htz.psi_2[1]**2)
+        # if fe_htz.psi_2_ampl == 0:
+        #     fe_htz.psi_2_ampl = 1.0
+        # amplitude_inverse = 1.0 / fe_htz.psi_2_ampl
+        # CTRL.cosT = fe_htz.psi_2[0] * amplitude_inverse
+        # CTRL.sinT = fe_htz.psi_2[1] * amplitude_inverse
+        # CTRL.theta_d = np.arctan2(fe_htz.psi_2[1], fe_htz.psi_2[0]) # Costly operation, but it is needed only once per control interrupt
 
-        CTRL.cosT = fe_htz.psi_2[0] * amplitude_inverse
-        CTRL.sinT = fe_htz.psi_2[1] * amplitude_inverse
-        CTRL.theta_d = np.arctan2(fe_htz.psi_2[1], fe_htz.psi_2[0]) # Costly operation, but it is needed only once per control interrupt
-        
-        while ACM.theta_d> np.pi: ACM.theta_d -= 2*np.pi
-        while ACM.theta_d<-np.pi: ACM.theta_d += 2*np.pi
-        fe_htz.theta_d = ACM.theta_d
-        
-        CTRL.cosT = np.cos(CTRL.theta_d)
-        CTRL.sinT = np.sin(CTRL.theta_d)
+        fe_htz.psi_A_ampl = np.sqrt(fe_htz.psi_A[0]**2 + fe_htz.psi_A[1]**2)
+        CTRL.flux_estimate_amplitude = fe_htz.psi_A_ampl
+        if fe_htz.psi_A_ampl == 0:
+            fe_htz.psi_A_ampl = 1.0
+        amplitude_inverse = 1.0 / fe_htz.psi_A_ampl
+        CTRL.cosT = fe_htz.psi_A[0] * amplitude_inverse
+        CTRL.sinT = fe_htz.psi_A[1] * amplitude_inverse
+        fe_htz.theta_d = np.arctan2(fe_htz.psi_A[1], fe_htz.psi_A[0]) # Costly operation, but it is needed only once per control interrupt
+        CTRL.theta_d = fe_htz.theta_d
 
     # 情况一： CTRL.use_encoder_angle_no_matter_what = False
     # 情况二： CTRL.use_encoder_angle_no_matter_what = True
     if CTRL.use_encoder_angle_no_matter_what:
+        while ACM.theta_d> np.pi: ACM.theta_d -= 2*np.pi
+        while ACM.theta_d<-np.pi: ACM.theta_d += 2*np.pi
+
         CTRL.theta_d = ACM.theta_d
         # do this once per control interrupt
         CTRL.cosT = np.cos(CTRL.theta_d)

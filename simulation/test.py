@@ -79,7 +79,7 @@ class CustomDataFrame:
             ax.legend(loc=1, fontsize=12)
             ax.grid(True)
         axes[-1].set_xlabel('Time [s]')
-        plt.show()
+        # plt.show()
         # return
         return {self.plot_details[i]['data_signal'][j]: watch_data[i * len(self.plot_details[i]['data_signal']) + j] for
                 i in range(len(self.plot_details)) for j in range(len(self.plot_details[i]['data_signal']))}

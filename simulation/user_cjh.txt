@@ -1,5 +1,5 @@
 
-flux estimate [Wb], fe_htz.psi_2[0], fe_htz.psi_2[1]
+flux estimate [Wb], fe_htz.psi_2[1], fe_htz.psi_A[1]
 offset voltage [V], fe_htz.u_offset[0], fe_htz.u_offset[1]
 
 Speed [r/min], CTRL.cmd_rpm, ACM.omega_r_mech/(2*np.pi)*60, CTRL.omega_r_elec/(2*np.pi*ACM.npp)*60
@@ -19,3 +19,5 @@ estimate theta_tilde [rad], CTRL.theta_tilde
 counter, CTRL.window_counter
 I_avg , CTRL.iQ_avg_curr, CTRL.iQ_avg_prev
 I_sum , CTRL.iQ_sum_curr, CTRL.iQ_sum_prev
+
+flux estimate 1 [Wb], fe_htz.psi_2[0], fe_htz.psi_A[0]
