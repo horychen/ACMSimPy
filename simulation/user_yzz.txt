@@ -1,6 +1,6 @@
 
 
-fe_htz.psi_2[0], fe_htz.psi_2[1], $\psi_\alpha$ [Wb], $\psi_\beta$ [Wb], 4, 5
+fe_htz.psi_A[0], fe_htz.psi_A[1], $\psi_\alpha$ [Wb], $\psi_\beta$ [Wb], 7, 10
 
 
-fe_htz.psi_2[0], fe_htz.psi_2[1], $\psi_\alpha$ [Wb], $\psi_\beta$ [Wb], 4, 5
+fe_htz.psi_2[0], fe_htz.psi_2[1], $\psi_\alpha$ [Wb], $\psi_\beta$ [Wb], 7, 10
