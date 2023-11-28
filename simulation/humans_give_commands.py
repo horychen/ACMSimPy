@@ -5,11 +5,11 @@ def humans_give_commands(CTRL, ACM, t):
     if t < 0.1:
         CTRL.cmd_rpm = 0
     elif t < 0.8:
-        CTRL.cmd_rpm = 100
+        CTRL.cmd_rpm = 50
     elif t < 1.4:
-        CTRL.cmd_rpm = 200
+        CTRL.cmd_rpm = 100
     elif t < 2:
-        CTRL.cmd_rpm = 300
+        CTRL.cmd_rpm = 200
     elif t < 2.8:
         CTRL.cmd_rpm = 300
     # elif t < 4:

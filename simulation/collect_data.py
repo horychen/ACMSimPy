@@ -4,8 +4,8 @@ def collect_data(watch_data, watch_index, CTRL, ACM, reg_id, reg_iq, reg_speed, 
 	watch_data[1][watch_index] = fe_htz.psi_2[0]
 	watch_data[2][watch_index] = fe_htz.psi_e
 	watch_data[3][watch_index] = fe_htz.psi_2[0]
-	watch_data[4][watch_index] = fe_htz.psi_2[1]
-	watch_data[5][watch_index] = fe_htz.psi_A[0]
+	watch_data[4][watch_index] = fe_htz.psi_A[0]
+	watch_data[5][watch_index] = fe_htz.psi_2[1]
 	watch_data[6][watch_index] = fe_htz.psi_A[1]
 	watch_data[7][watch_index] = CTRL.Tem
 	watch_data[8][watch_index] = ACM.Tem
