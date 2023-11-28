@@ -9,7 +9,7 @@ This project is initially intended to adopt the _PyOneDark Qt Modern GUI_ for vi
 - 1. Install _Anaconda 3_ and open command prompt cmd.exe on Windows
 - 2. `conda create -n main python=3.10`
 - 3. `conda activate main`
-- 4. `pip install PySide6 matplotlib pandas numba qtconsole control dearpygui`
+- 4. `pip install PySide6 matplotlib pandas numba qtconsole control dearpygui rich`
 - 5. `cd /d D:\acmsimpy`
 - 6. `python main.py` for PySide6 GUI or `python ./simulation/dem_demo.py` for DearPyGui.
 Or, you can simply run any core script in ./simulation folder, e.g., `python ./simulation/tutorials_ep6_maglev_motor.py`, batch-generating publication-ready figures with matplotlib.

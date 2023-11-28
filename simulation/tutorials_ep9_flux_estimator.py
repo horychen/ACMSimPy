@@ -339,6 +339,8 @@ def DYNAMICS_FluxEstimator(x, CTRL):
     fx = np.zeros(NS_GLOBAL)
     fx[0] = CTRL.uab[0] - CTRL.R * 1 * CTRL.iab[0] - x[2]
     fx[1] = CTRL.uab[1] - CTRL.R * 1 * CTRL.iab[1] - x[3]
+    fx[4] = CTRL.uab[0] - CTRL.R * 1 * CTRL.iab[0] - x[2]
+    fx[5] = CTRL.uab[1] - CTRL.R * 1 * CTRL.iab[1] - x[3]
     return fx
 
 def RK4_ObserverSolver_CJH_Style(THE_DYNAMICS, x, hs, CTRL):
@@ -522,6 +524,9 @@ def tustin_pid(reg):
     reg.prevError       = error
     reg.prevMeasurement = reg.measurement
 
+    # Implement dynamic clamping
+    reg.IntLimit = reg.OutLimit - proportional 
+
     # Return controller output */
     return reg.Out
 
@@ -689,7 +694,14 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz):
         RK4_ObserverSolver_CJH_Style(DYNAMICS_FluxEstimator, fe_htz.xFlux, CTRL.CL_TS, CTRL)
         fe_htz.psi_1[0] = fe_htz.xFlux[0]
         fe_htz.psi_1[1] = fe_htz.xFlux[1]
+        fe_htz.psi_s[0] = fe_htz.xFlux[4]
+        fe_htz.psi_s[1] = fe_htz.xFlux[5]
 
+        # 没有限幅的
+        fe_htz.psi_A[0] = fe_htz.psi_s[0] - CTRL.Lq*CTRL.iab[0]
+        fe_htz.psi_A[1] = fe_htz.psi_s[1] - CTRL.Lq*CTRL.iab[1]
+
+        # 疯狂限幅的
         fe_htz.psi_2[0] = fe_htz.psi_1[0] - CTRL.Lq*CTRL.iab[0]
         fe_htz.psi_2[1] = fe_htz.psi_1[1] - CTRL.Lq*CTRL.iab[1]
         fe_htz.psi_2_ampl = np.sqrt(fe_htz.psi_2[0]*fe_htz.psi_2[0]+fe_htz.psi_2[1]*fe_htz.psi_2[1])
@@ -918,6 +930,14 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz):
         while ACM.theta_d<-np.pi: ACM.theta_d += 2*np.pi
         fe_htz.theta_d = ACM.theta_d
         
+        CTRL.cosT = np.cos(CTRL.theta_d)
+        CTRL.sinT = np.sin(CTRL.theta_d)
+
+    # 情况一： CTRL.use_encoder_angle_no_matter_what = False
+    # 情况二： CTRL.use_encoder_angle_no_matter_what = True
+    if CTRL.use_encoder_angle_no_matter_what:
+        CTRL.theta_d = ACM.theta_d
+        # do this once per control interrupt
         CTRL.cosT = np.cos(CTRL.theta_d)
         CTRL.sinT = np.sin(CTRL.theta_d)
 
