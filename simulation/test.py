@@ -88,10 +88,10 @@ class CustomDataFrame:
             ax.grid(True)
         axes[-1].set_xlabel('Time [s]')
         if CTRL.index_voltage_model_flux_estimation == 1:
-            plt.title('Saturation_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+            plt.title(f'Saturation_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
             fig.savefig(f'images/saturation/TimeDomain_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
         elif CTRL.index_voltage_model_flux_estimation == 2:
-            plt.title('Boldea_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+            plt.title(f'Boldea_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
             fig.savefig(f'images/boldea/TimeDomain_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
         #plt.show()
         # return
@@ -426,14 +426,14 @@ plt.plot(ACM_param, e_p2p_saturation, label='$Saturation$')
 plt.plot(ACM_param, e_p2p_boldea, label='$Boldea$')
 plt.xlabel('Inductance Dismatch [%]', fontsize = 14)#x轴标签
 plt.ylabel('$\psi_{e,p2p}$ [Wb]', fontsize = 14)#y轴标签
-plt.title('theta_avg_BandS_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+plt.title(f'theta_avg_BandS_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
 plt.savefig(f'images/e_p2p_BandS_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
 plt.figure()
 plt.plot(ACM_param, e_p2p_saturation, label='$Saturation$')
 plt.plot(ACM_param, e_p2p_boldea, label='$Boldea$')
 plt.xlabel('Inductance Dismatch [%]', fontsize = 14)#x轴标签
 plt.ylabel('$\psi_{avg}$ [Wb]', fontsize = 14)#y轴标签
-plt.title('theta_avg_BandS_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+plt.title(f'theta_avg_BandS_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
 plt.savefig(f'images/e_avg_BandS_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
 
 plt.figure()
@@ -448,7 +448,7 @@ plt.plot(ACM_param, e_p2p_saturation, label='$Saturation$')
 plt.plot(ACM_param, e_p2p_boldea, label='$Boldea$')
 plt.xlabel('Inductance Dismatch [%]', fontsize = 14)#x轴标签
 plt.ylabel('$theta_{avg}$ [Wb]', fontsize = 14)#y轴标签
-plt.title('theta_avg_BandS_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+plt.title(f'theta_avg_BandS_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
 plt.savefig(f'images/theta_avg_BandS_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
 
 ACM_param = [1]
@@ -549,14 +549,14 @@ plt.plot(FE_param, e_p2p_saturation, label='$Saturation$')
 plt.plot(FE_param, e_p2p_boldea, label='$Boldea$')
 plt.xlabel('Resistance Dismatch [%]', fontsize = 14)#x轴标签
 plt.ylabel('$\psi_{e,p2p}$ [Wb]', fontsize = 14)#y轴标签
-plt.title('theta_p2p_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+plt.title(f'theta_p2p_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
 plt.savefig(f'images/e_p2p_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
 plt.figure()
 plt.plot(FE_param, e_p2p_saturation, label='$Saturation$')
 plt.plot(FE_param, e_p2p_boldea, label='$Boldea$')
 plt.xlabel('Resistance Dismatch [%]', fontsize = 14)#x轴标签
 plt.ylabel('$\psi_{avg}$ [Wb]', fontsize = 14)#y轴标签
-plt.title('theta_avg_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+plt.title(f'theta_avg_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
 plt.savefig(f'images/e_avg_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
 
 plt.figure()
@@ -564,14 +564,14 @@ plt.plot(FE_param, e_p2p_saturation, label='$Saturation$')
 plt.plot(FE_param, e_p2p_boldea, label='$Boldea$')
 plt.xlabel('Resistance Dismatch [%]', fontsize = 14)#x轴标签
 plt.ylabel('$theta_{e,p2p}$ [Wb]', fontsize = 14)#y轴标签
-plt.title('theta_p2p_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+plt.title(f'theta_p2p_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
 plt.savefig(f'images/theta_p2p_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
 plt.figure()
 plt.plot(FE_param, e_p2p_saturation, label='$Saturation$')
 plt.plot(FE_param, e_p2p_boldea, label='$Boldea$')
 plt.xlabel('Resistance Dismatch [%]', fontsize = 14)#x轴标签
 plt.ylabel('$theta_{avg}$ [Wb]', fontsize = 14)#y轴标签
-plt.title('theta_avg_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+plt.title(f'theta_avg_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
 plt.savefig(f'images/theta_avg_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
 
 print("finish!")

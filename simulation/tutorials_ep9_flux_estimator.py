@@ -974,9 +974,6 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0):
         CTRL.cosT = fe_htz.psi_A[0] * amplitude_inverse
         CTRL.sinT = fe_htz.psi_A[1] * amplitude_inverse
         CTRL.theta_d = np.arctan2(fe_htz.psi_A[1], fe_htz.psi_A[0]) # Costly operation, but it is needed only once per control interrupt
-        CTRL.cosT = fe_htz.psi_A[0] * amplitude_inverse
-        CTRL.sinT = fe_htz.psi_A[1] * amplitude_inverse
-        CTRL.theta_d = np.arctan2(fe_htz.psi_A[1], fe_htz.psi_A[0]) # Costly operation, but it is needed only once per control interrupt
         
         while ACM.theta_d> np.pi: ACM.theta_d -= 2*np.pi
         while ACM.theta_d<-np.pi: ACM.theta_d += 2*np.pi
