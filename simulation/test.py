@@ -231,7 +231,6 @@ else:
 
 def InitialAllGlobalClass():
     
-
     CTRL = The_Motor_Controller(CL_TS=d['CL_TS'],
                                 VL_TS=d['VL_EXE_PER_CL_EXE'] * d['CL_TS'],
                                 init_npp=d['init_npp'],

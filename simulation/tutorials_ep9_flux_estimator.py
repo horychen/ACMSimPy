@@ -375,8 +375,10 @@ def DYNAMICS_SpeedObserver(x, CTRL, SO_param=1.0):
 
 def DYNAMICS_FluxEstimator(x, CTRL, FE_param=1.0):
     fx = np.zeros(NS_GLOBAL)
-    fx[0] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] - x[2]
-    fx[1] = CTRL.uab[1] - CTRL.R * FE_param * CTRL.iab[1] - x[3]
+    fx[0] = CTRL.uab[0] - CTRL.R * 1 * CTRL.iab[0] - x[2]
+    fx[1] = CTRL.uab[1] - CTRL.R * 1 * CTRL.iab[1] - x[3]
+    fx[4] = CTRL.uab[0] - CTRL.R * 1 * CTRL.iab[0] - x[2]
+    fx[5] = CTRL.uab[1] - CTRL.R * 1 * CTRL.iab[1] - x[3]
     return fx
 
 def RK4_ObserverSolver_CJH_Style(THE_DYNAMICS, x, hs, CTRL, param=1.0):
@@ -559,6 +561,9 @@ def tustin_pid(reg):
     # Store error and measurement for later use */
     reg.prevError       = error
     reg.prevMeasurement = reg.measurement
+
+    # Implement dynamic clamping
+    reg.IntLimit = reg.OutLimit - proportional 
 
     # Return controller output */
     return reg.Out
@@ -744,7 +749,14 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0):
         RK4_ObserverSolver_CJH_Style(DYNAMICS_FluxEstimator, fe_htz.xFlux, CTRL.CL_TS, CTRL, FE_param)
         fe_htz.psi_1[0] = fe_htz.xFlux[0]
         fe_htz.psi_1[1] = fe_htz.xFlux[1]
+        fe_htz.psi_s[0] = fe_htz.xFlux[4]
+        fe_htz.psi_s[1] = fe_htz.xFlux[5]
 
+        # 没有限幅的
+        fe_htz.psi_A[0] = fe_htz.psi_s[0] - CTRL.Lq*CTRL.iab[0]
+        fe_htz.psi_A[1] = fe_htz.psi_s[1] - CTRL.Lq*CTRL.iab[1]
+
+        # 疯狂限幅的
         fe_htz.psi_2[0] = fe_htz.psi_1[0] - CTRL.Lq*CTRL.iab[0]
         fe_htz.psi_2[1] = fe_htz.psi_1[1] - CTRL.Lq*CTRL.iab[1]
         fe_htz.psi_A[0] = fe_htz.psi_2[0]
