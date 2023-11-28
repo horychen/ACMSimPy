@@ -80,7 +80,57 @@ class CustomDataFrame:
             ax.grid(True)
         axes[-1].set_xlabel('Time [s]')
         plt.show()
-        return fig
+        # return
+        return {self.plot_details[i]['data_signal'][j]: watch_data[i * len(self.plot_details[i]['data_signal']) + j] for
+                i in range(len(self.plot_details)) for j in range(len(self.plot_details[i]['data_signal']))}
+
+
+    def lissajou(self, watch_data_as_dict, period, path):
+        with open(path, 'r', encoding='utf-8') as f:
+            user_figs = f.read()
+        user_figs = user_figs.split('\n')
+        user_fig_config = []
+        try:
+            for i in range(len(user_figs)):
+                user_fig = user_figs[i].split(',')
+                for j in range(len(user_fig)):
+                    user_fig[j] = user_fig[j].strip()
+                if user_fig[0]:
+                    user_fig_config.append(user_fig)
+        except:
+            raise Exception('user_yzz.txt is not in the correct format.')
+        plt.style.use('bmh')  # https://matplotlib.org/stable/gallery/style_sheets/style_sheets_reference.html
+        mpl.rc('font', family='Times New Roman', size=10.0)
+        mpl.rc('legend', fontsize=16)
+        mpl.rcParams['lines.linewidth'] = 0.75  # mpl.rc('lines', linewidth=4, linestyle='-.')
+        mpl.rcParams['mathtext.fontset'] = 'stix'
+
+
+        total = len(user_fig_config)
+        figure_index = 0
+
+        if total < 6:
+            fig, axes = plt.subplots(nrows=total, ncols=1, dpi=150, facecolor='w', figsize=(8, 12))
+        else:
+            fig, axes_ = plt.subplots(nrows=(total + 1) // 2, ncols=2, dpi=150, facecolor='w', figsize=(8, 12))
+            axes = np.ravel(axes_)
+
+        for i in range(len(user_fig_config)):
+            ax = axes[figure_index]
+            figure_index += 1
+            x_lim_low = min(watch_data_as_dict[user_fig_config[i][0]][int(int(user_fig_config[i][4])/period): int(int(user_fig_config[i][5])/period)])
+            x_lim_high = max(watch_data_as_dict[user_fig_config[i][0]][int(int(user_fig_config[i][4])/period): int(int(user_fig_config[i][5])/period)])
+            x_lim_shift = (x_lim_high - x_lim_low) / 10
+            ax.plot(watch_data_as_dict[user_fig_config[i][0]][int(int(user_fig_config[i][4])/period): int(int(user_fig_config[i][5])/period)],
+                    watch_data_as_dict[user_fig_config[i][1]][int(int(user_fig_config[i][4])/period): int(int(user_fig_config[i][5])/period)])
+            ax.set_xlabel(user_fig_config[i][2], multialignment='center')
+            ax.set_ylabel(user_fig_config[i][3], multialignment='center')
+            ax.set_xlim(x_lim_low - x_lim_shift, x_lim_high + x_lim_shift)
+            ax.set_ylim(x_lim_low - x_lim_shift, x_lim_high + x_lim_shift)
+            ax.grid(True)
+        plt.show()
+        return None
+
 
 
 custom = CustomDataFrame()
@@ -221,10 +271,10 @@ for ii in range(d['NUMBER_OF_SLICES']):
 
 # TODO:  程序员大哥，给我个好字典，谢谢您了！
 watch_data_as_dict = custom.plot(machine_times, watch_data)
-
+custom.lissajou(watch_data_as_dict, d['CL_TS'], os.path.dirname(__file__) + '/user_yzz.txt')
 # Lissajour plot
-plt.plot(watch_data_as_dict['fe_htz.psi_2[0]'], watch_data_as_dict['fe_htz.psi_2[1]'])
-plt.show()
+# plt.plot(watch_data_as_dict['fe_htz.psi_2[0]'], watch_data_as_dict['fe_htz.psi_2[1]'])
+# plt.show()
 
 
 
