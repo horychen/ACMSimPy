@@ -21,6 +21,7 @@ class The_Motor_Controller:
         init_Rreq = 0, # note division by 0 is equal to infinity
         init_Js = 0.0006168,
         DC_BUS_VOLTAGE = 300,
+        ELL_param = 0.06
     ):
         ''' CONTROL '''
         # constants
@@ -168,6 +169,7 @@ class The_Motor_Controller:
         self.one_over_six = 1.0 / 6.0
         self.use_encoder_angle_no_matter_what = False
         self.flux_estimate_amplitude = init_KE
+        self.ell = ELL_param
 
 class The_AC_Machine:
     def __init__(self, CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=1, ACM_param=1.0):
@@ -379,8 +381,8 @@ def DYNAMICS_FluxEstimator(x, CTRL, FE_param=1.0):
     fx[0] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] - x[2]
     fx[1] = CTRL.uab[1] - CTRL.R * FE_param * CTRL.iab[1] - x[3]
 
-    uhf_alfa = CTRL.cosT * (CTRL.cmd_psi - CTRL.flux_estimate_amplitude) * -10
-    uhf_beta = CTRL.sinT * (CTRL.cmd_psi - CTRL.flux_estimate_amplitude) * -10
+    uhf_alfa = CTRL.cosT * (CTRL.ell - CTRL.flux_estimate_amplitude) * -10
+    uhf_beta = CTRL.sinT * (CTRL.ell - CTRL.flux_estimate_amplitude) * -10
 
     fx[4] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] - (x[2] + uhf_alfa)
     fx[5] = CTRL.uab[1] - CTRL.R * FE_param * CTRL.iab[1] - (x[3] + uhf_beta)
@@ -775,7 +777,7 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
         # fe_htz.psi_2_nonSat[0] = fe_htz.psi_1_nonSat[0] - CTRL.Lq*CTRL.iab[0]
         # fe_htz.psi_2_nonSat[1] = fe_htz.psi_1_nonSat[1] - CTRL.Lq*CTRL.iab[1]
 
-        fe_htz.psi_aster_max = ELL_param
+        fe_htz.psi_aster_max = CTRL.ell
 
         # 限幅是针对转子磁链限幅的
         for ind in range(0,2):
@@ -866,6 +868,9 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
                         fe_htz.sign__u_off_saturation_time_correction[ind] = -1.0
                         # 饱和时间的正弦包络线的正负半周的频率比磁链频率低多啦！需要再额外加一个低频u_offset校正
                         fe_htz.sat_time_offset[ind] = fe_htz.maximum_of_sat_max_time[ind] - fe_htz.maximum_of_sat_min_time[ind]
+                        if fe_htz.maximum_of_sat_max_time[ind] != 0 and fe_htz.maximum_of_sat_min_time[ind] != 0:
+                            CTRL.ell = CTRL.ell + 10 * CTRL.CL_TS * fe_htz.maximum_of_sat_max_time[ind] + 10 * CTRL.CL_TS * fe_htz.maximum_of_sat_min_time[ind]
+
                         fe_htz.maximum_of_sat_max_time[ind] = 0.0
                         fe_htz.maximum_of_sat_min_time[ind] = 0.0
 
