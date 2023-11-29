@@ -370,7 +370,7 @@ for acm_param in ACM_param:
         e_p2p[P2PIndex] = CTRL.psi_max_fin - CTRL.psi_min_fin
         e_avg[P2PIndex] = CTRL.psi_avg
         thetaerror_p2p [P2PIndex] = CTRL.thetaerror_max_fin - CTRL.thetaerror_min_fin
-        thetaerror_avg [P2PIndex] = CTRL.thetaerror_avg
+        thetaerror_avg [P2PIndex] = np.arcsin(CTRL.thetaerror_avg)
         print(f'e_p2p_{P2PIndex}: {e_p2p[P2PIndex]}')
         print(f'e_avg_{P2PIndex}: {e_avg[P2PIndex]}')
         print(f'thetaerror_p2p_{P2PIndex}: {thetaerror_p2p[P2PIndex]}')
@@ -415,7 +415,7 @@ for acm_param in ACM_param:
         e_p2p[P2PIndex] = CTRL.psi_max_fin - CTRL.psi_min_fin
         e_avg[P2PIndex] = CTRL.psi_avg
         thetaerror_p2p [P2PIndex] = CTRL.thetaerror_max_fin - CTRL.thetaerror_min_fin
-        thetaerror_avg [P2PIndex] = CTRL.thetaerror_avg
+        thetaerror_avg [P2PIndex] = np.arcsin(CTRL.thetaerror_avg)
         print(f'e_p2p_{P2PIndex}: {e_p2p[P2PIndex]}')
         print(f'e_avg_{P2PIndex}: {e_avg[P2PIndex]}')
         print(f'thetaerror_p2p_{P2PIndex}: {thetaerror_p2p[P2PIndex]}')
@@ -434,37 +434,37 @@ for acm_param in ACM_param:
     print(f'thetaeror_p2p: {thetaerror_p2p_saturation}')
     print(f'thetaeror_avg: {thetaerror_avg_saturation}')
 plt.figure()
-plt.plot(ELL_param, e_p2p_saturation, label='$Saturation$', linestyle = ':', color = '#B8860B', marker = 'o')
-plt.plot(ELL_param, e_p2p_Saturation_sudden, label='$Saturation_sudden$', linestyle = ':', color = '#808000', marker = 'o')
+plt.plot(ELL_param, e_p2p_saturation, label='$Saturation \sin \tilde{\theta}_e$', linestyle = ':', color = '#B8860B', marker = 'o')
+plt.plot(ELL_param, e_p2p_Saturation_sudden, label='$Saturation Sudden \sin \tilde{\theta}_e$', linestyle = ':', color = '#808000', marker = 'o')
 plt.legend()
-plt.xlabel('Inductance Dismatch [%]', fontsize = 14)#x轴标签
-plt.ylabel('$\psi_{e,p2p}$ [Wb]', fontsize = 14)#y轴标签
-plt.title(f'psi_avg_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+plt.xlabel(r'$\ell$ Mismatch [%]', fontsize = 14)#x轴标签
+plt.ylabel(r'$\psi_{e, \rm p2p}$ [Wb]', fontsize = 14)#y轴标签
+plt.title(rf'$\psi_{{e, \rm \text{{p2p}}}}$-$\ell$ Speed {CTRL.cmd_rpm} Load {ACM.TLoad}')
 plt.savefig(f'images/e_p2p_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
 plt.figure()
-plt.plot(ELL_param, e_avg_saturation, label='$Saturation$', linestyle = ':', color = '#B8860B', marker = 'o')
-plt.plot(ELL_param, e_avg_Saturation_sudden, label='$Saturation_sudden$', linestyle = ':', color = '#808000', marker = 'o')
+plt.plot(ELL_param, e_avg_saturation, label='$Saturation \sin \tilde{\theta}_e$', linestyle = ':', color = '#B8860B', marker = 'o')
+plt.plot(ELL_param, e_avg_Saturation_sudden, label='$Saturation Sudden \sin \tilde{\theta}_e$', linestyle = ':', color = '#808000', marker = 'o')
 plt.legend()
-plt.xlabel('Inductance Dismatch [%]', fontsize = 14)#x轴标签
-plt.ylabel('$\psi_{avg}$ [Wb]', fontsize = 14)#y轴标签
-plt.title(f'psi_avg_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+plt.xlabel(r'$\ell$ Mismatch [%]', fontsize = 14)#x轴标签
+plt.ylabel(r'$\psi_{e, \rm avg}$ [Wb]', fontsize = 14)#y轴标签
+plt.title(rf'$\psi_{{e, \rm \text{{avg}}}}$-$\ell$ Speed {CTRL.cmd_rpm} Load {ACM.TLoad}')
 plt.savefig(f'images/e_avg_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
 
 plt.figure()
-plt.plot(ELL_param, thetaerror_p2p_saturation, label='$Saturation$', linestyle = ':', color = '#B8860B', marker = 'o')
-plt.plot(ELL_param, thetaerror_p2p_Saturation_sudden, label='$Saturation_sudden$', linestyle = ':', color = '#808000', marker = 'o')
+plt.plot(ELL_param, thetaerror_p2p_saturation, label='$Saturation $\sin \tilde{\theta}_e$', linestyle = ':', color = '#B8860B', marker = 'o')
+plt.plot(ELL_param, thetaerror_p2p_Saturation_sudden, label='$Saturation Sudden $\sin  \tilde{\theta}_e$', linestyle = ':', color = '#808000', marker = 'o')
 plt.legend()
-plt.xlabel('Inductance Dismatch [%]', fontsize = 14)#x轴标签
-plt.ylabel('$theta_{e,p2p}$ [Wb]', fontsize = 14)#y轴标签
-plt.title(f'theta_p2p_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+plt.xlabel(r'$\ell$ Mismatch [%]', fontsize = 14)#x轴标签
+plt.ylabel(r'$\theta_{e, \rm p2p}$', fontsize = 14)#y轴标签
+plt.title(rf'$\theta_{{e, \rm \text{{p2p}}}}$-$\ell$ Speed {CTRL.cmd_rpm} Load {ACM.TLoad}')
 plt.savefig(f'images/theta_p2p_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
 plt.figure()
-plt.plot(ELL_param, thetaerror_avg_saturation, label='$Saturation$', linestyle = ':', color = '#B8860B', marker = 'o')
-plt.plot(ELL_param, thetaerror_avg_Saturation_sudden, label='$Saturation_sudden$', linestyle = ':', color = '#808000', marker = 'o')
+plt.plot(ELL_param, thetaerror_avg_saturation, label='$Saturation \sin \tilde{\theta}_e$', linestyle = ':', color = '#B8860B', marker = 'o')
+plt.plot(ELL_param, thetaerror_avg_Saturation_sudden, label='$Saturation Sudden \sin \tilde{\theta}_e$', linestyle = ':', color = '#808000', marker = 'o')
 plt.legend()
-plt.xlabel('Inductance Dismatch [%]', fontsize = 14)#x轴标签
-plt.ylabel('$theta_{avg}$ [Wb]', fontsize = 14)#y轴标签
-plt.title(f'theta_avg_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+plt.xlabel(r'$\ell$ Mismatch [%]', fontsize = 14)#x轴标签
+plt.ylabel(r'$\theta_{e, \rm avg}$', fontsize = 14)#y轴标签
+plt.title(rf'$\theta_{{e, \rm \text{{avg}}}}$-$\ell$ Speed {CTRL.cmd_rpm} Load {ACM.TLoad}')
 plt.savefig(f'images/theta_avg_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
 
 # ACM_param = [1]
@@ -563,14 +563,14 @@ plt.savefig(f'images/theta_avg_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.
 # plt.figure()
 # plt.plot(FE_param, e_p2p_saturation, label='$Saturation$')
 # plt.plot(FE_param, e_p2p_boldea, label='$Boldea$')
-# plt.xlabel('Resistance Dismatch [%]', fontsize = 14)#x轴标签
+# plt.xlabel('Resistance Mismatch [%]', fontsize = 14)#x轴标签
 # plt.ylabel('$\psi_{e,p2p}$ [Wb]', fontsize = 14)#y轴标签
 # plt.title(f'theta_p2p_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
 # plt.savefig(f'images/e_p2p_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
 # plt.figure()
 # plt.plot(FE_param, e_p2p_saturation, label='$Saturation$')
 # plt.plot(FE_param, e_p2p_boldea, label='$Boldea$')
-# plt.xlabel('Resistance Dismatch [%]', fontsize = 14)#x轴标签
+# plt.xlabel('Resistance Mismatch [%]', fontsize = 14)#x轴标签
 # plt.ylabel('$\psi_{avg}$ [Wb]', fontsize = 14)#y轴标签
 # plt.title(f'theta_avg_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
 # plt.savefig(f'images/e_avg_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
@@ -578,14 +578,14 @@ plt.savefig(f'images/theta_avg_Inductance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.
 # plt.figure()
 # plt.plot(FE_param, e_p2p_saturation, label='$Saturation$')
 # plt.plot(FE_param, e_p2p_boldea, label='$Boldea$')
-# plt.xlabel('Resistance Dismatch [%]', fontsize = 14)#x轴标签
+# plt.xlabel('Resistance Mismatch [%]', fontsize = 14)#x轴标签
 # plt.ylabel('$theta_{e,p2p}$ [Wb]', fontsize = 14)#y轴标签
 # plt.title(f'theta_p2p_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
 # plt.savefig(f'images/theta_p2p_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)
 # plt.figure()
 # plt.plot(FE_param, e_p2p_saturation, label='$Saturation$')
 # plt.plot(FE_param, e_p2p_boldea, label='$Boldea$')
-# plt.xlabel('Resistance Dismatch [%]', fontsize = 14)#x轴标签
+# plt.xlabel('Resistance Mismatch [%]', fontsize = 14)#x轴标签
 # plt.ylabel('$theta_{avg}$ [Wb]', fontsize = 14)#y轴标签
 # plt.title(f'theta_avg_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
 # plt.savefig(f'images/theta_avg_BandS_Resistance_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0.5)

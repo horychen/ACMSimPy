@@ -24,12 +24,12 @@ def humans_give_commands(CTRL, ACM, t):
         CTRL.cmd_rpm = 300
     elif t < 6:
         ACM.TLoad = 1
-    elif t < 6.9:
+    elif t < 7.5:
         CTRL.cmd_rpm = 300
-    elif t < 7:
+    elif t < 8:
         CTRL.bool_counter = True
         CTRL.bool_counter_theta_error = True
-    elif t < 8:
+    elif t < 8.2:
         CTRL.bool_counter = True
         CTRL.bool_counter_theta_error = True
     # elif t < 2.40:
