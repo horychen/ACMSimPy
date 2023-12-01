@@ -170,6 +170,8 @@ class The_Motor_Controller:
         self.use_encoder_angle_no_matter_what = False
         self.flux_estimate_amplitude = init_KE
         self.ell = ELL_param
+        self.ell_prev = ELL_param
+        self.psi_A_amplitude = 0
 
 class The_AC_Machine:
     def __init__(self, CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=1, ACM_param=1.0):
@@ -761,7 +763,7 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
         # 没有限幅的
         fe_htz.psi_A[0] = fe_htz.psi_s[0] - CTRL.Lq*CTRL.iab[0]
         fe_htz.psi_A[1] = fe_htz.psi_s[1] - CTRL.Lq*CTRL.iab[1]
-
+        fe_htz.psi_A_amplitude = np.sqrt(fe_htz.psi_A[0]**2 + fe_htz.psi_A[1]**2)
         # 疯狂限幅的
         fe_htz.psi_2[0] = fe_htz.psi_1[0] - CTRL.Lq*CTRL.iab[0]
         fe_htz.psi_2[1] = fe_htz.psi_1[1] - CTRL.Lq*CTRL.iab[1]
@@ -867,9 +869,26 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
                         # fe_htz.accumulated__u_off_saturation_time_correction[ind] += fe_htz.u_off_saturation_time_correction[ind]
                         fe_htz.sign__u_off_saturation_time_correction[ind] = -1.0
                         # 饱和时间的正弦包络线的正负半周的频率比磁链频率低多啦！需要再额外加一个低频u_offset校正
+                        # 以下自适应律是在速度处于稳态情况下运行
                         fe_htz.sat_time_offset[ind] = fe_htz.maximum_of_sat_max_time[ind] - fe_htz.maximum_of_sat_min_time[ind]
+                    
                         if fe_htz.maximum_of_sat_max_time[ind] != 0 and fe_htz.maximum_of_sat_min_time[ind] != 0:
-                            CTRL.ell = CTRL.ell + 10 * CTRL.CL_TS * fe_htz.maximum_of_sat_max_time[ind] + 10 * CTRL.CL_TS * fe_htz.maximum_of_sat_min_time[ind]
+                            CTRL.ell = CTRL.ell + 1000 * CTRL.CL_TS * fe_htz.maximum_of_sat_max_time[ind] + 1000 * CTRL.CL_TS * fe_htz.maximum_of_sat_min_time[ind]
+                        elif fe_htz.maximum_of_sat_max_time[ind] == 0 and fe_htz.maximum_of_sat_min_time[ind] == 0:
+                            CTRL.ell = CTRL.ell - 0.05 * CTRL.CL_TS * fe_htz.positive_cycle_in_count[0]
+                        # if ind==0:
+                            #     print(f'{CTRL.timebase}')
+                            # if CTRL.timebase < 1:
+                        #     if fe_htz.maximum_of_sat_max_time[ind] != 0 and fe_htz.maximum_of_sat_min_time[ind] != 0:
+                        #         CTRL.ell = CTRL.ell + 1000 * CTRL.CL_TS * fe_htz.maximum_of_sat_max_time[ind] + 1000 * CTRL.CL_TS * fe_htz.maximum_of_sat_min_time[ind]
+                        #     elif fe_htz.maximum_of_sat_max_time[ind] == 0 and fe_htz.maximum_of_sat_min_time[ind] == 0:
+                        #         CTRL.ell = CTRL.ell - 10 * CTRL.CL_TS - 10 * CTRL.CL_TS     
+                        # else:    
+                        # if fe_htz.maximum_of_sat_max_time[ind] != 0 and fe_htz.maximum_of_sat_min_time[ind] != 0:
+                        #     CTRL.ell = CTRL.ell + 0.003 * fe_htz.psi_A_amplitude 
+                        # elif fe_htz.maximum_of_sat_max_time[ind] == 0 and fe_htz.maximum_of_sat_min_time[ind] == 0:
+                        #     CTRL.ell = CTRL.ell_prev - 0.003 * np.abs(((CTRL.ell + fe_htz.psi_2_min[0]) + (CTRL.ell - fe_htz.psi_2_max[0])) * 0.5 )
+                        #     CTRL.ell_prev = CTRL.ell
 
                         fe_htz.maximum_of_sat_max_time[ind] = 0.0
                         fe_htz.maximum_of_sat_min_time[ind] = 0.0
