@@ -1,11 +1,5 @@
-
-flux estimate diff [Wb], ACM.KA * np.cos(ACM.theta_d), fe_htz.psi_2[0]
-flux estimate error [Wb], fe_htz.psi_e
 flux estimate_0 [Wb], fe_htz.psi_2[0], fe_htz.psi_A[0]
 flux estimate_1 [Wb], fe_htz.psi_2[1], fe_htz.psi_A[1]
 Speed [r/min], ACM.omega_r_mech/(2*np.pi)*60, CTRL.omega_r_elec/(2*np.pi*ACM.npp)*60, CTRL.cmd_rpm
-current [A], CTRL.cmd_idq[0], CTRL.cmd_idq[1]
-ell, 10*CTRL.ell
+ell, CTRL.ell
 theta_e [rad], CTRL.thetaerror
-u_offset [V], fe_htz.u_offset[0] ,fe_htz.u_offset[1]
-reg_id, reg_id.integrator

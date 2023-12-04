@@ -1,5 +1,5 @@
-fe_htz.psi_2[0], alpha-axis flux estimate, Wb, $\psi_\alpha$, flux
-fe_htz.psi_2[1], beta-axis flux estimate, Wb, $\psi_\beta$, flux
+fe_htz.psi_2[0], alpha-axis flux estimate, Wb, $\psi_{\alpha 2}$, flux
+fe_htz.psi_2[1], beta-axis flux estimate, Wb, $\psi_{\beta 2}$, flux
 
 fe_htz.u_offset[0], alpha-axis offset voltage, V, $u_offset$, voltage
 fe_htz.u_offset[1], beta-axis offset voltage, V, $u_offset$, voltage
@@ -37,3 +37,4 @@ CTRL.cmd_psi_mu[0], alpha-axis active flux estimate, Wb, $\psi_\alpha^*$, flux
 CTRL.cmd_psi_mu[1], beta-axis active flux estimate, Wb, $\psi_\alpha^*$, flux
 CTRL.iab[0], alpha-axis stator current, A, $I_{\alpha}$, current
 CTRL.iab[1], beta-axis stator current, A, $I_{\beta}$, current
+CTRL.ell, estimate ell, Wb, $\ell$, ell

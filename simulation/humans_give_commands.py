@@ -3,37 +3,37 @@ def humans_give_commands(CTRL, ACM, t):
     """ Console @ CL_TS """
 
     if t < 0.1:
-        CTRL.cmd_rpm = 0
+        CTRL.cmd_rpm = 300
     elif t < 1:
+        CTRL.cmd_rpm = 300
+    elif t < 2:
         CTRL.cmd_rpm = 300
     elif t < 3:
         CTRL.cmd_rpm = 300
-    elif t < 3.7:
-        CTRL.cmd_rpm = 300
-    elif t < 4:
-        CTRL.cmd_rpm = 300
-    elif t < 4.1:
-        CTRL.cmd_rpm = 300
-    elif t < 4.2:
-        CTRL.cmd_rpm = 300
+    # elif t < 4:
+    #     CTRL.cmd_rpm = 300
+    # elif t < 4.1:
+    #     CTRL.cmd_rpm = 300
+    # elif t < 4.2:
+    #     CTRL.cmd_rpm = 300
     # elif t < 4:
     #     CTRL.cmd_rpm = 600
-    elif t < 4.25:
-        CTRL.cmd_rpm = 300
-    elif t < 4.3:
+    # elif t < 4.25:
+    #     CTRL.cmd_rpm = 300
+    elif t < 4:
         CTRL.cmd_rpm = 300
     elif t < 5:
         ACM.TLoad = 1
-    elif t < 5.1:
-        CTRL.cmd_rpm = 300
+    # elif t < 5.1:
+    #     CTRL.cmd_rpm = 300
+    # elif t < 6:
+    #     ACM.TLoad = 1
+    # elif t < 7.5:
+    #     CTRL.cmd_rpm = 300
     elif t < 6:
-        ACM.TLoad = 1
-    elif t < 7.5:
-        CTRL.cmd_rpm = 300
-    elif t < 8:
         CTRL.bool_counter = True
         CTRL.bool_counter_theta_error = True
-    elif t < 8.2:
+    elif t < 7:
         CTRL.bool_counter = True
         CTRL.bool_counter_theta_error = True
     # elif t < 2.40:

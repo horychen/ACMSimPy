@@ -21,7 +21,7 @@ class The_Motor_Controller:
         init_Rreq = 0, # note division by 0 is equal to infinity
         init_Js = 0.0006168,
         DC_BUS_VOLTAGE = 300,
-        ELL_param = 0.06
+        ELL_param = 0.1
     ):
         ''' CONTROL '''
         # constants
@@ -103,7 +103,7 @@ class The_Motor_Controller:
         self.R    = init_R
         self.Ld   = init_Ld
         self.Lq   = init_Lq
-        self.KE   = init_KE
+        self.KE   = ELL_param
         self.Rreq = init_Rreq
         self.Js   = init_Js
         self.DC_BUS_VOLTAGE = DC_BUS_VOLTAGE
@@ -172,6 +172,9 @@ class The_Motor_Controller:
         self.ell = ELL_param
         self.ell_prev = ELL_param
         self.psi_A_amplitude = 0
+        self.Kp_KE_estimate = -150
+        self.K1_for_max_ell = 1000 
+        self.K2_for_min_ell = -0.05
 
 class The_AC_Machine:
     def __init__(self, CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=1, ACM_param=1.0):
@@ -294,13 +297,11 @@ class SVgen_Object:
         self.line_to_line_voltage_AB = 0.0
 
 class Variables_FluxEstimator_Holtz03:
-    def __init__(self, IM_STAOTR_RESISTANCE):
+    def __init__(self, IM_STAOTR_RESISTANCE, init_KE):
 
         self.xFlux = np.zeros(NS_GLOBAL, dtype=np.float64)
-
-        
-        
-
+        self.xFlux[0] = init_KE
+        self.xFlux[4] = init_KE
         self.psi_1 = np.zeros(2, dtype=np.float64)
         self.psi_2 = np.zeros(2, dtype=np.float64)
         self.psi_A = np.zeros(2, dtype=np.float64)
@@ -381,13 +382,15 @@ def DYNAMICS_SpeedObserver(x, CTRL, SO_param=1.0):
 def DYNAMICS_FluxEstimator(x, CTRL, FE_param=1.0):
     fx = np.zeros(NS_GLOBAL)
     fx[0] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] - x[2]
-    fx[1] = CTRL.uab[1] - CTRL.R * FE_param * CTRL.iab[1] - x[3]
+    fx[1] = CTRL.uab[1] - CTRL.R * FE_param * CTRL.iab[1] - x[3] 
 
-    uhf_alfa = CTRL.cosT * (CTRL.ell - CTRL.flux_estimate_amplitude) * -10
-    uhf_beta = CTRL.sinT * (CTRL.ell - CTRL.flux_estimate_amplitude) * -10
+    uhf_alfa = CTRL.cosT * (CTRL.ell - CTRL.flux_estimate_amplitude) * CTRL.Kp_KE_estimate
+    uhf_beta = CTRL.sinT * (CTRL.ell - CTRL.flux_estimate_amplitude) * CTRL.Kp_KE_estimate
 
-    fx[4] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] - (x[2] + uhf_alfa)
+    fx[4] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] - (x[2] + uhf_alfa) 
     fx[5] = CTRL.uab[1] - CTRL.R * FE_param * CTRL.iab[1] - (x[3] + uhf_beta)
+    
+    
     return fx
 
 def RK4_ObserverSolver_CJH_Style(THE_DYNAMICS, x, hs, CTRL, param=1.0):
@@ -873,10 +876,10 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
                         fe_htz.sat_time_offset[ind] = fe_htz.maximum_of_sat_max_time[ind] - fe_htz.maximum_of_sat_min_time[ind]
                     
                         if fe_htz.maximum_of_sat_max_time[ind] != 0 and fe_htz.maximum_of_sat_min_time[ind] != 0:
-                            CTRL.ell = CTRL.ell + 1000 * CTRL.CL_TS * fe_htz.maximum_of_sat_max_time[ind] + 1000 * CTRL.CL_TS * fe_htz.maximum_of_sat_min_time[ind]
+                            CTRL.ell = CTRL.ell + CTRL.K1_for_max_ell * CTRL.CL_TS * fe_htz.maximum_of_sat_max_time[ind] + 1000 * CTRL.CL_TS * fe_htz.maximum_of_sat_min_time[ind]
                         elif fe_htz.maximum_of_sat_max_time[ind] == 0 and fe_htz.maximum_of_sat_min_time[ind] == 0:
-                            CTRL.ell = CTRL.ell - 0.05 * CTRL.CL_TS * fe_htz.positive_cycle_in_count[0]
-                        # if ind==0:
+                            CTRL.ell = CTRL.ell + CTRL.K2_for_min_ell * CTRL.CL_TS * fe_htz.positive_cycle_in_count[0]
+                        # if ind==0
                             #     print(f'{CTRL.timebase}')
                             # if CTRL.timebase < 1:
                         #     if fe_htz.maximum_of_sat_max_time[ind] != 0 and fe_htz.maximum_of_sat_min_time[ind] != 0:
