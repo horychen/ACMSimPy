@@ -2,16 +2,42 @@ import numpy as np
 def humans_give_commands(CTRL, ACM, t):
     """ Console @ CL_TS """
 
-    if t < 1.0:
-        CTRL.cmd_rpm = 200
-    elif t < 1.5:
-         ACM.TLoad = 2
-    elif t < 2.0:
-        CTRL.cmd_rpm = 400
+    if t < 0.1:
+        CTRL.cmd_rpm = 300
+    elif t < 1:
+        CTRL.cmd_rpm = 300
+    elif t < 2:
+        CTRL.cmd_rpm = 300
+    elif t < 3:
+        CTRL.cmd_rpm = 300
+    # elif t < 4:
+    #     CTRL.cmd_rpm = 300
+    # elif t < 4.1:
+    #     CTRL.cmd_rpm = 300
+    # elif t < 4.2:
+    #     CTRL.cmd_rpm = 300
+    # elif t < 4:
+    #     CTRL.cmd_rpm = 600
+    # elif t < 4.25:
+    #     CTRL.cmd_rpm = 300
     elif t < 4:
-        CTRL.cmd_rpm = 400
+        CTRL.cmd_rpm = 300
     elif t < 5:
-        CTRL.apply_pulse_4_evaluating_position_estimator_accuracy = False
+        ACM.TLoad = 1
+    # elif t < 5.1:
+    #     CTRL.cmd_rpm = 300
+    # elif t < 6:
+    #     ACM.TLoad = 1
+    # elif t < 7.5:
+    #     CTRL.cmd_rpm = 300
+    elif t < 6:
+        CTRL.bool_counter = True
+        CTRL.bool_counter_theta_error = True
+    elif t < 7:
+        CTRL.bool_counter = True
+        CTRL.bool_counter_theta_error = True
+    # elif t < 2.40:
+    #     CTRL.apply_pulse_4_evaluating_position_estimator_accuracy = False
     # elif t < 4:
     #     # CTRL.cmd_rpm = -200
     #     CTRL.apply_pulse_4_evaluating_position_estimator_accuracy = True
