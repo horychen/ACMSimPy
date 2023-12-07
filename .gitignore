@@ -1,3 +1,5 @@
+*.png
+
 .idea/
 collect_data.py
 
