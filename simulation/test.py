@@ -41,7 +41,7 @@ class CustomDataFrame:
             raise Exception('user_cjh.txt or signals_library is not in the correct format.')
 
     def generate_function(self):
-        with open('collect_data.py', 'w') as f:
+        with open(os.path.dirname(__file__) + '/collect_data.py', 'w') as f:
             f.write(
                 f'''import numpy as np\ndef collect_data(watch_data, watch_index, CTRL, ACM, reg_id, reg_iq, reg_speed, fe_htz):\n''')
             index = 0
@@ -87,6 +87,7 @@ class CustomDataFrame:
             ax.legend(loc=1, fontsize=12)
             ax.grid(True)
         axes[-1].set_xlabel('Time [s]')
+
         if CTRL.index_voltage_model_flux_estimation == 1:
             plt.title(f'Saturation_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}')
             fig.savefig(f'images/saturation/TimeDomain_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}.png', dpi=400, bbox_inches='tight', pad_inches=0)
