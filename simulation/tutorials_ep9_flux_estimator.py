@@ -12,16 +12,16 @@ NS_GLOBAL = 6
 ############################################# CLASS DEFINITION 
 class The_Motor_Controller:
     def __init__(self, CL_TS, VL_TS,
-        init_npp = 4,
-        init_IN = 3,
-        init_R = 1.1,
-        init_Ld = 5e-3,
-        init_Lq = 6e-3,
-        init_KE = 0.095,
+        init_npp = 26,
+        init_IN = 17,
+        init_R = 0.12,
+        init_Ld = 0.00046,
+        init_Lq = 0.00056,
+        init_KE = 0.019,
         init_Rreq = 0, # note division by 0 is equal to infinity
-        init_Js = 0.0006168,
-        DC_BUS_VOLTAGE = 300,
-        ELL_param = 0.1
+        init_Js = 0.000364,
+        DC_BUS_VOLTAGE = 48,
+        ELL_param = 0.019
     ):
         ''' CONTROL '''
         # constants
@@ -58,11 +58,14 @@ class The_Motor_Controller:
         else:
             self.cmd_psi = init_KE # [Wb]
         self.index_voltage_model_flux_estimation = 3
-        self.index_separate_speed_estimation = 1
+        self.index_separate_speed_estimation = 0
         self.use_disturbance_feedforward_rejection = 0
         self.bool_apply_decoupling_voltages_to_current_regulation = False
-        self.bool_apply_speed_closed_loop_control = True
-        self.bool_zero_id_control = False
+        self.bool_apply_speed_closed_loop_control = False
+        self.bool_zero_id_control = True
+        self.bool_reverse_rotation = True
+        self.counter_rotation = 10
+        self.bool_reverse = -1
         #psi error calculate
         self.bool_counter = False
         self.counter_psi = 0 
@@ -174,7 +177,7 @@ class The_Motor_Controller:
         self.psi_A_amplitude = 0
         self.Kp_KE_estimate = -150
         self.K1_for_max_ell = 1000 
-        self.K2_for_min_ell = -0.05
+        self.K2_for_min_ell = -0.005
 
 class The_AC_Machine:
     def __init__(self, CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=1, ACM_param=1.0):
@@ -359,6 +362,9 @@ class Variables_FluxEstimator_Holtz03:
         self.u_off_direct_calculated = np.zeros(2, dtype=np.float64)
         self.sign__u_off_saturation_time_correction = np.zeros(2, dtype=np.float64)
         self.sat_time_offset = np.zeros(2, dtype=np.float64)
+        self.ell_compensation_flag = 0
+        self.ell_compensation_flag_alpha = 0 
+        self.ell_compensation_flag_beta = 0
 
 ############################################# OBSERVERS SECTION
 def DYNAMICS_SpeedObserver(x, CTRL, SO_param=1.0):
@@ -381,13 +387,13 @@ def DYNAMICS_SpeedObserver(x, CTRL, SO_param=1.0):
 
 def DYNAMICS_FluxEstimator(x, CTRL, FE_param=1.0):
     fx = np.zeros(NS_GLOBAL)
-    fx[0] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] - x[2]
+    fx[0] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] - x[2] + 1
     fx[1] = CTRL.uab[1] - CTRL.R * FE_param * CTRL.iab[1] - x[3] 
 
     uhf_alfa = CTRL.cosT * (CTRL.ell - CTRL.flux_estimate_amplitude) * CTRL.Kp_KE_estimate
     uhf_beta = CTRL.sinT * (CTRL.ell - CTRL.flux_estimate_amplitude) * CTRL.Kp_KE_estimate
 
-    fx[4] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] - (x[2] + uhf_alfa) 
+    fx[4] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] - (x[2] + uhf_alfa) + 1
     fx[5] = CTRL.uab[1] - CTRL.R * FE_param * CTRL.iab[1] - (x[3] + uhf_beta)
     
     
@@ -741,7 +747,7 @@ def rhf_CmdErrFdkCorInFrameRho_Dynamics(x, CTRL,FE_param=1):
 
 
 ############################################# DSP SECTION
-def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0.1):
+def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0.019):
     CTRL.timebase += CTRL.CL_TS
 
     """ Current Measurement """
@@ -754,7 +760,7 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
         # do this once per control interrupt
         CTRL.cosT = np.cos(CTRL.theta_d)
         CTRL.sinT = np.sin(CTRL.theta_d)
-
+    # holtz and boldea
     elif CTRL.index_voltage_model_flux_estimation == 1:
         # sensorless
         RK4_ObserverSolver_CJH_Style(DYNAMICS_FluxEstimator, fe_htz.xFlux, CTRL.CL_TS, CTRL, FE_param)
@@ -766,7 +772,14 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
         # 没有限幅的
         fe_htz.psi_A[0] = fe_htz.psi_s[0] - CTRL.Lq*CTRL.iab[0]
         fe_htz.psi_A[1] = fe_htz.psi_s[1] - CTRL.Lq*CTRL.iab[1]
+        
         fe_htz.psi_A_amplitude = np.sqrt(fe_htz.psi_A[0]**2 + fe_htz.psi_A[1]**2)
+        # if fe_htz.psi_A[0] < fe_htz.psi_A_amplitude and fe_htz.psi_A[0] > -1 * fe_htz.psi_A_amplitude:
+        #     fe_htz.ell_compensation_flag_alpha = 1
+        # if fe_htz.psi_A[1] < fe_htz.psi_A_amplitude and fe_htz.psi_A[1] > -1 * fe_htz.psi_A_amplitude:
+        #     fe_htz.ell_compensation_flag_beta = 1
+        # if fe_htz.ell_compensation_flag_alpha == 1 and fe_htz.ell_compensation_flag_beta == 1:
+        #     fe_htz.ell_compensation_flag = 1
         # 疯狂限幅的
         fe_htz.psi_2[0] = fe_htz.psi_1[0] - CTRL.Lq*CTRL.iab[0]
         fe_htz.psi_2[1] = fe_htz.psi_1[1] - CTRL.Lq*CTRL.iab[1]
@@ -877,8 +890,9 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
                     
                         if fe_htz.maximum_of_sat_max_time[ind] != 0 and fe_htz.maximum_of_sat_min_time[ind] != 0:
                             CTRL.ell = CTRL.ell + CTRL.K1_for_max_ell * CTRL.CL_TS * fe_htz.maximum_of_sat_max_time[ind] + 1000 * CTRL.CL_TS * fe_htz.maximum_of_sat_min_time[ind]
-                        elif fe_htz.maximum_of_sat_max_time[ind] == 0 and fe_htz.maximum_of_sat_min_time[ind] == 0:
-                            CTRL.ell = CTRL.ell + CTRL.K2_for_min_ell * CTRL.CL_TS * fe_htz.positive_cycle_in_count[0]
+                        elif (fe_htz.maximum_of_sat_max_time[ind] == 0 and fe_htz.maximum_of_sat_min_time[ind] == 0) or fe_htz.ell_compensation_flag == 1:
+                            CTRL.ell = CTRL.ell + CTRL.K2_for_min_ell * CTRL.CL_TS * (fe_htz.negative_cycle_in_count[0] + fe_htz.positive_cycle_in_count[0] + fe_htz.negative_cycle_in_count[1] + fe_htz.positive_cycle_in_count[1])
+                            # CTRL.ell = CTRL.ell + CTRL.K2_for_min_ell * CTRL.CL_TS * fe_htz.positive_cycle_in_count[0]
                         # if ind==0
                             #     print(f'{CTRL.timebase}')
                             # if CTRL.timebase < 1:
@@ -994,8 +1008,8 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
         else:
             fe_htz.gain_off = fe_htz.GAIN_OFFSET_INIT
 
-        fe_htz.u_offset[0] += 0.9*fe_htz.gain_off * CTRL.CL_TS * INTEGRAL_INPUT_ALPHA
-        fe_htz.u_offset[1] += 0.9*fe_htz.gain_off * CTRL.CL_TS * INTEGRAL_INPUT_BETA
+        fe_htz.u_offset[0] += 0.9*fe_htz.gain_off * 100 * CTRL.CL_TS * INTEGRAL_INPUT_ALPHA
+        fe_htz.u_offset[1] += 0.9*fe_htz.gain_off * 100 * CTRL.CL_TS * INTEGRAL_INPUT_BETA
         fe_htz.xFlux[2] = fe_htz.u_offset[0]
         fe_htz.xFlux[3] = fe_htz.u_offset[1]
 
@@ -1357,8 +1371,8 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
         else:
             fe_htz.gain_off = fe_htz.GAIN_OFFSET_INIT
 
-        fe_htz.u_offset[0] += 0.9*fe_htz.gain_off * CTRL.CL_TS * INTEGRAL_INPUT_ALPHA
-        fe_htz.u_offset[1] += 0.9*fe_htz.gain_off * CTRL.CL_TS * INTEGRAL_INPUT_BETA
+        fe_htz.u_offset[0] += 0.9*fe_htz.gain_off * 100 * CTRL.CL_TS * INTEGRAL_INPUT_ALPHA
+        fe_htz.u_offset[1] += 0.9*fe_htz.gain_off * 100 * CTRL.CL_TS * INTEGRAL_INPUT_BETA
         fe_htz.xFlux[2] = fe_htz.u_offset[0]
         fe_htz.xFlux[3] = fe_htz.u_offset[1]
 
@@ -1386,16 +1400,16 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
         while ACM.theta_d> np.pi: ACM.theta_d -= 2*np.pi
         while ACM.theta_d<-np.pi: ACM.theta_d += 2*np.pi
         
-        if CTRL.use_encoder_angle_no_matter_what:
-            CTRL.theta = ACM.theta_d
-            CTRL.cosT = np.cos(CTRL.theta_d)
-            CTRL.sinT = np.sin(CTRL.theta_d)
-
         if CTRL.theta_d * ACM.theta_d > 0:
             CTRL.thetaerror = np.sin(ACM.theta_d - CTRL.theta_d)
         elif CTRL.theta_d * ACM.theta_d < 0:
             CTRL.thetaerror = np.sin(CTRL.theta_d + ACM.theta_d)
         
+        if CTRL.use_encoder_angle_no_matter_what:
+            CTRL.theta = ACM.theta_d
+            CTRL.cosT = np.cos(CTRL.theta_d)
+            CTRL.sinT = np.sin(CTRL.theta_d)
+
         if CTRL.bool_counter_theta_error == True:
             if CTRL.counter_theta_error < 3000: 
                 if CTRL.thetaerror_max  < CTRL.thetaerror:
@@ -1413,6 +1427,13 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
                 CTRL.thetaerror_min = 0
                 CTRL.thetaerror_max = 0
                 CTRL.bool_counter_theta_error = False
+        
+        if CTRL.bool_reverse_rotation == True:
+            if ACM.theta_d > 3.00  :
+                CTRL.counter_rotation = CTRL.counter_rotation + 1
+                if CTRL.counter_rotation == 10 * ACM.npp:
+                    CTRL.counter_rotation = 0
+                    CTRL.cmd_idq[1] = -1 * CTRL.cmd_idq[1]
 
         fe_htz.psi_e = ACM.KA * np.cos(ACM.theta_d) - fe_htz.psi_2[0]
         if CTRL.bool_counter == True:
@@ -1671,7 +1692,7 @@ def vehicel_load_model(t, ACM):
     ACM.TLoad=FLoad*EVR          ##### 单侧转矩负载
     ACM.Js = EVJ = EVM*EVR*EVR*0.25  ##### 单轮等效转动惯量
 
-def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None, reg_speed=None, fe_htz=None, FE_param = 1.0, ELL_param = 0.1):
+def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None, reg_speed=None, fe_htz=None, FE_param = 1.0, ELL_param = 0.019):
 
     # RK4 simulation and controller execution relative freuqencies
     MACHINE_TS = CTRL.CL_TS / ACM.MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD

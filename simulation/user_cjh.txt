@@ -1,5 +1,19 @@
-flux estimate_0 [Wb], fe_htz.psi_2[0], fe_htz.psi_A[0]
-flux estimate_1 [Wb], fe_htz.psi_2[1], fe_htz.psi_A[1]
-Speed [r/min], ACM.omega_r_mech/(2*np.pi)*60, CTRL.omega_r_elec/(2*np.pi*ACM.npp)*60, CTRL.cmd_rpm
-ell, CTRL.ell
-theta_e [rad], CTRL.thetaerror
+flux estimate [Wb], fe_htz.psi_2[0], fe_htz.psi_2[1]
+Speed [r/min], ACM.omega_r_mech/(2*np.pi)*60, CTRL.cmd_rpm
+Speed [r/min], CTRL.omega_r_elec/(2*np.pi*ACM.npp)*60
+dq-axis current, CTRL.idq[0], CTRL.idq[1]
+comanded dq-axis current, CTRL.cmd_idq[0], CTRL.cmd_idq[1]
+
+commanded d-axis voltage, CTRL.cmd_udq[0], CTRL.cmd_udq[1]
+
+comamanded beta-axis voltage, CTRL.cmd_uab[0], CTRL.cmd_uab[1]
+
+motor torque Nm, ACM.Tem, CTRL.Tem
+
+$u_offset$, fe_htz.u_offset[0], fe_htz.u_offset[1]
+
+theta_mech, ACM.theta_d_mech 
+
+theta, ACM.theta_d, fe_htz.theta_d 
+rotation, CTRL.counter_rotation ,CTRL.bool_reverse
+theta_e, CTRL.thetaerror 
