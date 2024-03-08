@@ -4,7 +4,7 @@ import dearpygui.dearpygui as dpg
 import math, random, webbrowser
 import threading, time, collections
 import concurrent.futures
-
+import time
 
 def _help(message):
     last_item = dpg.last_item()
@@ -38,7 +38,7 @@ def _config(sender, keyword, user_data):
         dpg.configure_item(items, **{keyword: value})
 
 def _add_config_options(item, columns, *names, **kwargs):
-    
+
     if columns == 1:
         if 'before' in kwargs:
             for name in names:
@@ -3156,6 +3156,40 @@ def show_dem_demo(list_CONSOLE: list):
                     dpg.add_text("Outputs frame buffer an mvBuffer object, creates a dynamic texture, and shows the texture registry (check final item)")
                     dpg.add_button(label="Output Framebuffer", callback=lambda:dpg.output_frame_buffer(callback=_framebuffer_callback))
 
+def run_dgp_gui():
+    global data_x, data_y
+    # Can use collections if you only need the last 100 samples
+    data_x = collections.deque([0.0, 0.0], maxlen=list_CONSOLE[0].NUMBER_OF_SAMPLE_TO_SHOW)
+    data_y = collections.deque([0.0, 0.0], maxlen=list_CONSOLE[0].NUMBER_OF_SAMPLE_TO_SHOW)
+
+    dpg.create_context()
+    dpg.create_viewport(title='Dear Electric Machines', width=1200, height=900)
+    show_dem_demo(list_CONSOLE)
+    dpg.setup_dearpygui()
+    dpg.show_viewport()
+
+    # compile numba codes
+    print('Numba JIT compiling... (which typically lasts about 8 seconds)')
+
+    if False:
+        list_thread = [threading.Thread(target=realtime_update_data, args=(CONSOLE, len(list_CONSOLE))) for CONSOLE in list_CONSOLE]
+        for thread in list_thread: thread.start()
+    else:
+        def _one_time_plot():
+            for CONSOLE in list_CONSOLE:
+                for _ in range(CONSOLE.NUMBER_OF_TIME_SLICE_TO_SHOW):
+                    print(_, CONSOLE.counter)
+                    run_simulation(CONSOLE)
+                    time.sleep(0.5)
+                update_plot(CONSOLE, len(list_CONSOLE))
+
+        thread = threading.Thread(target=_one_time_plot)
+        thread.start()
+
+    dpg.start_dearpygui()
+    dpg.destroy_context()
+
+
 if __name__ == '__main__':
 
     d = d_user_input_motor_dict = {
@@ -3305,37 +3339,8 @@ if __name__ == '__main__':
     # for CONSOLE  in list_CONSOLE:
     #     CONSOLE.NUMBER_OF_SAMPLE_TO_SHOW = 10000 * 50
 
-
     global data_x, data_y
-    # Can use collections if you only need the last 100 samples
-    data_x = collections.deque([0.0, 0.0], maxlen=list_CONSOLE[0].NUMBER_OF_SAMPLE_TO_SHOW)
-    data_y = collections.deque([0.0, 0.0], maxlen=list_CONSOLE[0].NUMBER_OF_SAMPLE_TO_SHOW)
-
-    dpg.create_context()
-    dpg.create_viewport(title='Dear Electric Machines', width=1200, height=900)
-    show_dem_demo(list_CONSOLE)
-    dpg.setup_dearpygui()
-    dpg.show_viewport()
-
-    # compile numba codes
-    print('Numba JIT compiling... (which typically lasts about 8 seconds)')
-
-    if False:
-        list_thread = [threading.Thread(target=realtime_update_data, args=(CONSOLE, len(list_CONSOLE))) for CONSOLE in list_CONSOLE]
-        for thread in list_thread: thread.start()
-    else:
-        def _one_time_plot():
-            for CONSOLE in list_CONSOLE:
-                for _ in range(CONSOLE.NUMBER_OF_TIME_SLICE_TO_SHOW):
-                    print(_, CONSOLE.counter)
-                    run_simulation(CONSOLE)
-                update_plot(CONSOLE, len(list_CONSOLE))
-
-        thread = threading.Thread(target=_one_time_plot)
-        thread.start()
-
-    dpg.start_dearpygui()
-    dpg.destroy_context()
+    run_dgp_gui()
 
 
 TODO=''' TODO:
