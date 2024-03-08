@@ -3,8 +3,6 @@ fe_htz.psi_2[1], beta-axis flux estimate, Wb, $\psi_{\beta 2}$, flux
 
 fe_htz.u_offset[0], alpha-axis offset voltage, V, $u_offset$, voltage
 fe_htz.u_offset[1], beta-axis offset voltage, V, $u_offset$, voltage
-fe_htz.u_offset[0], alpha-axis offset voltage, V, $u_offset$, voltage
-fe_htz.u_offset[1], beta-axis offset voltage, V, $u_offset$, voltage
 
 CTRL.cmd_rpm, mechnical speed command, r/min, $\omega_r^*$, speed
 ACM.omega_r_mech/(2*np.pi)*60, mechnical speed, r/min, $\omega_r$, speed
