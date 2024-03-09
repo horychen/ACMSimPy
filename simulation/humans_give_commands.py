@@ -4,16 +4,15 @@ def humans_give_commands(CTRL, ACM, t):
 
     if t < 0.1:
         CTRL.cmd_rpm = 50
-        CTRL.cmd_idq[1] = 5
-        ACM.TLoad = CTRL.cmd_rpm*0.0142
-    elif t < 1:
-        CTRL.cmd_rpm = 100
         ACM.TLoad = CTRL.cmd_rpm*0.0142
     elif t < 2:
-        CTRL.cmd_rpm = 100
+        # CTRL.cmd_rpm = 50
         ACM.TLoad = CTRL.cmd_rpm*0.0142
-    elif t < 3:
-        CTRL.cmd_rpm = 100
+    elif t < 4:
+        # CTRL.cmd_rpm = 50
+        ACM.TLoad = CTRL.cmd_rpm*0.0142
+    elif t < 5:
+        # CTRL.cmd_rpm = 50
         ACM.TLoad = CTRL.cmd_rpm*0.0142
     # elif t < 4:
     #     CTRL.cmd_rpm = 300

@@ -58,10 +58,10 @@ class The_Motor_Controller:
         else:
             self.cmd_psi = init_KE # [Wb]
         self.index_voltage_model_flux_estimation = 3
-        self.index_separate_speed_estimation = 0
+        self.index_separate_speed_estimation = 1
         self.use_disturbance_feedforward_rejection = 0
         self.bool_apply_decoupling_voltages_to_current_regulation = False
-        self.bool_apply_speed_closed_loop_control = False
+        self.bool_apply_speed_closed_loop_control = True
         self.bool_zero_id_control = True
         self.bool_reverse_rotation = True
         self.counter_rotation = 10
@@ -148,7 +148,7 @@ class The_Motor_Controller:
         self.emf_stator = np.zeros(2, dtype=np.float64)
         self.cmd_psi_mu = np.zeros(2, dtype=np.float64)
         # gains
-        omega_ob = 100 # [rad/s]
+        omega_ob = 5000 # [rad/s]
         self.ell1 = 0.0
         self.ell2 = 0.0
         self.ell3 = 0.0
@@ -387,13 +387,13 @@ def DYNAMICS_SpeedObserver(x, CTRL, SO_param=1.0):
 
 def DYNAMICS_FluxEstimator(x, CTRL, FE_param=1.0):
     fx = np.zeros(NS_GLOBAL)
-    fx[0] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] - x[2] + 1
+    fx[0] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] - x[2]
     fx[1] = CTRL.uab[1] - CTRL.R * FE_param * CTRL.iab[1] - x[3] 
 
     uhf_alfa = CTRL.cosT * (CTRL.ell - CTRL.flux_estimate_amplitude) * CTRL.Kp_KE_estimate
     uhf_beta = CTRL.sinT * (CTRL.ell - CTRL.flux_estimate_amplitude) * CTRL.Kp_KE_estimate
 
-    fx[4] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] - (x[2] + uhf_alfa) + 1
+    fx[4] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] - (x[2] + uhf_alfa)
     fx[5] = CTRL.uab[1] - CTRL.R * FE_param * CTRL.iab[1] - (x[3] + uhf_beta)
     
     
@@ -1371,8 +1371,8 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
         else:
             fe_htz.gain_off = fe_htz.GAIN_OFFSET_INIT
 
-        fe_htz.u_offset[0] += 0.9*fe_htz.gain_off * 100 * CTRL.CL_TS * INTEGRAL_INPUT_ALPHA
-        fe_htz.u_offset[1] += 0.9*fe_htz.gain_off * 100 * CTRL.CL_TS * INTEGRAL_INPUT_BETA
+        fe_htz.u_offset[0] += 0.9*fe_htz.gain_off * 10 * CTRL.CL_TS * INTEGRAL_INPUT_ALPHA
+        fe_htz.u_offset[1] += 0.9*fe_htz.gain_off * 10 * CTRL.CL_TS * INTEGRAL_INPUT_BETA
         fe_htz.xFlux[2] = fe_htz.u_offset[0]
         fe_htz.xFlux[3] = fe_htz.u_offset[1]
 
@@ -1429,11 +1429,11 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
                 CTRL.bool_counter_theta_error = False
         
         if CTRL.bool_reverse_rotation == True:
-            if ACM.theta_d > 3.00  :
+            if ACM.theta_d > 3.13  :
                 CTRL.counter_rotation = CTRL.counter_rotation + 1
-                if CTRL.counter_rotation == 10 * ACM.npp:
+                if CTRL.counter_rotation == 5 * ACM.npp:
                     CTRL.counter_rotation = 0
-                    CTRL.cmd_idq[1] = -1 * CTRL.cmd_idq[1]
+                    CTRL.cmd_rpm  = -1 * CTRL.cmd_rpm 
 
         fe_htz.psi_e = ACM.KA * np.cos(ACM.theta_d) - fe_htz.psi_2[0]
         if CTRL.bool_counter == True:

@@ -54,12 +54,12 @@ class CustomDataFrame:
    
     def plot(self, machine_times, watch_data, ACM_param=1.0, FE_param=1.0, ELL_param = 0.1):
         plt.style.use('bmh')  # https://matplotlib.org/stable/gallery/style_sheets/style_sheets_reference.html
-        mpl.rc('font', family='Times New Roman', size=12.0)
-        mpl.rc('legend', fontsize=12)
-        mpl.rcParams['lines.linewidth'] = 1.5  # mpl.rc('lines', linewidth=4, linestyle='-.')
-        mpl.rc('font', family='Times New Roman', size=12.0)
-        mpl.rc('legend', fontsize=12)
-        mpl.rcParams['lines.linewidth'] = 1.5  # mpl.rc('lines', linewidth=4, linestyle='-.')
+        mpl.rc('font', family='Times New Roman', size=9)
+        mpl.rc('legend', fontsize=9)
+        mpl.rcParams['lines.linewidth'] = 1  # mpl.rc('lines', linewidth=4, linestyle='-.')
+        mpl.rc('font', family='Times New Roman', size=9)
+        mpl.rc('legend', fontsize=9)
+        mpl.rcParams['lines.linewidth'] = 1  # mpl.rc('lines', linewidth=4, linestyle='-.')
         mpl.rcParams['mathtext.fontset'] = 'stix'
 
         total = len(self.plot_details)
@@ -95,7 +95,7 @@ class CustomDataFrame:
             plt.title(f'Boldea_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
             fig.savefig(f'images/boldea/TimeDomain_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0)
         elif CTRL.index_voltage_model_flux_estimation == 3:
-            plt.title(f'Saturation_sudden_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}')
+            # plt.title(f'Saturation_sudden_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}')
             fig.savefig(f'images/saturation_sudden/TimeDomain_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}.png', dpi=400, bbox_inches='tight', pad_inches=0)
         plt.show()
         # return
@@ -159,7 +159,7 @@ class CustomDataFrame:
             plt.title(f'Boldea_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
             fig.savefig(f'images/boldea/Lissajou_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0)
         elif CTRL.index_voltage_model_flux_estimation == 3:
-            plt.title(f'Saturation_sudden_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}')
+            # plt.title(f'Saturation_sudden_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}')
             fig.savefig(f'images/saturation_sudden/Lissajou_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}.png', dpi=400, bbox_inches='tight', pad_inches=0)
         
         #plt.show()
@@ -176,17 +176,17 @@ custom.generate_function()
 d = d_user_input_motor_dict = {
     # Timing
     'CL_TS': 1e-4,
-    'TIME_SLICE': 9,
+    'TIME_SLICE': 2,
     'NUMBER_OF_SLICES': 1,
     'VL_EXE_PER_CL_EXE': 5,
     'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 1,
-    'CTRL.bool_apply_speed_closed_loop_control': True,
-    'CTRL.bool_apply_decoupling_voltages_to_current_regulation': False,
+    'CTRL.bool_apply_speed_closed_loop_control': False,
+    'CTRL.bool_apply_decoupling_voltages_to_current_regulation': True,
     'CTRL.bool_apply_sweeping_frequency_excitation': False,
     'CTRL.bool_overwrite_speed_commands': True,
     'CTRL.bool_zero_id_control': True,
     'FOC_delta': 10,  # 25, # 6.5
-    'FOC_desired_VLBW_HZ': 120,  # 60
+    'FOC_desired_VLBW_HZ': 50,  # 60
     'FOC_CL_KI_factor_when__bool_apply_decoupling_voltages_to_current_regulation__is_False': 10,
     'CL_SERIES_KP': None,
     'CL_SERIES_KI': None,
@@ -201,26 +201,26 @@ d = d_user_input_motor_dict = {
     'disp.IntLimit': 0.0,
 }
 # 小电感电机
-d['init_npp'] = 26
-d['init_IN'] = 17 
-d['init_R'] = 0.12
-d['init_Ld'] = 0.00046
-d['init_Lq'] = 0.00056
-d['init_KE'] = 0.019
-d['init_KA'] = 0.019
-d['init_Rreq'] = 0.0
-d['init_Js'] = 0.000364
-d['DC_BUS_VOLTAGE'] = 48
-# d['init_npp'] = 4
-# d['init_IN'] = 3
-# d['init_R'] = 1.10
-# d['init_Ld'] = 0.00496
-# d['init_Lq'] = 0.00496
-# d['init_KE'] = 0.1
-# d['init_KA'] = 0.1
+# d['init_npp'] = 26
+# d['init_IN'] = 17 
+# d['init_R'] = 0.12
+# d['init_Ld'] = 0.00046
+# d['init_Lq'] = 0.00056
+# d['init_KE'] = 0.019
+# d['init_KA'] = 0.019
 # d['init_Rreq'] = 0.0
-# d['init_Js'] = 0.000617
-# d['DC_BUS_VOLTAGE'] = 110
+# d['init_Js'] = 0.000364
+# d['DC_BUS_VOLTAGE'] = 48
+d['init_npp'] = 4
+d['init_IN'] = 3
+d['init_R'] = 1.10
+d['init_Ld'] = 0.00496
+d['init_Lq'] = 0.00496
+d['init_KE'] = 0.1
+d['init_KA'] = 0.1
+d['init_Rreq'] = 0.0
+d['init_Js'] = 0.000617
+d['DC_BUS_VOLTAGE'] = 110
 
 
 from tutorials_ep9_flux_estimator import *
@@ -378,7 +378,7 @@ thetaerror_avg = np.zeros(1, dtype=np.float64)
 thetaerror_avg_Saturation_sudden = np.zeros(1, dtype=np.float64)
 thetaerror_avg_saturation = np.zeros(1, dtype=np.float64)
 # ELL_param = [0.05, 0.075, 0.1, 0.125, 0.15]
-ELL_param = [0.019]
+ELL_param = [0.1]
 # ell_param = 0.15
 # FE_param = [0.5, 0.75, 1 , 1.25, 1.5]
 # FE_param = 1
