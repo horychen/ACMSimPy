@@ -1,13 +1,14 @@
 
-elec speed [r/min],CTRL.omega_r_elec/(2*np.pi*ACM.npp)*60, CTRL.cmd_rpm
+elec speed [r/min]@CTRL.omega_r_elec/(2*np.pi*ACM.npp)*60@ CTRL.cmd_rpm
 
-Speed [r/min], ACM.omega_r_mech/(2*np.pi)*60, CTRL.cmd_rpm
+Speed [r/min]@ ACM.omega_r_mech/(2*np.pi)*60@ CTRL.cmd_rpm
 
-dq-axis current [A], CTRL.idq[0], CTRL.idq[1]
+$\psi_{2 \rm max}$@ fe_htz.psi_2_max[0]@fe_htz.psi_2_max[1]
+$\psi_{2 \rm min}$@ fe_htz.psi_2_min[0]@fe_htz.psi_2_min[1]
+motor torque [Nm]@ ACM.Tem@ CTRL.Tem
 
-command dq-axis current [A], CTRL.cmd_idq[0], CTRL.cmd_idq[1]
+flux estimate@ fe_htz.psi_2[0]@fe_htz.psi_2[1]
 
-motor torque [Nm], ACM.Tem, CTRL.Tem
+$u_{\rm offset}$@ fe_htz.u_offset[0]@ fe_htz.u_offset[1]
 
-flux estimate, fe_htz.psi_2[0],fe_htz.psi_2[1]
-voltage,CTRL.uab[0],CTRL.uab[1]
+$\ell$@ CTRL.ell

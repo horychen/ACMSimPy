@@ -18,7 +18,7 @@ class CustomDataFrame:
         signals_library = signals_library.split('\n')
         try:
             for i in range(len(user_figs)):
-                user_fig = user_figs[i].split(',')
+                user_fig = user_figs[i].split('@')
                 for j in range(len(user_fig)):
                     user_fig[j] = user_fig[j].strip()
                 if user_fig[0] == '':
@@ -28,7 +28,7 @@ class CustomDataFrame:
                                           'data_signal_label': user_fig[1:],
                                           'data_signal_num': len(user_fig[1:])})
             for i in range(len(signals_library)):
-                signal = signals_library[i].split(',')
+                signal = signals_library[i].split('@')
                 for j in range(len(signal)):
                     signal[j] = signal[j].strip()
                 if signal[0] == '':
@@ -88,15 +88,15 @@ class CustomDataFrame:
             ax.grid(True)
         axes[-1].set_xlabel('Time [s]')
 
-        if CTRL.index_voltage_model_flux_estimation == 1:
-            plt.title(f'Saturation_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}')
-            fig.savefig(f'images/saturation/TimeDomain_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}.png', dpi=400, bbox_inches='tight', pad_inches=0)
-        elif CTRL.index_voltage_model_flux_estimation == 2:
-            plt.title(f'Boldea_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
-            fig.savefig(f'images/boldea/TimeDomain_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0)
-        elif CTRL.index_voltage_model_flux_estimation == 3:
-            # plt.title(f'Saturation_sudden_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}')
-            fig.savefig(f'images/saturation_sudden/TimeDomain_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}.png', dpi=400, bbox_inches='tight', pad_inches=0)
+        # if CTRL.index_voltage_model_flux_estimation == 1:
+        #     plt.title(f'Saturation_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}')
+        #     fig.savefig(f'images/saturation/TimeDomain_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}.png', dpi=400, bbox_inches='tight', pad_inches=0)
+        # elif CTRL.index_voltage_model_flux_estimation == 2:
+        #     plt.title(f'Boldea_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+        #     fig.savefig(f'images/boldea/TimeDomain_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0)
+        # elif CTRL.index_voltage_model_flux_estimation == 3:
+        #     # plt.title(f'Saturation_sudden_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}')
+        #     fig.savefig(f'images/saturation_sudden/TimeDomain_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}.png', dpi=400, bbox_inches='tight', pad_inches=0)
         plt.show()
         # return
         return result
@@ -109,7 +109,7 @@ class CustomDataFrame:
         user_fig_config = []
         try:
             for i in range(len(user_figs)):
-                user_fig = user_figs[i].split(',')
+                user_fig = user_figs[i].split('@')
                 for j in range(len(user_fig)):
                     user_fig[j] = user_fig[j].strip()
                 if user_fig[0]:
@@ -152,15 +152,15 @@ class CustomDataFrame:
             ax.set_ylim(x_lim_low - x_lim_shift, x_lim_high + x_lim_shift)
             ax.grid(True)
             ax.set_aspect(aspect='equal')
-        if CTRL.index_voltage_model_flux_estimation == 1:
-            plt.title(f'Saturation_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}')
-            fig.savefig(f'images/saturation/Lissajou_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}.png', dpi=400, bbox_inches='tight', pad_inches=0)
-        elif CTRL.index_voltage_model_flux_estimation == 2:
-            plt.title(f'Boldea_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
-            fig.savefig(f'images/boldea/Lissajou_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0)
-        elif CTRL.index_voltage_model_flux_estimation == 3:
-            # plt.title(f'Saturation_sudden_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}')
-            fig.savefig(f'images/saturation_sudden/Lissajou_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}.png', dpi=400, bbox_inches='tight', pad_inches=0)
+        # if CTRL.index_voltage_model_flux_estimation == 1:
+        #     plt.title(f'Saturation_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}')
+        #     fig.savefig(f'images/saturation/Lissajou_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}.png', dpi=400, bbox_inches='tight', pad_inches=0)
+        # elif CTRL.index_voltage_model_flux_estimation == 2:
+        #     plt.title(f'Boldea_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}')
+        #     fig.savefig(f'images/boldea/Lissajou_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}.png', dpi=400, bbox_inches='tight', pad_inches=0)
+        # elif CTRL.index_voltage_model_flux_estimation == 3:
+        #     # plt.title(f'Saturation_sudden_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}')
+        #     fig.savefig(f'images/saturation_sudden/Lissajou_Inductance_{ACM_param}-Resistance_{FE_param}_Speed_{CTRL.cmd_rpm}_Load_{ACM.TLoad}_ell_{ELL_param}.png', dpi=400, bbox_inches='tight', pad_inches=0)
         
         #plt.show()
         #fig.savefig(f'images/saturation/Lissajou_acmparam_{ACM_param}-peparam_{FE_param}.png', dpi=400, bbox_inches='tight', pad_inches=0)
@@ -173,18 +173,13 @@ custom.load(os.path.dirname(__file__) + '/user_cjh.txt',
             os.path.dirname(__file__) + '/signals_library.txt')
 custom.generate_function()
 
-d = d_user_input_motor_dict = {
+d = {
     # Timing
     'CL_TS': 1e-4,
     'TIME_SLICE': 3,
     'NUMBER_OF_SLICES': 1,
     'VL_EXE_PER_CL_EXE': 5,
     'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 1,
-    'CTRL.bool_apply_speed_closed_loop_control': True,
-    'CTRL.bool_apply_decoupling_voltages_to_current_regulation':  True,
-    'CTRL.bool_apply_sweeping_frequency_excitation': False,
-    'CTRL.bool_overwrite_speed_commands': True,
-    'CTRL.bool_zero_id_control': True,
     'FOC_delta': 10,  # 25, # 6.5
     'FOC_desired_VLBW_HZ': 50,  # 60
     'FOC_CL_KI_factor_when__bool_apply_decoupling_voltages_to_current_regulation__is_False': 10,
@@ -199,8 +194,21 @@ d = d_user_input_motor_dict = {
     'disp.tau': 0.0,
     'disp.OutLimit': 0.0,
     'disp.IntLimit': 0.0,
+    #Control index
+    'CTRL.index_voltage_model_flux_estimation': 4,
+    'CTRL.index_separate_speed_estimation': 2,
+    'CTRL.bool_apply_decoupling_voltages_to_current_regulation':  True,
+    'CTRL.bool_apply_speed_closed_loop_control': True,
+    'CTRL.bool_zero_id_control': True,
+    'CTRL.bool_reverse_rotation': True,
+    'CTRL.bool_overwrite_speed_commands': True, #False才运行
+    'CTRL.bool_apply_sweeping_frequency_excitation': False,
+    'CTRL.use_encoder_angle_no_matter_what': False
 }
+
+
 # 小电感电机
+# 舞肌电机
 d['init_npp'] = 26
 d['init_IN'] = 17 
 d['init_R'] = 0.12
@@ -211,6 +219,8 @@ d['init_KA'] = 0.019
 d['init_Rreq'] = 0.0
 d['init_Js'] = 0.000364
 d['DC_BUS_VOLTAGE'] = 48
+
+# 北京时代超群
 # d['init_npp'] = 4
 # d['init_IN'] = 3
 # d['init_R'] = 1.10
@@ -239,23 +249,7 @@ else:
 
 def InitialAllGlobalClass():
     
-    CTRL = The_Motor_Controller(CL_TS=d['CL_TS'],
-                                VL_TS=d['VL_EXE_PER_CL_EXE'] * d['CL_TS'],
-                                init_npp=d['init_npp'],
-                                init_IN=d['init_IN'],
-                                init_R=d['init_R'],
-                                init_Ld=d['init_Ld'],
-                                init_Lq=d['init_Lq'],
-                                init_KE=d['init_KE'],
-                                init_Rreq=d['init_Rreq'],
-                                init_Js=d['init_Js'],
-                                DC_BUS_VOLTAGE=d['DC_BUS_VOLTAGE'])
-    CTRL.bool_apply_decoupling_voltages_to_current_regulation = d[
-        'CTRL.bool_apply_decoupling_voltages_to_current_regulation']
-    CTRL.bool_apply_sweeping_frequency_excitation = d['CTRL.bool_apply_sweeping_frequency_excitation']
-    CTRL.bool_yanzhengzhang = False  ####
-    # CTRL.bool_overwrite_speed_commands = d['CTRL.bool_overwrite_speed_commands']
-    CTRL.bool_zero_id_control = d['CTRL.bool_zero_id_control']
+    CTRL = The_Motor_Controller(**d)
     ACM = The_AC_Machine(CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=d['MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD'])
 
 
@@ -382,18 +376,7 @@ for acm_param in ACM_param:
         # simulate to generate NUMBER_OF_SLICES*TIME_SLICE sec of data
         for ii in range(d['NUMBER_OF_SLICES']):
             # perform animation step
-            CTRL = The_Motor_Controller(CL_TS=d['CL_TS'],
-                                VL_TS=d['VL_EXE_PER_CL_EXE'] * d['CL_TS'],
-                                init_npp=d['init_npp'],
-                                init_IN=d['init_IN'],
-                                init_R=d['init_R'],
-                                init_Ld=d['init_Ld'],
-                                init_Lq=d['init_Lq'],
-                                init_KE=d['init_KE'],
-                                init_Rreq=d['init_Rreq'],
-                                init_Js=d['init_Js'],
-                                DC_BUS_VOLTAGE=d['DC_BUS_VOLTAGE'],
-                                ELL_param=d['ELL_param'])
+            CTRL = The_Motor_Controller(**d)
             ACM = The_AC_Machine(CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=d['MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD'],
                                 ACM_param=d['ACM_param'])
             machine_times, watch_data = ACMSimPyIncremental(t0=ii * d['TIME_SLICE'], TIME=d['TIME_SLICE'],

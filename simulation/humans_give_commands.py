@@ -89,6 +89,4 @@ def humans_give_commands(CTRL, ACM, t):
             # speed control - open-loop sweep
             CTRL.cmd_idq[1] = CTRL.CMD_CURRENT_SINE_AMPERE * np.sin(2*np.pi*CTRL.CMD_SPEED_SINE_HZ*(CTRL.timebase - CTRL.CMD_SPEED_SINE_LAST_END_TIME))
 
-    if CTRL.bool_yanzhengzhang == True:
-        # dasdasdsa
-        pass
+

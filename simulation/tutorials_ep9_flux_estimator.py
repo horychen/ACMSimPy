@@ -11,202 +11,173 @@ NS_GLOBAL = 6
 
 ############################################# CLASS DEFINITION 
 class The_Motor_Controller:
-    def __init__(self, CL_TS, VL_TS,
-        init_npp = 26,
-        init_IN = 17,
-        init_R = 0.12,
-        init_Ld = 0.00046,
-        init_Lq = 0.00056,
-        init_KE = 0.019,
-        init_Rreq = 0, # note division by 0 is equal to infinity
-        init_Js = 0.000364,
-        DC_BUS_VOLTAGE = 48,
-        ELL_param = 0.019
+    def __init__(self, 
+        ELL_param = 0.019,
+        **kwargs
     ):
+        ''' MOTOR '''
+        self.npp  = kwargs.get('init_npp', 26)
+        self.IN   = kwargs.get('init_IN', 17)
+        self.R    = kwargs.get('init_R', 0.12)
+        self.Ld   = kwargs.get('init_Ld', 0.00046)
+        self.Lq   = kwargs.get('init_Lq', 0.00056)
+        self.KE   = kwargs.get('init_KE', 0.019)
+        self.Rreq = kwargs.get('init_Rreq', 0)
+        self.Js   = kwargs.get('init_Js', 0.000364)
+        self.DC_BUS_VOLTAGE = kwargs.get('DC_BUS_VOLTAGE', 48)
+        self.Js_inv = 1 / self.Js
+        self.Lq_inv = 1 / self.Lq
         ''' CONTROL '''
         # constants
-        self.CL_TS = CL_TS
-        self.VL_TS = VL_TS
-        self.velocity_loop_ceiling = VL_TS / CL_TS
+        self.CL_TS = kwargs.get('CL_TS', 1e-4)
+        self.VL_TS = kwargs.get('VL_TS', 1e-4)
+        self.velocity_loop_ceiling = self.VL_TS / self.CL_TS
         self.velocity_loop_counter = self.velocity_loop_ceiling - 1
         print('\tCTRL.velocity_loop_ceiling =', self.velocity_loop_ceiling)
         # feedback / input
-        self.theta_d = 0.0
-        self. thetaerror = 0.0
-        self.omega_r_elec = 0.0
-        self.omega_syn = 0.0
-        self.omega_slip = 0.0
-        self.uab      = np.zeros(2, dtype=np.float64)
+        self.theta_d = kwargs.get('theta_d', 0.0)
+        self. thetaerror = kwargs.get('thetaerror', 0.0)
+        self.omega_r_elec = kwargs.get('omega_r_elec', 0.0)
+        self.omega_syn = kwargs.get('omega_syn', 0.0)
+        self.omega_slip = kwargs.get('omega_slip', 0.0)
+        self.uab      = kwargs.get('uab', np.zeros(2, dtype=np.float64))
         # self.uab_prev = np.zeros(2, dtype=np.float64)
         # self.uab_curr = np.zeros(2, dtype=np.float64)
-        self.iab      = np.zeros(2, dtype=np.float64)
-        self.iab_prev = np.zeros(2, dtype=np.float64)
-        self.iab_curr = np.zeros(2, dtype=np.float64)
+        self.iab      = kwargs.get('iab', np.zeros(2, dtype=np.float64))
+        self.iab_prev = kwargs.get('iab', np.zeros(2, dtype=np.float64))
+        self.iab_curr = kwargs.get('iab', np.zeros(2, dtype=np.float64))
         # states
-        self.timebase = 0.0
-        self.KA = init_KE
-        self.Tem = 0.0
-        self.cosT = 1.0
-        self.sinT = 0.0
+        self.timebase = kwargs.get('timebase', 0.0)
+        self.KA = kwargs.get('init_KE', 0.0)
+        self.Tem = kwargs.get('Tem', 0.0)
+        self.cosT = kwargs.get('cosT', 1.0)
+        self.sinT = kwargs.get('sinT', 0.0)
         # commands
-        self.cmd_idq = np.zeros(2, dtype=np.float64)
-        self.cmd_idq[1] = 2
-        self.cmd_udq = np.zeros(2, dtype=np.float64)
-        self.cmd_uab = np.zeros(2, dtype=np.float64)
-        self.cmd_rpm = 0.0
-        if init_Rreq >0:
+        self.cmd_idq = kwargs.get('cmd_idq', np.zeros(2, dtype=np.float64))
+        self.cmd_udq = kwargs.get('cmd_udq', np.zeros(2, dtype=np.float64)) 
+        self.cmd_uab = kwargs.get('cmd_uab', np.zeros(2, dtype=np.float64))
+        self.cmd_rpm = kwargs.get('cmd_rpm', 0.0)
+        if self.Rreq >0:
             self.cmd_psi = 0.9 # [Wb]
         else:
-            self.cmd_psi = init_KE # [Wb]
-        self.index_voltage_model_flux_estimation = 3
-        self.index_separate_speed_estimation = 2
-        self.use_disturbance_feedforward_rejection = 0
-        self.bool_apply_decoupling_voltages_to_current_regulation = True
-        self.bool_apply_speed_closed_loop_control = True
-        self.bool_zero_id_control = True
-        self.bool_reverse_rotation = True
-        self.flag_reverse_rotation = True
-        self.counter_rotation = 10
-        self.bool_reverse = -1
-        #psi error calculate
-        self.bool_counter = False
-        self.counter_psi = 0 
-        self.psi_max = 0
-        self.psi_min = 0
-        self.psi_sum = 0
-        self.psi_avg = 0
-        self.psi_max_fin = 0
-        self.psi_min_fin = 0
-        self.psi_avg_fin = 0
-        #theta error calculate
-        self.bool_counter_theta_error = False
-        self.counter_theta_error = 0 
-        self.thetaerror_max = 0
-        self.thetaerror_min = 0
-        self.thetaerror_sum = 0
-        self.thetaerror_avg = 0
-        self.thetaerror_max_fin = 0
-        self.thetaerror_min_fin = 0
-        self.thetaerror_avg_fin = 0
-        self.bool_theta_overwrite = 0
+            self.cmd_psi = kwargs.get('init_KE', 0.1)# [Wb]
+        self.index_voltage_model_flux_estimation = kwargs.get('CTRL.index_voltage_model_flux_estimation', 1)
+        self.index_separate_speed_estimation = kwargs.get('CTRL.index_separate_speed_estimation', 0)
+        self.use_disturbance_feedforward_rejection = kwargs.get('use_disturbance_feedforward_rejection', 0)
+        self.bool_apply_decoupling_voltages_to_current_regulation = kwargs.get('CTRL.bool_apply_decoupling_voltages_to_current_regulation', True)
+        self.bool_apply_speed_closed_loop_control = kwargs.get('CTRL.bool_apply_speed_closed_loop_control', True)
+        self.bool_zero_id_control = kwargs.get('CTRL.bool_zero_id_control', True)
+        self.bool_reverse_rotation = kwargs.get('CTRL.bool_reverse_rotation', True)
+        self.flag_reverse_rotation = kwargs.get('flag_reverse_rotation', True)
+        self.counter_rotation = kwargs.get('counter_rotation', 10)
         # sweep frequency
-        self.bool_apply_sweeping_frequency_excitation = False
-
-        self.bool_overwrite_speed_commands = True
-        self.bool_yanzhengzhang = False
-        self.apply_pulse_4_evaluating_position_estimator_accuracy = False
-        self.CMD_CURRENT_SINE_AMPERE = 1 # [A]
-        self.CMD_SPEED_SINE_RPM = 100 # [r/min]
-        self.CMD_SPEED_SINE_HZ = 0 # [Hz]
-        self.CMD_SPEED_SINE_STEP_SIZE = 1 # [Hz]
-        self.CMD_SPEED_SINE_LAST_END_TIME = 0.0
-        self.CMD_SPEED_SINE_END_TIME = 0.0
-        self.CMD_SPEED_SINE_HZ_CEILING = 100
-        ''' MOTOR '''
-        self.npp  = init_npp
-        self.IN   = init_IN
-        self.R    = init_R
-        self.Ld   = init_Ld
-        self.Lq   = init_Lq
-        self.KE   = init_KE
-        self.Rreq = init_Rreq
-        self.Js   = init_Js
-        self.DC_BUS_VOLTAGE = DC_BUS_VOLTAGE
-        self.Js_inv = 1 / init_Js
-        self.Lq_inv = 1 / init_Lq
-
-        
+        self.bool_apply_sweeping_frequency_excitation = kwargs.get('CTRL.bool_apply_sweeping_frequency_excitation', False)
+        self.bool_overwrite_speed_commands = kwargs.get('CTRL.bool_overwrite_speed_commands', True)
+        self.CMD_CURRENT_SINE_AMPERE = kwargs.get('CMD_CURRENT_SINE_AMPERE', 1) # [A]
+        self.CMD_SPEED_SINE_RPM = kwargs.get('CMD_SPEED_SINE_RPM', 100) # [rpm]
+        self.CMD_SPEED_SINE_HZ = kwargs.get('CMD_SPEED_SINE_HZ', 0) # [Hz]
+        self.CMD_SPEED_SINE_STEP_SIZE = kwargs.get('CMD_SPEED_SINE_STEP_SIZE', 1) # [Hz]
+        self.CMD_SPEED_SINE_LAST_END_TIME = kwargs.get('CMD_SPEED_SINE_LAST_END_TIME', 0.0)
+        self.CMD_SPEED_SINE_END_TIME = kwargs.get('CMD_SPEED_SINE_END_TIME', 0.0)
+        self.CMD_SPEED_SINE_HZ_CEILING = kwargs.get('CMD_SPEED_SINE_HZ_CEILING', 0.0)
+        ''' tools for error calculation '''
+        #psi error calculate
+        self.bool_counter = kwargs.get('bool_counter', False)
+        self.counter_psi = kwargs.get('psi_max', 0)
+        self.psi_max = kwargs.get('counter_psi', 0)
+        self.psi_min = kwargs.get('psi_min', 0)
+        self.psi_sum = kwargs.get('psi_sum', 0)
+        self.psi_avg = kwargs.get('psi_avg', 0)
+        self.psi_max_fin = kwargs.get('psi_max_fin', 0)
+        self.psi_min_fin = kwargs.get('psi_min_fin', 0)
+        self.psi_avg_fin = kwargs.get('psi_avg_fin', 0)
+        #theta error calculate
+        self.bool_counter_theta_error = kwargs.get('bool_counter_theta_error', False)
+        self.counter_theta_error = kwargs.get('counter_theta_error', 0)
+        self.thetaerror_max = kwargs.get('thetaerror_max', 0)
+        self.thetaerror_min = kwargs.get('thetaerror_min', 0)
+        self.thetaerror_sum = kwargs.get('thetaerror_sum', 0)
+        self.thetaerror_avg = kwargs.get('thetaerror_avg', 0)
+        self.thetaerror_max_fin = kwargs.get('thetaerror_max_fin', 0)
+        self.thetaerror_min_fin = kwargs.get('thetaerror_min_fin', 0)
+        self.thetaerror_avg_fin = kwargs.get('thetaerror_avg_fin', 0)
         ''' OBSERVER '''
         # feedback / input
-        self.idq = np.zeros(2, dtype=np.float64)
+        self.idq = kwargs.get('idq', np.zeros(2, dtype=np.float64))
         # state
         # self.NS_SPEED  = 6 # = max(NS_SPEED, NS_FLUX)
-        self.xSpeed    = np.zeros(NS_GLOBAL, dtype=np.float64) # the internal states of speed estimator
-        self.xTorque   = np.zeros(NS_GLOBAL, dtype=np.float64) # the internal states of torque estimator
+        self.xSpeed    = kwargs.get('xSpeed', np.zeros(NS_GLOBAL, dtype=np.float64))
+        self.xTorque   = kwargs.get('xTorque', np.zeros(NS_GLOBAL, dtype=np.float64))
         # outputs
-        self.speed_observer_output_error = 0.0
-        self.vartheta_d = 0.0
-        self.total_disrubance_feedforward = 0.0
-        self.idq_pre = np.zeros(2, dtype=np.float64)
-        self.iQ_avg_curr = 0.0
-        self.iQ_sum_curr = 0.0
-        self.window_counter = 0
-        self.iQ_avg_prev = 0.0
-        self.iQ_sum_prev = 0.0
-        self.theta_tilde = 0.0
-
-        self.rotor_flux_error = np.zeros(2, dtype=np.float64)
-        self.OFFSET_VOLTAGE_ALPHA = 0.0
-        self.OFFSET_VOLTAGE_BETA = 0.0
-        self.VM_PROPOSED_PI_CORRECTION_GAIN_P = 10.000
-        self.VM_PROPOSED_PI_CORRECTION_GAIN_I = 0.1
-        self.correction_integral_term = np.zeros(2, dtype=np.float64)
-        self.emf_stator = np.zeros(2, dtype=np.float64)
-        self.cmd_psi_mu = np.zeros(2, dtype=np.float64)
-
-        self.rotor_flux_error = np.zeros(2, dtype=np.float64)
-        self.OFFSET_VOLTAGE_ALPHA = 0.0
-        self.OFFSET_VOLTAGE_BETA = 0.0
-        self.VM_PROPOSED_PI_CORRECTION_GAIN_P = 10.000
-        self.VM_PROPOSED_PI_CORRECTION_GAIN_I = 0.1
-        self.correction_integral_term = np.zeros(2, dtype=np.float64)
-        self.emf_stator = np.zeros(2, dtype=np.float64)
-        self.cmd_psi_mu = np.zeros(2, dtype=np.float64)
+        self.speed_observer_output_error = kwargs.get('speed_observer_output_error', 0.0)
+        self.vartheta_d = kwargs.get('vartheta_d', 0.0)
+        self.total_disrubance_feedforward = kwargs.get('total_disrubance_feedforward', 0.0)
         # gains
         omega_ob = 5000 # [rad/s]
-        self.ell1 = 0.0
-        self.ell2 = 0.0
-        self.ell3 = 0.0
-        self.ell4 = 0.0
+        self.ell1 = kwargs.get('ell1', 0.0)
+        self.ell2 = kwargs.get('ell2', 0.0)
+        self.ell3 = kwargs.get('ell3', 0.0)
+        self.ell4 = kwargs.get('ell4', 0.0)
         if False: # 2nd-order speed observer (assuming speed feedback)
             self.ell2 = 2 * omega_ob
-            self.ell3 =     omega_ob**2 * init_Js/init_npp
+            self.ell3 =     omega_ob**2 * self.Js/self.npp
         elif False: # 2nd-order position observer
             self.ell1 = 2 * omega_ob
-            self.ell2 =     omega_ob**2 * init_Js/init_npp
+            self.ell2 =     omega_ob**2 * self.Js/self.npp
         elif True: # 3rd-order position observer
             self.ell1 = 3 * omega_ob
             self.ell2 = 3 * omega_ob**2
-            self.ell3 =     omega_ob**3 * init_Js/init_npp
+            self.ell3 =     omega_ob**3 * self.Js/self.npp
         else: # 4th-order position observer
             self.ell1 = 4 * omega_ob
             self.ell2 = 6 * omega_ob**2
-            self.ell3 = 4 * omega_ob**3 * init_Js/init_npp
+            self.ell3 = 4 * omega_ob**3 * self.Js/self.npp
             self.ell4 =     omega_ob**4
 
-        self.one_over_six = 1.0 / 6.0
-        self.use_encoder_angle_no_matter_what = False
-        self.flux_estimate_amplitude = init_KE
+        self.one_over_six = kwargs.get('one_over_six', 1 / 6)
+        self.use_encoder_angle_no_matter_what = kwargs.get('CTRL.use_encoder_angle_no_matter_what', True)
+        self.flux_estimate_amplitude = kwargs.get('init_KE', 0.019)
+        # mixed holtz and boldea to estimate K_E
+        self.ell = kwargs.get('init_KE', 0.0)
+        self.ell_prev = kwargs.get('init_KE', 0.0)
         self.ell = ELL_param
         self.ell_prev = ELL_param
-        self.psi_A_amplitude = 0
-        self.Kp_KE_estimate = -150
-        self.K1_for_max_ell = 1000 
-        self.K2_for_min_ell = -0.005
-
+        self.psi_A_amplitude = kwargs.get('psi_A_amplitude', 0.0)
+        self.Kp_KE_estimate = kwargs.get('Kp_KE_estimate', -150)
+        self.K1_for_max_ell = kwargs.get('K1_for_max_ell', 1000)
+        self.K2_for_min_ell = kwargs.get('K2_for_min_ell', -0.005)
+        # boldea 2008
+        self.rotor_flux_error = kwargs.get('rotor_flux_error', np.zeros(NS_GLOBAL, dtype=np.float64))
+        self.OFFSET_VOLTAGE_ALPHA = kwargs.get('OFFSET_VOLTAGE_ALPHA', 0.0)
+        self.OFFSET_VOLTAGE_BETA = kwargs.get('OFFSET_VOLTAGE_BETA', 0.0)
+        self.VM_PROPOSED_PI_CORRECTION_GAIN_P = kwargs.get('VM_PROPOSED_PI_CORRECTION_GAIN_P', 0.1)
+        self.VM_PROPOSED_PI_CORRECTION_GAIN_I = kwargs.get('VM_PROPOSED_PI_CORRECTION_GAIN_I', 0.01)
+        self.correction_integral_term = kwargs.get('correction_integral_term', np.zeros(NS_GLOBAL, dtype=np.float64))
+        self.emf_stator = kwargs.get('emf_stator', np.zeros(NS_GLOBAL, dtype=np.float64))
+        self.cmd_psi_mu = kwargs.get('cmd_psi_mu', np.zeros(NS_GLOBAL, dtype=np.float64))
         # natural speed observer
-        self.nsoaf_KP = 0.0
-        self.nsoaf_KI = 0.0
-        self.nsoaf_KD = 0.0
-        self.nsoaf_omega_ob = 0.0
-        self.nsoaf_set_omega_ob = 200
-        self.TUNING_IGNORE_UQ  = False
-        self.tuning_nsoaf = True
-        self.nsoaf_output_error = 0.0
-        self.udq = np.zeros(2, dtype=np.float64)
-        self.NSOAF_SPMSM_OR_IPMSM = 1
-        self.nsoaf_uQ = 0.0
-        self.active_power_real = 0.0
-        self.active_power_est = 0.0
-        self.active_power_error = 0.0
-        self.nsoaf_xTem = 0.0
-        self.CLARKE_TRANS_TORQUE_GAIN = 1.5 
-        self.nsoaf_xIq      = 0.0
-        self.nsoaf_xOmg     = 0.0
-        self.nsoaf_xTL      = 0.0
-        self.nsoaf_xSpeed = np.zeros(NS_GLOBAL, dtype=np.float64)
-        self.uQ_now_filtered = 0.0
-        self.idq_c = np.zeros(2, dtype=np.float64)
+        self.nsoaf_KP = kwargs.get('nsoaf_KP', 0.0)
+        self.nsoaf_KI = kwargs.get('nsoaf_KI', 0.0)
+        self.nsoaf_KD = kwargs.get('nsoaf_KD', 0.0)
+        self.nsoaf_omega_ob = kwargs.get('nsoaf_omega_ob', 0.0)
+        self.nsoaf_set_omega_ob = kwargs.get('nsoaf_set_omega_ob', 200)
+        self.TUNING_IGNORE_UQ  = kwargs.get('TUNING_IGNORE_UQ', False)
+        self.tuning_nsoaf = kwargs.get('tuning_nsoaf', False)
+        self.nsoaf_output_error = kwargs.get('nsoaf_output_error', 0.0)
+        self.udq = kwargs.get('udq', np.zeros(2, dtype=np.float64))
+        self.NSOAF_SPMSM_OR_IPMSM = kwargs.get('NSOAF_SPMSM_OR_IPMSM', 1)
+        self.nsoaf_uQ = kwargs.get('nsoaf_uQ', 0.0)
+        self.active_power_real = kwargs.get('active_power_real', 0.0)
+        self.active_power_est = kwargs.get('active_power_est', 0.0)
+        self.active_power_error = kwargs.get('active_power_error', 0.0)
+        self.nsoaf_xTem = kwargs.get('nsoaf_xTem', 0.0)
+        self.CLARKE_TRANS_TORQUE_GAIN = kwargs.get('CLARKE_TRANS_TORQUE_GAIN', 1.5)
+        self.nsoaf_xIq      = kwargs.get('nsoaf_xIq', 0.0)
+        self.nsoaf_xOmg     = kwargs.get('nsoaf_xOmg', 0.0)
+        self.nsoaf_xTL      = kwargs.get('nsoaf_xTL', 0.0)
+        self.nsoaf_xSpeed = kwargs.get('nsoaf_xSpeed', np.zeros(NS_GLOBAL, dtype=np.float64))
+        self.uQ_now_filtered = kwargs.get('uQ_now_filtered', 0.0)
+        self.idq_c = kwargs.get('idq_c', np.zeros(2, dtype=np.float64))
 class The_AC_Machine:
     def __init__(self, CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=1, ACM_param=1.0):
         # name plate data
@@ -395,7 +366,10 @@ class Variables_FluxEstimator_Holtz03:
         self.ell_compensation_flag = 0
         self.ell_compensation_flag_alpha = 0 
         self.ell_compensation_flag_beta = 0
-
+        
+        # no saturation time based 
+        self.u_offset_correction_factor = 100
+        self.u_offset_filered = np.zeros(2, dtype=np.float64)
 ############################################# OBSERVERS SECTION
 def DYNAMICS_SpeedObserver(x, CTRL, SO_param=1.0):
     fx = np.zeros(NS_GLOBAL)
@@ -417,7 +391,7 @@ def DYNAMICS_SpeedObserver(x, CTRL, SO_param=1.0):
 
 def DYNAMICS_FluxEstimator(x, CTRL, FE_param=1.0):
     fx = np.zeros(NS_GLOBAL)
-    fx[0] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] - x[2]
+    fx[0] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] - x[2] + 0.1
     fx[1] = CTRL.uab[1] - CTRL.R * FE_param * CTRL.iab[1] - x[3] 
 
     uhf_alfa = CTRL.cosT * (CTRL.ell - CTRL.flux_estimate_amplitude) * CTRL.Kp_KE_estimate
@@ -428,7 +402,7 @@ def DYNAMICS_FluxEstimator(x, CTRL, FE_param=1.0):
     
     
     return fx
-
+# nature speed oberver init
 def init_nsoaf(CTRL):
     NSOAF_TL_P = 1
     NSOAF_TL_I =20
@@ -443,7 +417,7 @@ def init_nsoaf(CTRL):
     CTRL.KA = CTRL.KE + (CTRL.Ld - CTRL.Lq) * CTRL.idq[0]
     CTRL.nsoaf_omega_ob = CTRL.nsoaf_set_omega_ob
     nso_one_parameter_tuning(CTRL)
-
+# nature speed oberver tuning
 def nso_one_parameter_tuning(CTRL):
     if CTRL.nsoaf_omega_ob < 170:
         CTRL.nsoaf_set_omega_ob = 170
@@ -456,9 +430,10 @@ def nso_one_parameter_tuning(CTRL):
     CTRL.nsoaf_KP = ( (3 * CTRL.nsoaf_omega_ob*CTRL.nsoaf_omega_ob)         * one_over__npp_divided_by_Js__times__Lq_id_plus_KActive - 1.5 * CTRL.npp * CTRL.KA ) * uq_inv
     CTRL.nsoaf_KI = CTRL.nsoaf_omega_ob * CTRL.nsoaf_omega_ob * CTRL.nsoaf_omega_ob      * one_over__npp_divided_by_Js__times__Lq_id_plus_KActive                    * uq_inv
 
+# 低通滤波器
 def _lpf(x, y, tau_inv,CTRL):
     return y + tau_inv * (x - y) * CTRL.CL_TS
-
+# nature speed oberver dynamics
 def NSO_Dynamics(x, CTRL, param = 1.0):
     fx = np.zeros(NS_GLOBAL)
     xIq  =  x[0]
@@ -488,6 +463,7 @@ def NSO_Dynamics(x, CTRL, param = 1.0):
     return fx
 
 def RK4_ObserverSolver_CJH_Style(THE_DYNAMICS, x, hs, CTRL, param=1.0):
+
     k1, k2, k3, k4 = np.zeros(NS_GLOBAL), np.zeros(NS_GLOBAL), np.zeros(NS_GLOBAL), np.zeros(NS_GLOBAL) # incrementals at 4 stages
     xk, fx = np.zeros(NS_GLOBAL), np.zeros(NS_GLOBAL) # state x for stage 2/3/4, state derivative
 
@@ -519,6 +495,21 @@ def RK4_ObserverSolver_CJH_Style(THE_DYNAMICS, x, hs, CTRL, param=1.0):
         k4[i] = fx[i] * hs
         x[i] = x[i] + (k1[i] + 2*(k2[i] + k3[i]) + k4[i]) * CTRL.one_over_six
 
+def rhf_CmdErrFdkCorInFrameRho_Dynamics(x, CTRL,FE_param=1):
+    
+    fx = np.zeros(NS_GLOBAL)
+    
+    CTRL.rotor_flux_error[0] = ( CTRL.cmd_psi_mu[0] - (x[0]-CTRL.Lq * CTRL.iab[0]) )
+    CTRL.rotor_flux_error[1] = ( CTRL.cmd_psi_mu[1] - (x[1]-CTRL.Lq * CTRL.iab[1]) )
+
+    CTRL.emf_stator[0] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] + CTRL.OFFSET_VOLTAGE_ALPHA + CTRL.VM_PROPOSED_PI_CORRECTION_GAIN_P * CTRL.rotor_flux_error[0] + x[2]
+    CTRL.emf_stator[1] = CTRL.uab[1] - CTRL.R * FE_param * CTRL.iab[1] + CTRL.OFFSET_VOLTAGE_BETA  + CTRL.VM_PROPOSED_PI_CORRECTION_GAIN_P * CTRL.rotor_flux_error[1] + x[3]
+    fx[0] = CTRL.emf_stator[0]
+    fx[1] = CTRL.emf_stator[1]
+    fx[2] = CTRL.VM_PROPOSED_PI_CORRECTION_GAIN_I * CTRL.rotor_flux_error[0]
+    fx[3] = CTRL.VM_PROPOSED_PI_CORRECTION_GAIN_I * CTRL.rotor_flux_error[1]
+    return fx
+
 def angle_diff(a,b):
     # ''' a and b must be within [0, 2*np.pi]'''
     _, a = divmod(a, 2*np.pi)
@@ -532,7 +523,785 @@ def angle_diff(a,b):
         return d1
     else:
         return d2
+# 计算角度最大最小值的峰峰值和平均值
+def cal_theta_error(CTRL):
+    if CTRL.bool_counter_theta_error == True:
+        if CTRL.counter_theta_error < 3000: 
+            if CTRL.thetaerror_max  < CTRL.thetaerror:
+                CTRL.thetaerror_max =  CTRL.thetaerror   
+                CTRL.thetaerror_max_fin = CTRL.thetaerror_max 
+            if CTRL.thetaerror_min > CTRL.thetaerror:
+                CTRL.thetaerror_min = CTRL.thetaerror
+                CTRL.thetaerror_min_fin = CTRL.thetaerror_min
+            CTRL.thetaerror_sum += CTRL.thetaerror
+            CTRL.counter_theta_error += 1
+        if CTRL.counter_theta_error == 3000:
+            CTRL.thetaerror_avg = CTRL.thetaerror_sum / 3000
+            CTRL.counter_theta_error = 0
+            CTRL.thetaerror_sum = 0
+            CTRL.thetaerror_min = 0
+            CTRL.thetaerror_max = 0
+            CTRL.bool_counter_theta_error = False
+# 计算磁链最大最小值的峰峰值和平均值
+def cal_psi_error(CTRL, fe_htz, ACM):
+    fe_htz.psi_e = ACM.KA * np.cos(ACM.theta_d) - fe_htz.psi_A[0]
+    if CTRL.bool_counter == True:
+        if CTRL.counter_psi < 3000: 
+            if CTRL.psi_max  < fe_htz.psi_e:
+                CTRL.psi_max =  fe_htz.psi_e    
+                CTRL.psi_max_fin = CTRL.psi_max 
+            if CTRL.psi_min > fe_htz.psi_e:
+                CTRL.psi_min = fe_htz.psi_e
+                CTRL.psi_min_fin = CTRL.psi_min
+            CTRL.psi_sum += fe_htz.psi_e
+            CTRL.counter_psi += 1
+        if CTRL.counter_psi == 3000:
+            CTRL.psi_avg = CTRL.psi_sum / 3000
+            CTRL.counter_psi = 0
+            CTRL.psi_sum = 0
+            CTRL.psi_min = 0
+            CTRL.psi_max = 0
+            CTRL.bool_counter = False
+'''flux estimators'''
+# According to CTRL.index_voltage_model_flux_estimation, chose your flux estimator 
+#0. encoder 
+#1. mixed holtz and boldea to estimate K_E
+#2. B. Proposed Flux Command Error feedback PI Correction in Controller Frame
+#3. chen saturation time based
+#4. cancel saturation and estimate K_E and u_offset from \psi_max and \psi_min
 
+def mixed_holtz_and_boldea_to_estimate_K_E(fe_htz, CTRL, ACM, FE_param):
+    RK4_ObserverSolver_CJH_Style(DYNAMICS_FluxEstimator, fe_htz.xFlux, CTRL.CL_TS, CTRL, FE_param)
+    fe_htz.psi_1[0] = fe_htz.xFlux[0]
+    fe_htz.psi_1[1] = fe_htz.xFlux[1]
+    fe_htz.psi_s[0] = fe_htz.xFlux[4]
+    fe_htz.psi_s[1] = fe_htz.xFlux[5]
+
+    # 没有限幅的
+    fe_htz.psi_A[0] = fe_htz.psi_s[0] - CTRL.Lq*CTRL.iab[0]
+    fe_htz.psi_A[1] = fe_htz.psi_s[1] - CTRL.Lq*CTRL.iab[1]
+    
+    fe_htz.psi_A_amplitude = np.sqrt(fe_htz.psi_A[0]**2 + fe_htz.psi_A[1]**2)
+    # if fe_htz.psi_A[0] < fe_htz.psi_A_amplitude and fe_htz.psi_A[0] > -1 * fe_htz.psi_A_amplitude:
+    #     fe_htz.ell_compensation_flag_alpha = 1
+    # if fe_htz.psi_A[1] < fe_htz.psi_A_amplitude and fe_htz.psi_A[1] > -1 * fe_htz.psi_A_amplitude:
+    #     fe_htz.ell_compensation_flag_beta = 1
+    # if fe_htz.ell_compensation_flag_alpha == 1 and fe_htz.ell_compensation_flag_beta == 1:
+    #     fe_htz.ell_compensation_flag = 1
+    # 疯狂限幅的
+    fe_htz.psi_2[0] = fe_htz.psi_1[0] - CTRL.Lq*CTRL.iab[0]
+    fe_htz.psi_2[1] = fe_htz.psi_1[1] - CTRL.Lq*CTRL.iab[1]
+    # fe_htz.psi_2_ampl = np.sqrt(fe_htz.psi_2[0]*fe_htz.psi_2[0]+fe_htz.psi_2[1]*fe_htz.psi_2[1])
+
+    # 限幅前求角度还是应该限幅后？
+    # fe_htz.theta_d = np.arctan2(fe_htz.psi_2[1], fe_htz.psi_2[0])
+    # fe_htz.cosT = np.cos(fe_htz.theta_d)
+    # fe_htz.sinT = np.sin(fe_htz.theta_d)
+
+    # fe_htz.psi_1_nonSat[0] += CTRL.CL_TS*(fe_htz.emf_stator[0])
+    # fe_htz.psi_1_nonSat[1] += CTRL.CL_TS*(fe_htz.emf_stator[1])
+    # fe_htz.psi_2_nonSat[0] = fe_htz.psi_1_nonSat[0] - CTRL.Lq*CTRL.iab[0]
+    # fe_htz.psi_2_nonSat[1] = fe_htz.psi_1_nonSat[1] - CTRL.Lq*CTRL.iab[1]
+
+    fe_htz.psi_aster_max = CTRL.ell
+
+    # 限幅是针对转子磁链限幅的
+    for ind in range(0,2):
+        if CTRL.cmd_rpm != 0.0:
+            if fe_htz.psi_2[ind]    > fe_htz.psi_aster_max: # TODO BUG呀！这里怎么可以是>应该是大于等于啊！
+                fe_htz.psi_2[ind]   = fe_htz.psi_aster_max
+                fe_htz.sat_max_time[ind] += CTRL.CL_TS
+            elif fe_htz.psi_2[ind] < -fe_htz.psi_aster_max:
+                fe_htz.psi_2[ind]   = -fe_htz.psi_aster_max
+                fe_htz.sat_min_time[ind] += CTRL.CL_TS
+            else:
+                # 这样可以及时清零饱和时间
+                if fe_htz.sat_max_time[ind]>0: fe_htz.sat_max_time[ind] -= CTRL.CL_TS
+                if fe_htz.sat_min_time[ind]>0: fe_htz.sat_min_time[ind] -= CTRL.CL_TS
+
+        # 上限饱和减去下限饱和作为误差，主要为了消除实际磁链幅值大于给定的情况，实际上这种现象在常见工况下出现次数不多。
+        fe_htz.u_off_saturation_time_correction[ind] = fe_htz.sat_max_time[ind] - fe_htz.sat_min_time[ind]
+        # u_offset波动会导致sat_min_time和sat_max_time的波动，这个时候最有效的办法是减少gain_off。
+        # 但是同时，观察饱和时间sat_min_time等的波形，可以发现它里面也会出现一个正弦波包络线。
+        if fe_htz.sat_min_time[ind] > fe_htz.maximum_of_sat_min_time[ind]: fe_htz.maximum_of_sat_min_time[ind] = fe_htz.sat_min_time[ind]
+        if fe_htz.sat_max_time[ind] > fe_htz.maximum_of_sat_max_time[ind]: fe_htz.maximum_of_sat_max_time[ind] = fe_htz.sat_max_time[ind]
+
+    # 数数，算磁链周期
+    if fe_htz.psi_2[0]    > 0.0:
+        fe_htz.count_positive_in_one_cycle[0] += 1
+        if fe_htz.count_negative_in_one_cycle[0]!=0: 
+            fe_htz.negative_cycle_in_count[0] = fe_htz.count_negative_in_one_cycle[0]; fe_htz.count_negative_in_one_cycle[0] = 0
+    elif fe_htz.psi_2[0] < -0.0:
+        fe_htz.count_negative_in_one_cycle[0] += 1
+        if fe_htz.count_positive_in_one_cycle[0]!=0: 
+            fe_htz.positive_cycle_in_count[0] = fe_htz.count_positive_in_one_cycle[0]; fe_htz.count_positive_in_one_cycle[0] = 0
+
+    if fe_htz.psi_2[1]    > 0.0:
+        fe_htz.count_positive_in_one_cycle[1] += 1
+        if fe_htz.count_negative_in_one_cycle[1]!=0: 
+            fe_htz.negative_cycle_in_count[1] = fe_htz.count_negative_in_one_cycle[1]; fe_htz.count_negative_in_one_cycle[1] = 0
+    elif fe_htz.psi_2[1] < -0.0:
+        fe_htz.count_negative_in_one_cycle[1] += 1
+        if fe_htz.count_positive_in_one_cycle[1]!=0: 
+            fe_htz.positive_cycle_in_count[1] = fe_htz.count_positive_in_one_cycle[1]; fe_htz.count_positive_in_one_cycle[1] = 0
+
+    # 限幅后的转子磁链，再求取限幅后的定子磁链
+    fe_htz.psi_1[0] = fe_htz.psi_2[0] + CTRL.Lq*CTRL.iab[0]
+    fe_htz.psi_1[1] = fe_htz.psi_2[1] + CTRL.Lq*CTRL.iab[1]
+    fe_htz.xFlux[0] = fe_htz.psi_1[0]
+    fe_htz.xFlux[1] = fe_htz.psi_1[1]
+
+    # Speed Estimation
+    # if True:
+    #     temp = (fe_htz.psi_1[0]*fe_htz.psi_1[0]+fe_htz.psi_1[1]*fe_htz.psi_1[1])
+    #     if(temp>0.001):
+    #         fe_htz.field_speed_est = - (fe_htz.psi_1[0]*-fe_htz.emf_stator[1] + fe_htz.psi_1[1]*fe_htz.emf_stator[0]) / temp
+    #     temp = (fe_htz.psi_2[0]*fe_htz.psi_2[0]+fe_htz.psi_2[1]*fe_htz.psi_2[1])
+    #     if(temp>0.001):
+    #         fe_htz.slip_est = CTRL.motor->Rreq*(CTRL.iab[0]*-fe_htz.psi_2[1]+CTRL.iab[1]*fe_htz.psi_2[0]) / temp
+    #     fe_htz.omg_est = fe_htz.field_speed_est - fe_htz.slip_est
+
+    # TODO My proposed saturation time based correction method NOTE VERY COOL
+
+    # Loop for alpha & beta components # destroy integer outside this loop to avoid accidentally usage 
+    for ind in range(0,2):
+
+        # /* 必须先检查是否进入levelA */
+        if fe_htz.flag_pos2negLevelA[ind] == True: 
+            if fe_htz.psi_2_prev[ind]<0 and fe_htz.psi_2[ind]<0: # 二次检查，磁链已经是负的了  <- 可以改为施密特触发器
+                if fe_htz.flag_pos2negLevelB[ind] == False:
+                    fe_htz.count_negative_cycle+=1 # fe_htz.count_positive_cycle = 0
+
+                    # 第一次进入寻找最小值的levelB，说明最大值已经检测到。
+                    fe_htz.psi_1_max[ind] = fe_htz.psi_2_max[ind] # 不区别定转子磁链，区别：psi_2是连续更新的，而psi_1是离散更新的。
+                    fe_htz.Delta_t_last = fe_htz.Delta_t
+                    fe_htz.Delta_t = fe_htz.time_pos2neg[ind] - fe_htz.time_pos2neg_prev[ind]
+                    fe_htz.time_pos2neg_prev[ind] = fe_htz.time_pos2neg[ind] # 备份作为下次耗时参考点
+                    # 初始化
+                    fe_htz.flag_neg2posLevelA[ind] = False
+                    fe_htz.flag_neg2posLevelB[ind] = False
+
+                    # 注意这里是正半周到负半周切换的时候才执行一次的哦！
+                    # CALCULATE_OFFSET_VOLTAGE_COMPENSATION_TERMS
+                    if True:
+                        fe_htz.u_off_original_lpf_input[ind]         = 0.5*(fe_htz.psi_2_min[ind] + fe_htz.psi_2_max[ind]) /  (fe_htz.Delta_t+fe_htz.Delta_t_last) 
+                        fe_htz.u_off_calculated_increment[ind]       = 0.5*(fe_htz.psi_2_min[ind] + fe_htz.psi_2_max[ind]) / ((fe_htz.Delta_t+fe_htz.Delta_t_last) - (fe_htz.sat_max_time[ind]+fe_htz.sat_min_time[ind])) 
+                        fe_htz.u_off_saturation_time_correction[ind] = fe_htz.sat_max_time[ind] - fe_htz.sat_min_time[ind] 
+                        fe_htz.u_off_direct_calculated[ind] += (fe_htz.count_negative_cycle+fe_htz.count_positive_cycle>4) * fe_htz.u_off_calculated_increment[ind] # if(BOOL_USE_METHOD_DIFFERENCE_INPUT) 
+                        # 引入 count：刚起动时的几个磁链正负半周里，Delta_t_last 存在巨大的计算误差，所以要放弃更新哦。
+
+                    # fe_htz.accumulated__u_off_saturation_time_correction[ind] += fe_htz.u_off_saturation_time_correction[ind]
+                    fe_htz.sign__u_off_saturation_time_correction[ind] = -1.0
+                    # 饱和时间的正弦包络线的正负半周的频率比磁链频率低多啦！需要再额外加一个低频u_offset校正
+                    # 以下自适应律是在速度处于稳态情况下运行
+                    fe_htz.sat_time_offset[ind] = fe_htz.maximum_of_sat_max_time[ind] - fe_htz.maximum_of_sat_min_time[ind]
+                
+                    if fe_htz.maximum_of_sat_max_time[ind] != 0 and fe_htz.maximum_of_sat_min_time[ind] != 0:
+                        CTRL.ell = CTRL.ell + CTRL.K1_for_max_ell * CTRL.CL_TS * fe_htz.maximum_of_sat_max_time[ind] + 1000 * CTRL.CL_TS * fe_htz.maximum_of_sat_min_time[ind]
+                    elif (fe_htz.maximum_of_sat_max_time[ind] == 0 and fe_htz.maximum_of_sat_min_time[ind] == 0) or fe_htz.ell_compensation_flag == 1:
+                        CTRL.ell = CTRL.ell + CTRL.K2_for_min_ell * CTRL.CL_TS * (fe_htz.negative_cycle_in_count[0] + fe_htz.positive_cycle_in_count[0] + fe_htz.negative_cycle_in_count[1] + fe_htz.positive_cycle_in_count[1])
+                        # CTRL.ell = CTRL.ell + CTRL.K2_for_min_ell * CTRL.CL_TS * fe_htz.positive_cycle_in_count[0]
+                    # if ind==0
+                        #     print(f'{CTRL.timebase}')
+                        # if CTRL.timebase < 1:
+                    #     if fe_htz.maximum_of_sat_max_time[ind] != 0 and fe_htz.maximum_of_sat_min_time[ind] != 0:
+                    #         CTRL.ell = CTRL.ell + 1000 * CTRL.CL_TS * fe_htz.maximum_of_sat_max_time[ind] + 1000 * CTRL.CL_TS * fe_htz.maximum_of_sat_min_time[ind]
+                    #     elif fe_htz.maximum_of_sat_max_time[ind] == 0 and fe_htz.maximum_of_sat_min_time[ind] == 0:
+                    #         CTRL.ell = CTRL.ell - 10 * CTRL.CL_TS - 10 * CTRL.CL_TS     
+                    # else:    
+                    # if fe_htz.maximum_of_sat_max_time[ind] != 0 and fe_htz.maximum_of_sat_min_time[ind] != 0:
+                    #     CTRL.ell = CTRL.ell + 0.003 * fe_htz.psi_A_amplitude 
+                    # elif fe_htz.maximum_of_sat_max_time[ind] == 0 and fe_htz.maximum_of_sat_min_time[ind] == 0:
+                    #     CTRL.ell = CTRL.ell_prev - 0.003 * np.abs(((CTRL.ell + fe_htz.psi_2_min[0]) + (CTRL.ell - fe_htz.psi_2_max[0])) * 0.5 )
+                    #     CTRL.ell_prev = CTRL.ell
+
+                    fe_htz.maximum_of_sat_max_time[ind] = 0.0
+                    fe_htz.maximum_of_sat_min_time[ind] = 0.0
+
+                    fe_htz.psi_1_min[ind] = 0.0
+                    fe_htz.psi_2_min[ind] = 0.0
+                    if False: # BOOL_TURN_ON_ADAPTIVE_EXTRA_LIMIT):
+                        fe_htz.sat_min_time_reg[ind] = fe_htz.sat_min_time[ind]
+                        if(fe_htz.sat_max_time_reg[ind]>CL_TS and fe_htz.sat_min_time_reg[ind]>CL_TS):
+                            fe_htz.flag_limit_too_low = True
+                            fe_htz.extra_limit += 1e-2 * (fe_htz.sat_max_time_reg[ind] + fe_htz.sat_min_time_reg[ind]) / fe_htz.Delta_t 
+                        else:
+                            fe_htz.flag_limit_too_low = False
+                            fe_htz.extra_limit -= 2e-4 * fe_htz.Delta_t
+                            if(bool_positive_extra_limit):
+                                if(fe_htz.extra_limit<0.0):
+                                    fe_htz.extra_limit = 0.0
+
+                        fe_htz.sat_max_time_reg[ind] = 0.0
+
+                    fe_htz.sat_min_time[ind] = 0.0
+
+                fe_htz.flag_pos2negLevelB[ind] = True
+                if fe_htz.flag_pos2negLevelB[ind] == True: # 寻找磁链最小值
+                    if fe_htz.psi_2[ind] < fe_htz.psi_2_min[ind]:
+                        fe_htz.psi_2_min[ind] = fe_htz.psi_2[ind]
+
+            else: # 磁链还没有变负，说明是虚假过零，比如在震荡，fe_htz.psi_2[0]>0
+                fe_htz.flag_pos2negLevelA[ind] = False # /* 震荡的话，另一方的检测就有可能被触动？ */
+
+        if fe_htz.psi_2_prev[ind]>0 and fe_htz.psi_2[ind]<0: # 发现磁链由正变负的时刻
+            fe_htz.flag_pos2negLevelA[ind] = True
+            fe_htz.time_pos2neg[ind] = CTRL.timebase
+
+        if fe_htz.flag_neg2posLevelA[ind] == True:
+            if fe_htz.psi_2_prev[ind]>0 and fe_htz.psi_2[ind]>0: # 二次检查，磁链已经是正的了
+                if fe_htz.flag_neg2posLevelB[ind] == False:
+                    fe_htz.count_positive_cycle+=1 # fe_htz.count_negative_cycle = 0
+                    # 第一次进入寻找最大值的levelB，说明最小值已经检测到。
+                    fe_htz.psi_1_min[ind] = fe_htz.psi_2_min[ind] # 不区别定转子磁链，区别：psi_2是连续更新的，而psi_1是离散更新的。
+                    fe_htz.Delta_t_last = fe_htz.Delta_t
+                    fe_htz.Delta_t = fe_htz.time_neg2pos[ind] - fe_htz.time_neg2pos_prev[ind]
+                    fe_htz.time_neg2pos_prev[ind] = fe_htz.time_neg2pos[ind] # 备份作为下次耗时参考点
+                    # 初始化
+                    fe_htz.flag_pos2negLevelA[ind] = False
+                    fe_htz.flag_pos2negLevelB[ind] = False
+
+                    if True:
+                        fe_htz.u_off_original_lpf_input[ind]         = 0.5*(fe_htz.psi_2_min[ind] + fe_htz.psi_2_max[ind]) /  (fe_htz.Delta_t+fe_htz.Delta_t_last) 
+                        fe_htz.u_off_calculated_increment[ind]       = 0.5*(fe_htz.psi_2_min[ind] + fe_htz.psi_2_max[ind]) / ((fe_htz.Delta_t+fe_htz.Delta_t_last) - (fe_htz.sat_max_time[ind]+fe_htz.sat_min_time[ind])) 
+                        fe_htz.u_off_saturation_time_correction[ind] = fe_htz.sat_max_time[ind] - fe_htz.sat_min_time[ind] 
+                        fe_htz.u_off_direct_calculated[ind] += (fe_htz.count_negative_cycle+fe_htz.count_positive_cycle>4) * fe_htz.u_off_calculated_increment[ind] # if(BOOL_USE_METHOD_DIFFERENCE_INPUT) 
+                        # 引入 count：刚起动时的几个磁链正负半周里，Delta_t_last 存在巨大的计算误差，所以要放弃更新哦。
+
+                    # fe_htz.accumulated__u_off_saturation_time_correction[ind] += fe_htz.u_off_saturation_time_correction[ind]
+                    fe_htz.sign__u_off_saturation_time_correction[ind] = 1.0
+
+                    fe_htz.psi_1_max[ind] = 0.0
+                    fe_htz.psi_2_max[ind] = 0.0
+                    if False: # BOOL_TURN_ON_ADAPTIVE_EXTRA_LIMIT):
+                        fe_htz.sat_max_time_reg[ind] = fe_htz.sat_max_time[ind]
+                        if(fe_htz.sat_min_time_reg[ind]>CL_TS and fe_htz.sat_max_time_reg[ind]>CL_TS):
+                            fe_htz.flag_limit_too_low = True
+                            fe_htz.extra_limit += 1e-2 * (fe_htz.sat_min_time_reg[ind] + fe_htz.sat_max_time_reg[ind]) / fe_htz.Delta_t 
+                        else:
+                            fe_htz.flag_limit_too_low = False
+                            fe_htz.extra_limit -= 2e-4 * fe_htz.Delta_t
+                            if(fe_htz.extra_limit<0.0):
+                                fe_htz.extra_limit = 0.0
+
+                        fe_htz.sat_min_time_reg[ind] = 0.0
+
+                    fe_htz.sat_max_time[ind] = 0.0
+
+                fe_htz.flag_neg2posLevelB[ind] = True 
+                if fe_htz.flag_neg2posLevelB[ind] == True: # 寻找磁链最大值
+                    if fe_htz.psi_2[ind] > fe_htz.psi_2_max[ind]:
+                        fe_htz.psi_2_max[ind] = fe_htz.psi_2[ind]
+
+            else: # 磁链还没有变正，说明是虚假过零，比如在震荡，fe_htz.psi_2[0]<0
+                fe_htz.flag_neg2posLevelA[ind] = False
+
+        if fe_htz.psi_2_prev[ind]<0 and fe_htz.psi_2[ind]>0: # 发现磁链由负变正的时刻
+            fe_htz.flag_neg2posLevelA[ind] = True
+            fe_htz.time_neg2pos[ind] = CTRL.timebase
+
+    # /*这里一共有四种方案，积分两种，LPF两种：
+    # 1. Holtz03原版是用u_off_original_lpf_input过LPF，
+    # 2. 我发现u_off_original_lpf_input过积分器才能完全补偿偏置电压，
+    # 3. 我还提出可以直接算出偏置电压补偿误差（可加LPF），
+    # 4. 我还提出了用饱和时间去做校正的方法*/
+
+    INTEGRAL_INPUT_ALPHA = fe_htz.u_off_saturation_time_correction[0] # exact offset calculation for compensation
+    INTEGRAL_INPUT_BETA  = fe_htz.u_off_saturation_time_correction[1] # exact offset calculation for compensation
+
+    if fe_htz.GAIN_OFFSET_REALTIME != 0.0:
+        integer_local_sum = fe_htz.negative_cycle_in_count[0] + fe_htz.positive_cycle_in_count[0] + fe_htz.negative_cycle_in_count[1] + fe_htz.positive_cycle_in_count[1]
+        if integer_local_sum>0:
+            fe_htz.gain_off = fe_htz.GAIN_OFFSET_REALTIME * fe_htz.GAIN_OFFSET_INIT / (integer_local_sum*CTRL.CL_TS)
+    else:
+        fe_htz.gain_off = fe_htz.GAIN_OFFSET_INIT
+
+    fe_htz.u_offset[0] += 0.9*fe_htz.gain_off * 100 * CTRL.CL_TS * INTEGRAL_INPUT_ALPHA
+    fe_htz.u_offset[1] += 0.9*fe_htz.gain_off * 100 * CTRL.CL_TS * INTEGRAL_INPUT_BETA
+    fe_htz.xFlux[2] = fe_htz.u_offset[0]
+    fe_htz.xFlux[3] = fe_htz.u_offset[1]
+
+    fe_htz.psi_2_prev[0] = fe_htz.psi_2[0]
+    fe_htz.psi_2_prev[1] = fe_htz.psi_2[1]
+
+    # psi_2_ampl 在限幅前已经算过了，还有必要限幅后在这里再算一次吗？
+    # fe_htz.psi_A_ampl = np.sqrt(fe_htz.psi_A[0] **2 + fe_htz.psi_A[1] **2)
+    # if fe_htz.psi_A_ampl == 0:
+    #     fe_htz.psi_A_ampl = 1.0
+    # amplitude_inverse = 1.0 / fe_htz.psi_A_ampl
+    fe_htz.psi_A_ampl = np.sqrt(fe_htz.psi_A[0] **2 + fe_htz.psi_A[1] **2)
+    CTRL.flux_estimate_amplitude = fe_htz.psi_A_ampl
+    if fe_htz.psi_A_ampl == 0:
+        fe_htz.psi_A_ampl = 1.0
+    amplitude_inverse = 1.0 / fe_htz.psi_A_ampl
+
+    CTRL.cosT = fe_htz.psi_A[0] * amplitude_inverse
+    CTRL.sinT = fe_htz.psi_A[1] * amplitude_inverse
+    fe_htz.theta_d = np.arctan2(fe_htz.psi_A[1], fe_htz.psi_A[0]) # Costly operation, but it is needed only once per control interrupt
+    CTRL.theta_d = fe_htz.theta_d
+    CTRL.cosT = np.cos(CTRL.theta_d)
+    CTRL.sinT = np.sin(CTRL.theta_d)
+
+    while ACM.theta_d> np.pi: ACM.theta_d -= 2*np.pi
+    while ACM.theta_d<-np.pi: ACM.theta_d += 2*np.pi
+
+    if CTRL.theta_d * ACM.theta_d > 0:
+        CTRL.thetaerror = np.sin(ACM.theta_d - CTRL.theta_d)
+    elif CTRL.theta_d * ACM.theta_d < 0:
+        CTRL.thetaerror = np.sin(CTRL.theta_d + ACM.theta_d)
+    
+    cal_theta_error(CTRL)
+    cal_psi_error(CTRL, fe_htz, ACM)
+    if CTRL.use_encoder_angle_no_matter_what == True:
+        CTRL.theta_d = ACM.theta_d
+        CTRL.cosT = np.cos(CTRL.theta_d)
+        CTRL.sinT = np.sin(CTRL.theta_d)
+
+def B_Proposed_Flux_Command_Error_feedback_PI_Correction(fe_htz, CTRL, ACM, FE_param):
+
+    CTRL.cmd_psi_mu[0] = CTRL.cmd_psi * CTRL.cosT
+    CTRL.cmd_psi_mu[1] = CTRL.cmd_psi * CTRL.sinT 
+    RK4_ObserverSolver_CJH_Style(rhf_CmdErrFdkCorInFrameRho_Dynamics, fe_htz.xFlux, CTRL.CL_TS, CTRL, FE_param)
+    #// Unpack x
+    fe_htz.psi_1[0]                         = fe_htz.xFlux[0]
+    fe_htz.psi_1[1]                         = fe_htz.xFlux[1]
+    CTRL.correction_integral_term[0]        = fe_htz.xFlux[2]
+    CTRL.correction_integral_term[1]        = fe_htz.xFlux[3]
+    fe_htz.u_offset[0] = CTRL.correction_integral_term[0]
+    fe_htz.u_offset[1] = CTRL.correction_integral_term[1]
+
+    #// rotor flux updates
+
+    fe_htz.psi_2[0] = fe_htz.psi_1[0] - CTRL.Lq * CTRL.iab_curr[0]
+    fe_htz.psi_2[1] = fe_htz.psi_1[1] - CTRL.Lq * CTRL.iab_curr[1]
+
+    CTRL.theta_d = np.arctan2(fe_htz.psi_2[1], fe_htz.psi_2[0]) 
+
+    while ACM.theta_d> np.pi: ACM.theta_d -= 2*np.pi
+    while ACM.theta_d<-np.pi: ACM.theta_d += 2*np.pi
+    fe_htz.theta_d = ACM.theta_d
+    if CTRL.theta_d * fe_htz.theta_d > 0:
+        CTRL.thetaerror = np.sin(CTRL.theta_d - fe_htz.theta_d)
+    elif CTRL.theta_d * fe_htz.theta_d < 0:
+        CTRL.thetaerror = np.sin(CTRL.theta_d + fe_htz.theta_d)
+    
+    cal_theta_error(CTRL)
+    cal_psi_error(CTRL, fe_htz, ACM)
+
+    if CTRL.use_encoder_angle_no_matter_what == True:
+        CTRL.theta_d = ACM.theta_d
+        CTRL.cosT = np.cos(CTRL.theta_d)
+        CTRL.sinT = np.sin(CTRL.theta_d)
+
+def chen_saturation_time_based(fe_htz, CTRL, ACM, FE_param, ELL_param):
+    # sensorless
+    RK4_ObserverSolver_CJH_Style(DYNAMICS_FluxEstimator, fe_htz.xFlux, CTRL.CL_TS, CTRL, FE_param)
+    fe_htz.psi_1[0] = fe_htz.xFlux[0]
+    fe_htz.psi_1[1] = fe_htz.xFlux[1]
+
+    # 疯狂限幅的
+    fe_htz.psi_2[0] = fe_htz.psi_1[0] - CTRL.Lq*CTRL.iab[0]
+    fe_htz.psi_2[1] = fe_htz.psi_1[1] - CTRL.Lq*CTRL.iab[1]
+    # fe_htz.psi_2_ampl = np.sqrt(fe_htz.psi_2[0]*fe_htz.psi_2[0]+fe_htz.psi_2[1]*fe_htz.psi_2[1])
+    fe_htz.psi_A[0] = fe_htz.psi_2[0]
+    fe_htz.psi_A[1] = fe_htz.psi_2[1]
+    # 限幅前求角度还是应该限幅后？
+    # fe_htz.theta_d = np.arctan2(fe_htz.psi_2[1], fe_htz.psi_2[0])
+    # fe_htz.cosT = np.cos(fe_htz.theta_d)
+    # fe_htz.sinT = np.sin(fe_htz.theta_d)
+
+    # fe_htz.psi_1_nonSat[0] += CTRL.CL_TS*(fe_htz.emf_stator[0])
+    # fe_htz.psi_1_nonSat[1] += CTRL.CL_TS*(fe_htz.emf_stator[1])
+    # fe_htz.psi_2_nonSat[0] = fe_htz.psi_1_nonSat[0] - CTRL.Lq*CTRL.iab[0]
+    # fe_htz.psi_2_nonSat[1] = fe_htz.psi_1_nonSat[1] - CTRL.Lq*CTRL.iab[1]
+
+    fe_htz.psi_aster_max = ELL_param
+
+    # 限幅是针对转子磁链限幅的
+    for ind in range(0,2):
+        if CTRL.cmd_rpm != 0.0:
+            if fe_htz.psi_2[ind]    > fe_htz.psi_aster_max: # TODO BUG呀！这里怎么可以是>应该是大于等于啊！
+                fe_htz.psi_2[ind]   = fe_htz.psi_aster_max
+                fe_htz.sat_max_time[ind] += CTRL.CL_TS
+            elif fe_htz.psi_2[ind] < -fe_htz.psi_aster_max:
+                fe_htz.psi_2[ind]   = -fe_htz.psi_aster_max
+                fe_htz.sat_min_time[ind] += CTRL.CL_TS
+            else:
+                # 这样可以及时清零饱和时间
+                if fe_htz.sat_max_time[ind]>0: fe_htz.sat_max_time[ind] -= CTRL.CL_TS
+                if fe_htz.sat_min_time[ind]>0: fe_htz.sat_min_time[ind] -= CTRL.CL_TS
+
+        # 上限饱和减去下限饱和作为误差，主要为了消除实际磁链幅值大于给定的情况，实际上这种现象在常见工况下出现次数不多。
+        fe_htz.u_off_saturation_time_correction[ind] = fe_htz.sat_max_time[ind] - fe_htz.sat_min_time[ind]
+        # u_offset波动会导致sat_min_time和sat_max_time的波动，这个时候最有效的办法是减少gain_off。
+        # 但是同时，观察饱和时间sat_min_time等的波形，可以发现它里面也会出现一个正弦波包络线。
+        if fe_htz.sat_min_time[ind] > fe_htz.maximum_of_sat_min_time[ind]: fe_htz.maximum_of_sat_min_time[ind] = fe_htz.sat_min_time[ind]
+        if fe_htz.sat_max_time[ind] > fe_htz.maximum_of_sat_max_time[ind]: fe_htz.maximum_of_sat_max_time[ind] = fe_htz.sat_max_time[ind]
+
+    # 数数，算磁链周期
+    if fe_htz.psi_2[0]    > 0.0:
+        fe_htz.count_positive_in_one_cycle[0] += 1
+        if fe_htz.count_negative_in_one_cycle[0]!=0: 
+            fe_htz.negative_cycle_in_count[0] = fe_htz.count_negative_in_one_cycle[0]; fe_htz.count_negative_in_one_cycle[0] = 0
+    elif fe_htz.psi_2[0] < -0.0:
+        fe_htz.count_negative_in_one_cycle[0] += 1
+        if fe_htz.count_positive_in_one_cycle[0]!=0: 
+            fe_htz.positive_cycle_in_count[0] = fe_htz.count_positive_in_one_cycle[0]; fe_htz.count_positive_in_one_cycle[0] = 0
+
+    if fe_htz.psi_2[1]    > 0.0:
+        fe_htz.count_positive_in_one_cycle[1] += 1
+        if fe_htz.count_negative_in_one_cycle[1]!=0: 
+            fe_htz.negative_cycle_in_count[1] = fe_htz.count_negative_in_one_cycle[1]; fe_htz.count_negative_in_one_cycle[1] = 0
+    elif fe_htz.psi_2[1] < -0.0:
+        fe_htz.count_negative_in_one_cycle[1] += 1
+        if fe_htz.count_positive_in_one_cycle[1]!=0: 
+            fe_htz.positive_cycle_in_count[1] = fe_htz.count_positive_in_one_cycle[1]; fe_htz.count_positive_in_one_cycle[1] = 0
+
+    # 限幅后的转子磁链，再求取限幅后的定子磁链
+    fe_htz.psi_1[0] = fe_htz.psi_2[0] + CTRL.Lq*CTRL.iab[0]
+    fe_htz.psi_1[1] = fe_htz.psi_2[1] + CTRL.Lq*CTRL.iab[1]
+    fe_htz.xFlux[0] = fe_htz.psi_1[0]
+    fe_htz.xFlux[1] = fe_htz.psi_1[1]
+
+    # Speed Estimation
+    # if True:
+    #     temp = (fe_htz.psi_1[0]*fe_htz.psi_1[0]+fe_htz.psi_1[1]*fe_htz.psi_1[1])
+    #     if(temp>0.001):
+    #         fe_htz.field_speed_est = - (fe_htz.psi_1[0]*-fe_htz.emf_stator[1] + fe_htz.psi_1[1]*fe_htz.emf_stator[0]) / temp
+    #     temp = (fe_htz.psi_2[0]*fe_htz.psi_2[0]+fe_htz.psi_2[1]*fe_htz.psi_2[1])
+    #     if(temp>0.001):
+    #         fe_htz.slip_est = CTRL.motor->Rreq*(CTRL.iab[0]*-fe_htz.psi_2[1]+CTRL.iab[1]*fe_htz.psi_2[0]) / temp
+    #     fe_htz.omg_est = fe_htz.field_speed_est - fe_htz.slip_est
+
+    # TODO My proposed saturation time based correction method NOTE VERY COOL
+
+    # Loop for alpha & beta components # destroy integer outside this loop to avoid accidentally usage 
+    for ind in range(0,2):
+
+        # /* 必须先检查是否进入levelA */
+        if fe_htz.flag_pos2negLevelA[ind] == True: 
+            if fe_htz.psi_2_prev[ind]<0 and fe_htz.psi_2[ind]<0: # 二次检查，磁链已经是负的了  <- 可以改为施密特触发器
+                if fe_htz.flag_pos2negLevelB[ind] == False:
+                    fe_htz.count_negative_cycle+=1 # fe_htz.count_positive_cycle = 0
+
+                    # 第一次进入寻找最小值的levelB，说明最大值已经检测到。
+                    fe_htz.psi_1_max[ind] = fe_htz.psi_2_max[ind] # 不区别定转子磁链，区别：psi_2是连续更新的，而psi_1是离散更新的。
+                    fe_htz.Delta_t_last = fe_htz.Delta_t
+                    fe_htz.Delta_t = fe_htz.time_pos2neg[ind] - fe_htz.time_pos2neg_prev[ind]
+                    fe_htz.time_pos2neg_prev[ind] = fe_htz.time_pos2neg[ind] # 备份作为下次耗时参考点
+                    # 初始化
+                    fe_htz.flag_neg2posLevelA[ind] = False
+                    fe_htz.flag_neg2posLevelB[ind] = False
+
+                    # 注意这里是正半周到负半周切换的时候才执行一次的哦！
+                    # CALCULATE_OFFSET_VOLTAGE_COMPENSATION_TERMS
+                    if True:
+                        fe_htz.u_off_original_lpf_input[ind]         = 0.5*(fe_htz.psi_2_min[ind] + fe_htz.psi_2_max[ind]) /  (fe_htz.Delta_t+fe_htz.Delta_t_last) 
+                        fe_htz.u_off_calculated_increment[ind]       = 0.5*(fe_htz.psi_2_min[ind] + fe_htz.psi_2_max[ind]) / ((fe_htz.Delta_t+fe_htz.Delta_t_last) - (fe_htz.sat_max_time[ind]+fe_htz.sat_min_time[ind])) 
+                        fe_htz.u_off_saturation_time_correction[ind] = fe_htz.sat_max_time[ind] - fe_htz.sat_min_time[ind] 
+                        fe_htz.u_off_direct_calculated[ind] += (fe_htz.count_negative_cycle+fe_htz.count_positive_cycle>4) * fe_htz.u_off_calculated_increment[ind] # if(BOOL_USE_METHOD_DIFFERENCE_INPUT) 
+                        # 引入 count：刚起动时的几个磁链正负半周里，Delta_t_last 存在巨大的计算误差，所以要放弃更新哦。
+
+                    # fe_htz.accumulated__u_off_saturation_time_correction[ind] += fe_htz.u_off_saturation_time_correction[ind]
+                    fe_htz.sign__u_off_saturation_time_correction[ind] = -1.0
+                    # 饱和时间的正弦包络线的正负半周的频率比磁链频率低多啦！需要再额外加一个低频u_offset校正
+                    fe_htz.sat_time_offset[ind] = fe_htz.maximum_of_sat_max_time[ind] - fe_htz.maximum_of_sat_min_time[ind]
+                    fe_htz.maximum_of_sat_max_time[ind] = 0.0
+                    fe_htz.maximum_of_sat_min_time[ind] = 0.0
+
+                    fe_htz.psi_1_min[ind] = 0.0
+                    fe_htz.psi_2_min[ind] = 0.0
+                    if False: # BOOL_TURN_ON_ADAPTIVE_EXTRA_LIMIT):
+                        fe_htz.sat_min_time_reg[ind] = fe_htz.sat_min_time[ind]
+                        if(fe_htz.sat_max_time_reg[ind]>CL_TS and fe_htz.sat_min_time_reg[ind]>CL_TS):
+                            fe_htz.flag_limit_too_low = True
+                            fe_htz.extra_limit += 1e-2 * (fe_htz.sat_max_time_reg[ind] + fe_htz.sat_min_time_reg[ind]) / fe_htz.Delta_t 
+                        else:
+                            fe_htz.flag_limit_too_low = False
+                            fe_htz.extra_limit -= 2e-4 * fe_htz.Delta_t
+                            if(bool_positive_extra_limit):
+                                if(fe_htz.extra_limit<0.0):
+                                    fe_htz.extra_limit = 0.0
+
+                        fe_htz.sat_max_time_reg[ind] = 0.0
+
+                    fe_htz.sat_min_time[ind] = 0.0
+
+                fe_htz.flag_pos2negLevelB[ind] = True
+                if fe_htz.flag_pos2negLevelB[ind] == True: # 寻找磁链最小值
+                    if fe_htz.psi_2[ind] < fe_htz.psi_2_min[ind]:
+                        fe_htz.psi_2_min[ind] = fe_htz.psi_2[ind]
+
+            else: # 磁链还没有变负，说明是虚假过零，比如在震荡，fe_htz.psi_2[0]>0
+                fe_htz.flag_pos2negLevelA[ind] = False # /* 震荡的话，另一方的检测就有可能被触动？ */
+
+        if fe_htz.psi_2_prev[ind]>0 and fe_htz.psi_2[ind]<0: # 发现磁链由正变负的时刻
+            fe_htz.flag_pos2negLevelA[ind] = True
+            fe_htz.time_pos2neg[ind] = CTRL.timebase
+
+        if fe_htz.flag_neg2posLevelA[ind] == True:
+            if fe_htz.psi_2_prev[ind]>0 and fe_htz.psi_2[ind]>0: # 二次检查，磁链已经是正的了
+                if fe_htz.flag_neg2posLevelB[ind] == False:
+                    fe_htz.count_positive_cycle+=1 # fe_htz.count_negative_cycle = 0
+                    # 第一次进入寻找最大值的levelB，说明最小值已经检测到。
+                    fe_htz.psi_1_min[ind] = fe_htz.psi_2_min[ind] # 不区别定转子磁链，区别：psi_2是连续更新的，而psi_1是离散更新的。
+                    fe_htz.Delta_t_last = fe_htz.Delta_t
+                    fe_htz.Delta_t = fe_htz.time_neg2pos[ind] - fe_htz.time_neg2pos_prev[ind]
+                    fe_htz.time_neg2pos_prev[ind] = fe_htz.time_neg2pos[ind] # 备份作为下次耗时参考点
+                    # 初始化
+                    fe_htz.flag_pos2negLevelA[ind] = False
+                    fe_htz.flag_pos2negLevelB[ind] = False
+
+                    if True:
+                        fe_htz.u_off_original_lpf_input[ind]         = 0.5*(fe_htz.psi_2_min[ind] + fe_htz.psi_2_max[ind]) /  (fe_htz.Delta_t+fe_htz.Delta_t_last) 
+                        fe_htz.u_off_calculated_increment[ind]       = 0.5*(fe_htz.psi_2_min[ind] + fe_htz.psi_2_max[ind]) / ((fe_htz.Delta_t+fe_htz.Delta_t_last) - (fe_htz.sat_max_time[ind]+fe_htz.sat_min_time[ind])) 
+                        fe_htz.u_off_saturation_time_correction[ind] = fe_htz.sat_max_time[ind] - fe_htz.sat_min_time[ind] 
+                        fe_htz.u_off_direct_calculated[ind] += (fe_htz.count_negative_cycle+fe_htz.count_positive_cycle>4) * fe_htz.u_off_calculated_increment[ind] # if(BOOL_USE_METHOD_DIFFERENCE_INPUT) 
+                        # 引入 count：刚起动时的几个磁链正负半周里，Delta_t_last 存在巨大的计算误差，所以要放弃更新哦。
+
+                    # fe_htz.accumulated__u_off_saturation_time_correction[ind] += fe_htz.u_off_saturation_time_correction[ind]
+                    fe_htz.sign__u_off_saturation_time_correction[ind] = 1.0
+
+                    fe_htz.psi_1_max[ind] = 0.0
+                    fe_htz.psi_2_max[ind] = 0.0
+                    if False: # BOOL_TURN_ON_ADAPTIVE_EXTRA_LIMIT):
+                        fe_htz.sat_max_time_reg[ind] = fe_htz.sat_max_time[ind]
+                        if(fe_htz.sat_min_time_reg[ind]>CL_TS and fe_htz.sat_max_time_reg[ind]>CL_TS):
+                            fe_htz.flag_limit_too_low = True
+                            fe_htz.extra_limit += 1e-2 * (fe_htz.sat_min_time_reg[ind] + fe_htz.sat_max_time_reg[ind]) / fe_htz.Delta_t 
+                        else:
+                            fe_htz.flag_limit_too_low = False
+                            fe_htz.extra_limit -= 2e-4 * fe_htz.Delta_t
+                            if(fe_htz.extra_limit<0.0):
+                                fe_htz.extra_limit = 0.0
+
+                        fe_htz.sat_min_time_reg[ind] = 0.0
+
+                    fe_htz.sat_max_time[ind] = 0.0
+
+                fe_htz.flag_neg2posLevelB[ind] = True 
+                if fe_htz.flag_neg2posLevelB[ind] == True: # 寻找磁链最大值
+                    if fe_htz.psi_2[ind] > fe_htz.psi_2_max[ind]:
+                        fe_htz.psi_2_max[ind] = fe_htz.psi_2[ind]
+
+            else: # 磁链还没有变正，说明是虚假过零，比如在震荡，fe_htz.psi_2[0]<0
+                fe_htz.flag_neg2posLevelA[ind] = False
+
+        if fe_htz.psi_2_prev[ind]<0 and fe_htz.psi_2[ind]>0: # 发现磁链由负变正的时刻
+            fe_htz.flag_neg2posLevelA[ind] = True
+            fe_htz.time_neg2pos[ind] = CTRL.timebase
+
+    # /*这里一共有四种方案，积分两种，LPF两种：
+    # 1. Holtz03原版是用u_off_original_lpf_input过LPF，
+    # 2. 我发现u_off_original_lpf_input过积分器才能完全补偿偏置电压，
+    # 3. 我还提出可以直接算出偏置电压补偿误差（可加LPF），
+    # 4. 我还提出了用饱和时间去做校正的方法*/
+
+    INTEGRAL_INPUT_ALPHA = fe_htz.u_off_saturation_time_correction[0] # exact offset calculation for compensation
+    INTEGRAL_INPUT_BETA  = fe_htz.u_off_saturation_time_correction[1] # exact offset calculation for compensation
+
+    if fe_htz.GAIN_OFFSET_REALTIME != 0.0:
+        integer_local_sum = fe_htz.negative_cycle_in_count[0] + fe_htz.positive_cycle_in_count[0] + fe_htz.negative_cycle_in_count[1] + fe_htz.positive_cycle_in_count[1]
+        if integer_local_sum>0:
+            fe_htz.gain_off = fe_htz.GAIN_OFFSET_REALTIME * fe_htz.GAIN_OFFSET_INIT / (integer_local_sum*CTRL.CL_TS)
+    else:
+        fe_htz.gain_off = fe_htz.GAIN_OFFSET_INIT
+
+    fe_htz.u_offset[0] += 0.9*fe_htz.gain_off * 10 * CTRL.CL_TS * INTEGRAL_INPUT_ALPHA
+    fe_htz.u_offset[1] += 0.9*fe_htz.gain_off * 10 * CTRL.CL_TS * INTEGRAL_INPUT_BETA
+    fe_htz.xFlux[2] = fe_htz.u_offset[0]
+    fe_htz.xFlux[3] = fe_htz.u_offset[1]
+
+    fe_htz.psi_2_prev[0] = fe_htz.psi_2[0]
+    fe_htz.psi_2_prev[1] = fe_htz.psi_2[1]
+
+    # psi_2_ampl 在限幅前已经算过了，还有必要限幅后在这里再算一次吗？
+    # fe_htz.psi_A_ampl = np.sqrt(fe_htz.psi_A[0] **2 + fe_htz.psi_A[1] **2)
+    # if fe_htz.psi_A_ampl == 0:
+    #     fe_htz.psi_A_ampl = 1.0
+    # amplitude_inverse = 1.0 / fe_htz.psi_A_ampl
+    fe_htz.psi_2_ampl = np.sqrt(fe_htz.psi_2[0] **2 + fe_htz.psi_2[1] **2)
+    CTRL.flux_estimate_amplitude = fe_htz.psi_2_ampl
+    if fe_htz.psi_2_ampl == 0:
+        fe_htz.psi_2_ampl = 1.0
+    amplitude_inverse = 1.0 / fe_htz.psi_2_ampl
+
+    CTRL.cosT = fe_htz.psi_2[0] * amplitude_inverse
+    CTRL.sinT = fe_htz.psi_2[1] * amplitude_inverse
+    fe_htz.theta_d = np.arctan2(fe_htz.psi_2[1], fe_htz.psi_2[0]) # Costly operation, but it is needed only once per control interrupt
+    CTRL.theta_d = fe_htz.theta_d
+    CTRL.cosT = np.cos(CTRL.theta_d)
+    CTRL.sinT = np.sin(CTRL.theta_d)
+
+    while ACM.theta_d> np.pi: ACM.theta_d -= 2*np.pi
+    while ACM.theta_d<-np.pi: ACM.theta_d += 2*np.pi
+    
+    if CTRL.theta_d * ACM.theta_d > 0:
+        CTRL.thetaerror = np.sin(ACM.theta_d - CTRL.theta_d)
+    elif CTRL.theta_d * ACM.theta_d < 0:
+        CTRL.thetaerror = np.sin(CTRL.theta_d + ACM.theta_d)
+    
+    if CTRL.use_encoder_angle_no_matter_what == True:
+        CTRL.theta_d = ACM.theta_d
+        CTRL.cosT = np.cos(CTRL.theta_d)
+        CTRL.sinT = np.sin(CTRL.theta_d)
+
+def no_saturation_to_cal_KE_and_uoffset(fe_htz, CTRL, ACM, FE_param):
+    RK4_ObserverSolver_CJH_Style(DYNAMICS_FluxEstimator, fe_htz.xFlux, CTRL.CL_TS, CTRL, FE_param)
+    fe_htz.psi_1[0] = fe_htz.xFlux[0]
+    fe_htz.psi_1[1] = fe_htz.xFlux[1]
+
+    # 疯狂限幅的
+    fe_htz.psi_2[0] = fe_htz.psi_1[0] - CTRL.Lq*CTRL.iab[0]
+    fe_htz.psi_2[1] = fe_htz.psi_1[1] - CTRL.Lq*CTRL.iab[1]
+
+    for ind in range(0,2):
+        # /* 必须先检查是否进入levelA */
+        if fe_htz.flag_pos2negLevelA[ind] == True: 
+            if fe_htz.psi_2_prev[ind]<0 and fe_htz.psi_2[ind]<0: # 二次检查，磁链已经是负的了  <- 可以改为施密特触发器
+                if fe_htz.flag_pos2negLevelB[ind] == False:
+                    fe_htz.count_negative_cycle+=1 # fe_htz.count_positive_cycle = 0
+
+                    # 第一次进入寻找最小值的levelB，说明最大值已经检测到。
+                    fe_htz.psi_1_max[ind] = fe_htz.psi_2_max[ind] # 不区别定转子磁链，区别：psi_2是连续更新的，而psi_1是离散更新的。
+                    fe_htz.Delta_t_last = fe_htz.Delta_t
+                    fe_htz.Delta_t = fe_htz.time_pos2neg[ind] - fe_htz.time_pos2neg_prev[ind]
+                    fe_htz.time_pos2neg_prev[ind] = fe_htz.time_pos2neg[ind] # 备份作为下次耗时参考点
+                    # 初始化
+                    fe_htz.flag_neg2posLevelA[ind] = False
+                    fe_htz.flag_neg2posLevelB[ind] = False
+                    CTRL.ell = (fe_htz.psi_2_max[ind] - fe_htz.psi_2_min[ind]) * 0.5
+                    fe_htz.u_offset[0] = (fe_htz.psi_2_max[0] + fe_htz.psi_2_min[0]) * 0.5 * fe_htz.u_offset_correction_factor
+                    fe_htz.u_offset[1] = (fe_htz.psi_2_max[1] + fe_htz.psi_2_min[1]) * 0.5 * fe_htz.u_offset_correction_factor
+
+                    fe_htz.psi_1_min[ind] = 0.0
+                    fe_htz.psi_2_min[ind] = 0.0
+
+                fe_htz.flag_pos2negLevelB[ind] = True
+                if fe_htz.flag_pos2negLevelB[ind] == True: # 寻找磁链最小值
+                    if fe_htz.psi_2[ind] < fe_htz.psi_2_min[ind]:
+                        fe_htz.psi_2_min[ind] = fe_htz.psi_2[ind]
+
+            else: # 磁链还没有变负，说明是虚假过零，比如在震荡，fe_htz.psi_2[0]>0
+                fe_htz.flag_pos2negLevelA[ind] = False # /* 震荡的话，另一方的检测就有可能被触动？ */
+
+        if fe_htz.psi_2_prev[ind]>0 and fe_htz.psi_2[ind]<0: # 发现磁链由正变负的时刻
+            fe_htz.flag_pos2negLevelA[ind] = True
+            fe_htz.time_pos2neg[ind] = CTRL.timebase
+
+        if fe_htz.flag_neg2posLevelA[ind] == True:
+            if fe_htz.psi_2_prev[ind]>0 and fe_htz.psi_2[ind]>0: # 二次检查，磁链已经是正的了
+                if fe_htz.flag_neg2posLevelB[ind] == False:
+                    fe_htz.count_positive_cycle+=1 # fe_htz.count_negative_cycle = 0
+                    # 第一次进入寻找最大值的levelB，说明最小值已经检测到。
+                    fe_htz.psi_1_min[ind] = fe_htz.psi_2_min[ind] # 不区别定转子磁链，区别：psi_2是连续更新的，而psi_1是离散更新的。
+                    fe_htz.Delta_t_last = fe_htz.Delta_t
+                    fe_htz.Delta_t = fe_htz.time_neg2pos[ind] - fe_htz.time_neg2pos_prev[ind]
+                    fe_htz.time_neg2pos_prev[ind] = fe_htz.time_neg2pos[ind] # 备份作为下次耗时参考点
+                    # 初始化
+                    fe_htz.flag_pos2negLevelA[ind] = False
+                    fe_htz.flag_pos2negLevelB[ind] = False
+
+                    # fe_htz.accumulated__u_off_saturation_time_correction[ind] += fe_htz.u_off_saturation_time_correction[ind]
+                    CTRL.ell = (fe_htz.psi_2_max[ind] - fe_htz.psi_2_min[ind]) * 0.5
+                    fe_htz.u_offset[0] = (fe_htz.psi_2_max[0] + fe_htz.psi_2_min[0]) * 0.5 * fe_htz.u_offset_correction_factor
+                    fe_htz.u_offset[1] = (fe_htz.psi_2_max[1] + fe_htz.psi_2_min[1]) * 0.5 * fe_htz.u_offset_correction_factor
+                    fe_htz.psi_1_max[ind] = 0.0
+                    fe_htz.psi_2_max[ind] = 0.0
+
+                fe_htz.flag_neg2posLevelB[ind] = True 
+                if fe_htz.flag_neg2posLevelB[ind] == True: # 寻找磁链最大值
+                    if fe_htz.psi_2[ind] > fe_htz.psi_2_max[ind]:
+                        fe_htz.psi_2_max[ind] = fe_htz.psi_2[ind]
+
+            else: # 磁链还没有变正，说明是虚假过零，比如在震荡，fe_htz.psi_2[0]<0
+                fe_htz.flag_neg2posLevelA[ind] = False
+
+        if fe_htz.psi_2_prev[ind]<0 and fe_htz.psi_2[ind]>0: # 发现磁链由负变正的时刻
+            fe_htz.flag_neg2posLevelA[ind] = True
+            fe_htz.time_neg2pos[ind] = CTRL.timebase
+    #由于原本的uoffset所得的结果使得谐波有抖动，于是想滤波但是没滤成
+    
+    # fe_htz.u_offset_filered[0] =_lpf(fe_htz.u_offset[0], fe_htz.u_offset_filered[0], 1, CTRL)
+    # fe_htz.u_offset_filered[1] =_lpf(fe_htz.u_offset[1], fe_htz.u_offset_filered[1], 1, CTRL)
+    # fe_htz.xFlux[2] = fe_htz.u_offset_filered[0]
+    # fe_htz.xFlux[3] = fe_htz.u_offset_filered[1]
+    # fe_htz.u_offset[0] = fe_htz.u_offset_filered[0]
+    # fe_htz.u_offset[1] = fe_htz.u_offset_filered[1]
+    
+    fe_htz.xFlux[2] = fe_htz.u_offset[0]
+    fe_htz.xFlux[3] = fe_htz.u_offset[1]
+
+    fe_htz.psi_2_prev[0] = fe_htz.psi_2[0]
+    fe_htz.psi_2_prev[1] = fe_htz.psi_2[1]
+
+    # psi_2_ampl 在限幅前已经算过了，还有必要限幅后在这里再算一次吗？
+    # fe_htz.psi_A_ampl = np.sqrt(fe_htz.psi_A[0] **2 + fe_htz.psi_A[1] **2)
+    # if fe_htz.psi_A_ampl == 0:
+    #     fe_htz.psi_A_ampl = 1.0
+    # amplitude_inverse = 1.0 / fe_htz.psi_A_ampl
+    fe_htz.psi_2_ampl = np.sqrt(fe_htz.psi_2[0] **2 + fe_htz.psi_2[1] **2)
+    CTRL.flux_estimate_amplitude = fe_htz.psi_2_ampl
+    if fe_htz.psi_2_ampl == 0:
+        fe_htz.psi_2_ampl = 1.0
+    amplitude_inverse = 1.0 / fe_htz.psi_2_ampl
+
+    CTRL.cosT = fe_htz.psi_2[0] * amplitude_inverse
+    CTRL.sinT = fe_htz.psi_2[1] * amplitude_inverse
+    while ACM.theta_d> np.pi: ACM.theta_d -= 2*np.pi
+    while ACM.theta_d<-np.pi: ACM.theta_d += 2*np.pi
+    #使用编码器进入仅观测状态
+    if CTRL.use_encoder_angle_no_matter_what == True:
+        CTRL.theta_d = ACM.theta_d
+        CTRL.cosT = np.cos(CTRL.theta_d)
+        CTRL.sinT = np.sin(CTRL.theta_d)
+'''speed observers'''
+# According to CTRL.index_separate_speed_estimation, chose your speed observer
+#0. encoder for speed
+#1. SEPARATE_SPEED_OBSERVER
+#2. NATRUE_SPEED_OBSERVER
+
+def SEPARATE_SPEED_OBSERVER(CTRL, FE_param):
+    RK4_ObserverSolver_CJH_Style(DYNAMICS_SpeedObserver, CTRL.xSpeed, CTRL.CL_TS, CTRL, FE_param)
+    while CTRL.xSpeed[0]> np.pi: CTRL.xSpeed[0] -= 2*np.pi
+    while CTRL.xSpeed[0]<-np.pi: CTRL.xSpeed[0] += 2*np.pi
+    # CTRL.uab_prev[0] = CTRL.uab_curr[0] # This is needed only if voltage is measured, e.g., by eCAP. Remember to update the code below marked by [$].
+    # CTRL.uab_prev[1] = CTRL.uab_curr[1] # This is needed only if voltage is measured, e.g., by eCAP. Remember to update the code below marked by [$].
+    """ Speed Observer Outputs """
+    CTRL.vartheta_d = CTRL.xSpeed[0]
+    CTRL.omega_r_elec = CTRL.xSpeed[1]
+    if CTRL.use_disturbance_feedforward_rejection == 0:
+        CTRL.total_disrubance_feedforward = 0.0
+    if CTRL.use_disturbance_feedforward_rejection == 1:
+        CTRL.total_disrubance_feedforward = CTRL.xSpeed[2]
+    elif CTRL.use_disturbance_feedforward_rejection == 2:
+        CTRL.total_disrubance_feedforward = CTRL.xSpeed[2] + CTRL.ell2*CTRL.speed_observer_output_error
+    
+def NATRUE_SPEED_OBSERVER(CTRL, FE_param):
+    CTRL.idq_c[0] = CTRL.iab_curr[0] * CTRL.cosT + CTRL.iab_curr[1] * CTRL.sinT
+    CTRL.idq_c[1] = CTRL.iab_curr[0] *-CTRL.sinT + CTRL.iab_curr[1] * CTRL.cosT
+    if CTRL.nsoaf_set_omega_ob != CTRL.nsoaf_omega_ob:
+        CTRL.nsoaf_omega_ob = CTRL.nsoaf_set_omega_ob
+        nso_one_parameter_tuning(CTRL)
+    # init_nsoaf(CTRL)
+    CTRL.nsoaf_xIq      = CTRL.nsoaf_xSpeed[0]
+    CTRL.nsoaf_xOmg     = CTRL.nsoaf_xSpeed[1]
+    CTRL.nsoaf_xTL      = CTRL.nsoaf_xSpeed[2]
+    CTRL.nsoaf_uQ = CTRL.udq[1]
+    # CTRL.uQ_now_filtered = _lpf(CTRL.nsoaf_uQ, CTRL.uQ_now_filtered, 30, CTRL)
+    CTRL.nsoaf_output_error = CTRL.idq_c[1] - CTRL.nsoaf_xIq
+    
+    CTRL.active_power_real =  1* CTRL.idq_c[1]
+    CTRL.active_power_est =  1* CTRL.nsoaf_xIq
+    CTRL.active_power_error =  1* CTRL.nsoaf_output_error
+    CTRL.KA = CTRL.KE + (CTRL.Ld - CTRL.Lq ) * CTRL.idq_c[0]
+    CTRL.nsoaf_xTem = CTRL.CLARKE_TRANS_TORQUE_GAIN * CTRL.npp * CTRL.KA * CTRL.nsoaf_xIq
+    RK4_ObserverSolver_CJH_Style(NSO_Dynamics,CTRL.nsoaf_xSpeed,CTRL.CL_TS, CTRL, FE_param)
+    
+    """ Speed Observer Outputs """
+    # CTRL.omega_r_elec = ACM.omega_r_elec 
+    CTRL.omega_r_elec = CTRL.nsoaf_xOmg 
+    
 ############################################# MACHINE SIMULATION SECTION
 def DYNAMICS_MACHINE(t, x, ACM, CLARKE_TRANS_TORQUE_GAIN=1.5):
     fx = np.zeros(ACM.NS) # s x = f(x)
@@ -722,57 +1491,29 @@ def FOC(CTRL, reg_speed, reg_id, reg_iq):
         #     if CTRL.IN*1.414 > CTRL.cmd_idq[0]:
         #         reg_speed.OutLimit = np.sqrt((CTRL.IN*1.414)**2 - CTRL.cmd_idq[0]**2)
 
-        if CTRL.apply_pulse_4_evaluating_position_estimator_accuracy == True:
-            ID_PULSE = 6
-            COUNT_WINDOW = 3000
-            COUNT_WAIT = 3000
-            if CTRL.window_counter > COUNT_WINDOW + COUNT_WAIT + COUNT_WINDOW:
-                # get averaged current measurementsiQ_avg_curr iQ_sum_curr window_counter iQ_avg_prev iQ_sum_prev theta_tilde
-                CTRL.iQ_avg_curr = CTRL.iQ_sum_curr / COUNT_WINDOW
-                CTRL.iQ_avg_prev = CTRL.iQ_sum_prev / COUNT_WINDOW
-                # calculate for theta error assuming the motor load is time invariant
-                
-                CTRL.theta_tilde = np.sin(np.arctan2((CTRL.iQ_avg_prev - CTRL.iQ_avg_curr), 1))
-                # initialize everything
-                # CTRL.apply_pulse_4_evaluating_position_estimator_accuracy = False
-                CTRL.window_counter = 0
+        if CTRL.bool_zero_id_control == True:
+            CTRL.cmd_idq[0] = 0
+        else:
+            # Field weakening control (simple)
+                # 电气转折速度 = CTRL.DC_BUS_VOLTAGE/1.732 / CTRL.KA * 0.7
+                # print('Turning point', 电气转折速度 * 60 / (2*np.pi * CTRL.npp), 'r/min')
+                # if CTRL.omega_r_elec > 电气转折速度:
+                #     # 计算弱磁电流
+                #     下一弱磁速度增量 = 10 / 60 * 2*np.pi * CTRL.npp
+                #     CTRL.cmd_idq[0] = - (CTRL.KE - 电气转折速度 / (CTRL.omega_r_elec + 下一弱磁速度增量)) / (CTRL.Ld - CTRL.Lq)
+                #     # 修改速度环输出限幅
+                #     reg_speed.OutLimit = np.sqrt((CTRL.IN*1.414)**2 - CTRL.cmd_idq[0]**2)
+                #     print(f'{reg_speed.OutLimit=}')
+            当前速度 = CTRL.omega_r_elec*60/(2*np.pi*CTRL.npp)
+            MAX_DEMAG_CURRENT = 60
+            if 当前速度 < 450:
                 CTRL.cmd_idq[0] = 0
-                CTRL.iQ_sum_prev = 0
-                CTRL.iQ_sum_curr = 0
-            elif CTRL.window_counter >= COUNT_WINDOW + COUNT_WAIT:
-                # sum up q-axis current after the impulse is applied
-                CTRL.iQ_sum_curr += CTRL.idq[1]
-            elif CTRL.window_counter == COUNT_WINDOW:
-                # apply pulse
-                CTRL.cmd_idq[0] = 1
-            elif CTRL.window_counter >= 0 and CTRL.window_counter < COUNT_WINDOW:
-                # sum up q-axis current before the impulse is applied
-                CTRL.iQ_sum_prev += CTRL.idq[1]
-            CTRL.window_counter += 1
-        else: 
-            if CTRL.bool_zero_id_control == True:
-                CTRL.cmd_idq[0] = 0
+            elif 当前速度 < 1000:
+                CTRL.cmd_idq[0] = (当前速度 - 450) / (1000 - 450) * -MAX_DEMAG_CURRENT
             else:
-                # Field weakening control (simple)
-                    # 电气转折速度 = CTRL.DC_BUS_VOLTAGE/1.732 / CTRL.KA * 0.7
-                    # print('Turning point', 电气转折速度 * 60 / (2*np.pi * CTRL.npp), 'r/min')
-                    # if CTRL.omega_r_elec > 电气转折速度:
-                    #     # 计算弱磁电流
-                    #     下一弱磁速度增量 = 10 / 60 * 2*np.pi * CTRL.npp
-                    #     CTRL.cmd_idq[0] = - (CTRL.KE - 电气转折速度 / (CTRL.omega_r_elec + 下一弱磁速度增量)) / (CTRL.Ld - CTRL.Lq)
-                    #     # 修改速度环输出限幅
-                    #     reg_speed.OutLimit = np.sqrt((CTRL.IN*1.414)**2 - CTRL.cmd_idq[0]**2)
-                    #     print(f'{reg_speed.OutLimit=}')
-                当前速度 = CTRL.omega_r_elec*60/(2*np.pi*CTRL.npp)
-                MAX_DEMAG_CURRENT = 60
-                if 当前速度 < 450:
-                    CTRL.cmd_idq[0] = 0
-                elif 当前速度 < 1000:
-                    CTRL.cmd_idq[0] = (当前速度 - 450) / (1000 - 450) * -MAX_DEMAG_CURRENT
-                else:
-                    CTRL.cmd_idq[0] = -MAX_DEMAG_CURRENT
-                if CTRL.IN*1.414 > CTRL.cmd_idq[0]:
-                    reg_speed.OutLimit = np.sqrt((CTRL.IN*1.414)**2 - CTRL.cmd_idq[0]**2)
+                CTRL.cmd_idq[0] = -MAX_DEMAG_CURRENT
+            if CTRL.IN*1.414 > CTRL.cmd_idq[0]:
+                reg_speed.OutLimit = np.sqrt((CTRL.IN*1.414)**2 - CTRL.cmd_idq[0]**2)
 
     CTRL.omega_syn = CTRL.omega_r_elec + CTRL.omega_slip
 
@@ -817,22 +1558,6 @@ def SFOC_Dynamic(CTRL, reg_speed, reg_id, reg_iq):
     pass
 
     CTRL.cmd_udq[1] = reg_iq.Out
-# 4. B. Proposed Flux Command Error feedback PI Correction in Controller Frame (xRho) 
-def rhf_CmdErrFdkCorInFrameRho_Dynamics(x, CTRL,FE_param=1):
-    
-    fx = np.zeros(NS_GLOBAL)
-    
-    CTRL.rotor_flux_error[0] = ( CTRL.cmd_psi_mu[0] - (x[0]-CTRL.Lq * CTRL.iab[0]) )
-    CTRL.rotor_flux_error[1] = ( CTRL.cmd_psi_mu[1] - (x[1]-CTRL.Lq * CTRL.iab[1]) )
-
-    CTRL.emf_stator[0] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] + CTRL.OFFSET_VOLTAGE_ALPHA + CTRL.VM_PROPOSED_PI_CORRECTION_GAIN_P * CTRL.rotor_flux_error[0] + x[2]
-    CTRL.emf_stator[1] = CTRL.uab[1] - CTRL.R * FE_param * CTRL.iab[1] + CTRL.OFFSET_VOLTAGE_BETA  + CTRL.VM_PROPOSED_PI_CORRECTION_GAIN_P * CTRL.rotor_flux_error[1] + x[3]
-    fx[0] = CTRL.emf_stator[0]
-    fx[1] = CTRL.emf_stator[1]
-    fx[2] = CTRL.VM_PROPOSED_PI_CORRECTION_GAIN_I * CTRL.rotor_flux_error[0]
-    fx[3] = CTRL.VM_PROPOSED_PI_CORRECTION_GAIN_I * CTRL.rotor_flux_error[1]
-    return fx
-
 
 ############################################# DSP SECTION
 def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0.019):
@@ -848,700 +1573,22 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
         # do this once per control interrupt
         CTRL.cosT = np.cos(CTRL.theta_d)
         CTRL.sinT = np.sin(CTRL.theta_d)
-    # holtz and boldea
+
+    # mixed holtz and boldea to estimate K_E
     elif CTRL.index_voltage_model_flux_estimation == 1:
-        # sensorless
-        RK4_ObserverSolver_CJH_Style(DYNAMICS_FluxEstimator, fe_htz.xFlux, CTRL.CL_TS, CTRL, FE_param)
-        fe_htz.psi_1[0] = fe_htz.xFlux[0]
-        fe_htz.psi_1[1] = fe_htz.xFlux[1]
-        fe_htz.psi_s[0] = fe_htz.xFlux[4]
-        fe_htz.psi_s[1] = fe_htz.xFlux[5]
+        mixed_holtz_and_boldea_to_estimate_K_E(fe_htz, CTRL, ACM, FE_param)
 
-        # 没有限幅的
-        fe_htz.psi_A[0] = fe_htz.psi_s[0] - CTRL.Lq*CTRL.iab[0]
-        fe_htz.psi_A[1] = fe_htz.psi_s[1] - CTRL.Lq*CTRL.iab[1]
-        
-        fe_htz.psi_A_amplitude = np.sqrt(fe_htz.psi_A[0]**2 + fe_htz.psi_A[1]**2)
-        # if fe_htz.psi_A[0] < fe_htz.psi_A_amplitude and fe_htz.psi_A[0] > -1 * fe_htz.psi_A_amplitude:
-        #     fe_htz.ell_compensation_flag_alpha = 1
-        # if fe_htz.psi_A[1] < fe_htz.psi_A_amplitude and fe_htz.psi_A[1] > -1 * fe_htz.psi_A_amplitude:
-        #     fe_htz.ell_compensation_flag_beta = 1
-        # if fe_htz.ell_compensation_flag_alpha == 1 and fe_htz.ell_compensation_flag_beta == 1:
-        #     fe_htz.ell_compensation_flag = 1
-        # 疯狂限幅的
-        fe_htz.psi_2[0] = fe_htz.psi_1[0] - CTRL.Lq*CTRL.iab[0]
-        fe_htz.psi_2[1] = fe_htz.psi_1[1] - CTRL.Lq*CTRL.iab[1]
-        # fe_htz.psi_2_ampl = np.sqrt(fe_htz.psi_2[0]*fe_htz.psi_2[0]+fe_htz.psi_2[1]*fe_htz.psi_2[1])
-
-        # 限幅前求角度还是应该限幅后？
-        # fe_htz.theta_d = np.arctan2(fe_htz.psi_2[1], fe_htz.psi_2[0])
-        # fe_htz.cosT = np.cos(fe_htz.theta_d)
-        # fe_htz.sinT = np.sin(fe_htz.theta_d)
-
-        # fe_htz.psi_1_nonSat[0] += CTRL.CL_TS*(fe_htz.emf_stator[0])
-        # fe_htz.psi_1_nonSat[1] += CTRL.CL_TS*(fe_htz.emf_stator[1])
-        # fe_htz.psi_2_nonSat[0] = fe_htz.psi_1_nonSat[0] - CTRL.Lq*CTRL.iab[0]
-        # fe_htz.psi_2_nonSat[1] = fe_htz.psi_1_nonSat[1] - CTRL.Lq*CTRL.iab[1]
-
-        fe_htz.psi_aster_max = CTRL.ell
-
-        # 限幅是针对转子磁链限幅的
-        for ind in range(0,2):
-            if CTRL.cmd_rpm != 0.0:
-                if fe_htz.psi_2[ind]    > fe_htz.psi_aster_max: # TODO BUG呀！这里怎么可以是>应该是大于等于啊！
-                    fe_htz.psi_2[ind]   = fe_htz.psi_aster_max
-                    fe_htz.sat_max_time[ind] += CTRL.CL_TS
-                elif fe_htz.psi_2[ind] < -fe_htz.psi_aster_max:
-                    fe_htz.psi_2[ind]   = -fe_htz.psi_aster_max
-                    fe_htz.sat_min_time[ind] += CTRL.CL_TS
-                else:
-                    # 这样可以及时清零饱和时间
-                    if fe_htz.sat_max_time[ind]>0: fe_htz.sat_max_time[ind] -= CTRL.CL_TS
-                    if fe_htz.sat_min_time[ind]>0: fe_htz.sat_min_time[ind] -= CTRL.CL_TS
-
-            # 上限饱和减去下限饱和作为误差，主要为了消除实际磁链幅值大于给定的情况，实际上这种现象在常见工况下出现次数不多。
-            fe_htz.u_off_saturation_time_correction[ind] = fe_htz.sat_max_time[ind] - fe_htz.sat_min_time[ind]
-            # u_offset波动会导致sat_min_time和sat_max_time的波动，这个时候最有效的办法是减少gain_off。
-            # 但是同时，观察饱和时间sat_min_time等的波形，可以发现它里面也会出现一个正弦波包络线。
-            if fe_htz.sat_min_time[ind] > fe_htz.maximum_of_sat_min_time[ind]: fe_htz.maximum_of_sat_min_time[ind] = fe_htz.sat_min_time[ind]
-            if fe_htz.sat_max_time[ind] > fe_htz.maximum_of_sat_max_time[ind]: fe_htz.maximum_of_sat_max_time[ind] = fe_htz.sat_max_time[ind]
-
-        # 数数，算磁链周期
-        if fe_htz.psi_2[0]    > 0.0:
-            fe_htz.count_positive_in_one_cycle[0] += 1
-            if fe_htz.count_negative_in_one_cycle[0]!=0: 
-                fe_htz.negative_cycle_in_count[0] = fe_htz.count_negative_in_one_cycle[0]; fe_htz.count_negative_in_one_cycle[0] = 0
-        elif fe_htz.psi_2[0] < -0.0:
-            fe_htz.count_negative_in_one_cycle[0] += 1
-            if fe_htz.count_positive_in_one_cycle[0]!=0: 
-                fe_htz.positive_cycle_in_count[0] = fe_htz.count_positive_in_one_cycle[0]; fe_htz.count_positive_in_one_cycle[0] = 0
-
-        if fe_htz.psi_2[1]    > 0.0:
-            fe_htz.count_positive_in_one_cycle[1] += 1
-            if fe_htz.count_negative_in_one_cycle[1]!=0: 
-                fe_htz.negative_cycle_in_count[1] = fe_htz.count_negative_in_one_cycle[1]; fe_htz.count_negative_in_one_cycle[1] = 0
-        elif fe_htz.psi_2[1] < -0.0:
-            fe_htz.count_negative_in_one_cycle[1] += 1
-            if fe_htz.count_positive_in_one_cycle[1]!=0: 
-                fe_htz.positive_cycle_in_count[1] = fe_htz.count_positive_in_one_cycle[1]; fe_htz.count_positive_in_one_cycle[1] = 0
-
-        # 限幅后的转子磁链，再求取限幅后的定子磁链
-        fe_htz.psi_1[0] = fe_htz.psi_2[0] + CTRL.Lq*CTRL.iab[0]
-        fe_htz.psi_1[1] = fe_htz.psi_2[1] + CTRL.Lq*CTRL.iab[1]
-        fe_htz.xFlux[0] = fe_htz.psi_1[0]
-        fe_htz.xFlux[1] = fe_htz.psi_1[1]
-
-        # Speed Estimation
-        # if True:
-        #     temp = (fe_htz.psi_1[0]*fe_htz.psi_1[0]+fe_htz.psi_1[1]*fe_htz.psi_1[1])
-        #     if(temp>0.001):
-        #         fe_htz.field_speed_est = - (fe_htz.psi_1[0]*-fe_htz.emf_stator[1] + fe_htz.psi_1[1]*fe_htz.emf_stator[0]) / temp
-        #     temp = (fe_htz.psi_2[0]*fe_htz.psi_2[0]+fe_htz.psi_2[1]*fe_htz.psi_2[1])
-        #     if(temp>0.001):
-        #         fe_htz.slip_est = CTRL.motor->Rreq*(CTRL.iab[0]*-fe_htz.psi_2[1]+CTRL.iab[1]*fe_htz.psi_2[0]) / temp
-        #     fe_htz.omg_est = fe_htz.field_speed_est - fe_htz.slip_est
-
-        # TODO My proposed saturation time based correction method NOTE VERY COOL
-
-        # Loop for alpha & beta components # destroy integer outside this loop to avoid accidentally usage 
-        for ind in range(0,2):
-
-            # /* 必须先检查是否进入levelA */
-            if fe_htz.flag_pos2negLevelA[ind] == True: 
-                if fe_htz.psi_2_prev[ind]<0 and fe_htz.psi_2[ind]<0: # 二次检查，磁链已经是负的了  <- 可以改为施密特触发器
-                    if fe_htz.flag_pos2negLevelB[ind] == False:
-                        fe_htz.count_negative_cycle+=1 # fe_htz.count_positive_cycle = 0
-
-                        # 第一次进入寻找最小值的levelB，说明最大值已经检测到。
-                        fe_htz.psi_1_max[ind] = fe_htz.psi_2_max[ind] # 不区别定转子磁链，区别：psi_2是连续更新的，而psi_1是离散更新的。
-                        fe_htz.Delta_t_last = fe_htz.Delta_t
-                        fe_htz.Delta_t = fe_htz.time_pos2neg[ind] - fe_htz.time_pos2neg_prev[ind]
-                        fe_htz.time_pos2neg_prev[ind] = fe_htz.time_pos2neg[ind] # 备份作为下次耗时参考点
-                        # 初始化
-                        fe_htz.flag_neg2posLevelA[ind] = False
-                        fe_htz.flag_neg2posLevelB[ind] = False
-
-                        # 注意这里是正半周到负半周切换的时候才执行一次的哦！
-                        # CALCULATE_OFFSET_VOLTAGE_COMPENSATION_TERMS
-                        if True:
-                            fe_htz.u_off_original_lpf_input[ind]         = 0.5*(fe_htz.psi_2_min[ind] + fe_htz.psi_2_max[ind]) /  (fe_htz.Delta_t+fe_htz.Delta_t_last) 
-                            fe_htz.u_off_calculated_increment[ind]       = 0.5*(fe_htz.psi_2_min[ind] + fe_htz.psi_2_max[ind]) / ((fe_htz.Delta_t+fe_htz.Delta_t_last) - (fe_htz.sat_max_time[ind]+fe_htz.sat_min_time[ind])) 
-                            fe_htz.u_off_saturation_time_correction[ind] = fe_htz.sat_max_time[ind] - fe_htz.sat_min_time[ind] 
-                            fe_htz.u_off_direct_calculated[ind] += (fe_htz.count_negative_cycle+fe_htz.count_positive_cycle>4) * fe_htz.u_off_calculated_increment[ind] # if(BOOL_USE_METHOD_DIFFERENCE_INPUT) 
-                            # 引入 count：刚起动时的几个磁链正负半周里，Delta_t_last 存在巨大的计算误差，所以要放弃更新哦。
-
-                        # fe_htz.accumulated__u_off_saturation_time_correction[ind] += fe_htz.u_off_saturation_time_correction[ind]
-                        fe_htz.sign__u_off_saturation_time_correction[ind] = -1.0
-                        # 饱和时间的正弦包络线的正负半周的频率比磁链频率低多啦！需要再额外加一个低频u_offset校正
-                        # 以下自适应律是在速度处于稳态情况下运行
-                        fe_htz.sat_time_offset[ind] = fe_htz.maximum_of_sat_max_time[ind] - fe_htz.maximum_of_sat_min_time[ind]
-                    
-                        if fe_htz.maximum_of_sat_max_time[ind] != 0 and fe_htz.maximum_of_sat_min_time[ind] != 0:
-                            CTRL.ell = CTRL.ell + CTRL.K1_for_max_ell * CTRL.CL_TS * fe_htz.maximum_of_sat_max_time[ind] + 1000 * CTRL.CL_TS * fe_htz.maximum_of_sat_min_time[ind]
-                        elif (fe_htz.maximum_of_sat_max_time[ind] == 0 and fe_htz.maximum_of_sat_min_time[ind] == 0) or fe_htz.ell_compensation_flag == 1:
-                            CTRL.ell = CTRL.ell + CTRL.K2_for_min_ell * CTRL.CL_TS * (fe_htz.negative_cycle_in_count[0] + fe_htz.positive_cycle_in_count[0] + fe_htz.negative_cycle_in_count[1] + fe_htz.positive_cycle_in_count[1])
-                            # CTRL.ell = CTRL.ell + CTRL.K2_for_min_ell * CTRL.CL_TS * fe_htz.positive_cycle_in_count[0]
-                        # if ind==0
-                            #     print(f'{CTRL.timebase}')
-                            # if CTRL.timebase < 1:
-                        #     if fe_htz.maximum_of_sat_max_time[ind] != 0 and fe_htz.maximum_of_sat_min_time[ind] != 0:
-                        #         CTRL.ell = CTRL.ell + 1000 * CTRL.CL_TS * fe_htz.maximum_of_sat_max_time[ind] + 1000 * CTRL.CL_TS * fe_htz.maximum_of_sat_min_time[ind]
-                        #     elif fe_htz.maximum_of_sat_max_time[ind] == 0 and fe_htz.maximum_of_sat_min_time[ind] == 0:
-                        #         CTRL.ell = CTRL.ell - 10 * CTRL.CL_TS - 10 * CTRL.CL_TS     
-                        # else:    
-                        # if fe_htz.maximum_of_sat_max_time[ind] != 0 and fe_htz.maximum_of_sat_min_time[ind] != 0:
-                        #     CTRL.ell = CTRL.ell + 0.003 * fe_htz.psi_A_amplitude 
-                        # elif fe_htz.maximum_of_sat_max_time[ind] == 0 and fe_htz.maximum_of_sat_min_time[ind] == 0:
-                        #     CTRL.ell = CTRL.ell_prev - 0.003 * np.abs(((CTRL.ell + fe_htz.psi_2_min[0]) + (CTRL.ell - fe_htz.psi_2_max[0])) * 0.5 )
-                        #     CTRL.ell_prev = CTRL.ell
-
-                        fe_htz.maximum_of_sat_max_time[ind] = 0.0
-                        fe_htz.maximum_of_sat_min_time[ind] = 0.0
-
-                        fe_htz.psi_1_min[ind] = 0.0
-                        fe_htz.psi_2_min[ind] = 0.0
-                        if False: # BOOL_TURN_ON_ADAPTIVE_EXTRA_LIMIT):
-                            fe_htz.sat_min_time_reg[ind] = fe_htz.sat_min_time[ind]
-                            if(fe_htz.sat_max_time_reg[ind]>CL_TS and fe_htz.sat_min_time_reg[ind]>CL_TS):
-                                fe_htz.flag_limit_too_low = True
-                                fe_htz.extra_limit += 1e-2 * (fe_htz.sat_max_time_reg[ind] + fe_htz.sat_min_time_reg[ind]) / fe_htz.Delta_t 
-                            else:
-                                fe_htz.flag_limit_too_low = False
-                                fe_htz.extra_limit -= 2e-4 * fe_htz.Delta_t
-                                if(bool_positive_extra_limit):
-                                    if(fe_htz.extra_limit<0.0):
-                                        fe_htz.extra_limit = 0.0
-
-                            fe_htz.sat_max_time_reg[ind] = 0.0
-
-                        fe_htz.sat_min_time[ind] = 0.0
-
-                    fe_htz.flag_pos2negLevelB[ind] = True
-                    if fe_htz.flag_pos2negLevelB[ind] == True: # 寻找磁链最小值
-                        if fe_htz.psi_2[ind] < fe_htz.psi_2_min[ind]:
-                            fe_htz.psi_2_min[ind] = fe_htz.psi_2[ind]
-
-                else: # 磁链还没有变负，说明是虚假过零，比如在震荡，fe_htz.psi_2[0]>0
-                    fe_htz.flag_pos2negLevelA[ind] = False # /* 震荡的话，另一方的检测就有可能被触动？ */
-
-            if fe_htz.psi_2_prev[ind]>0 and fe_htz.psi_2[ind]<0: # 发现磁链由正变负的时刻
-                fe_htz.flag_pos2negLevelA[ind] = True
-                fe_htz.time_pos2neg[ind] = CTRL.timebase
-
-            if fe_htz.flag_neg2posLevelA[ind] == True:
-                if fe_htz.psi_2_prev[ind]>0 and fe_htz.psi_2[ind]>0: # 二次检查，磁链已经是正的了
-                    if fe_htz.flag_neg2posLevelB[ind] == False:
-                        fe_htz.count_positive_cycle+=1 # fe_htz.count_negative_cycle = 0
-                        # 第一次进入寻找最大值的levelB，说明最小值已经检测到。
-                        fe_htz.psi_1_min[ind] = fe_htz.psi_2_min[ind] # 不区别定转子磁链，区别：psi_2是连续更新的，而psi_1是离散更新的。
-                        fe_htz.Delta_t_last = fe_htz.Delta_t
-                        fe_htz.Delta_t = fe_htz.time_neg2pos[ind] - fe_htz.time_neg2pos_prev[ind]
-                        fe_htz.time_neg2pos_prev[ind] = fe_htz.time_neg2pos[ind] # 备份作为下次耗时参考点
-                        # 初始化
-                        fe_htz.flag_pos2negLevelA[ind] = False
-                        fe_htz.flag_pos2negLevelB[ind] = False
-
-                        if True:
-                            fe_htz.u_off_original_lpf_input[ind]         = 0.5*(fe_htz.psi_2_min[ind] + fe_htz.psi_2_max[ind]) /  (fe_htz.Delta_t+fe_htz.Delta_t_last) 
-                            fe_htz.u_off_calculated_increment[ind]       = 0.5*(fe_htz.psi_2_min[ind] + fe_htz.psi_2_max[ind]) / ((fe_htz.Delta_t+fe_htz.Delta_t_last) - (fe_htz.sat_max_time[ind]+fe_htz.sat_min_time[ind])) 
-                            fe_htz.u_off_saturation_time_correction[ind] = fe_htz.sat_max_time[ind] - fe_htz.sat_min_time[ind] 
-                            fe_htz.u_off_direct_calculated[ind] += (fe_htz.count_negative_cycle+fe_htz.count_positive_cycle>4) * fe_htz.u_off_calculated_increment[ind] # if(BOOL_USE_METHOD_DIFFERENCE_INPUT) 
-                            # 引入 count：刚起动时的几个磁链正负半周里，Delta_t_last 存在巨大的计算误差，所以要放弃更新哦。
-
-                        # fe_htz.accumulated__u_off_saturation_time_correction[ind] += fe_htz.u_off_saturation_time_correction[ind]
-                        fe_htz.sign__u_off_saturation_time_correction[ind] = 1.0
-
-                        fe_htz.psi_1_max[ind] = 0.0
-                        fe_htz.psi_2_max[ind] = 0.0
-                        if False: # BOOL_TURN_ON_ADAPTIVE_EXTRA_LIMIT):
-                            fe_htz.sat_max_time_reg[ind] = fe_htz.sat_max_time[ind]
-                            if(fe_htz.sat_min_time_reg[ind]>CL_TS and fe_htz.sat_max_time_reg[ind]>CL_TS):
-                                fe_htz.flag_limit_too_low = True
-                                fe_htz.extra_limit += 1e-2 * (fe_htz.sat_min_time_reg[ind] + fe_htz.sat_max_time_reg[ind]) / fe_htz.Delta_t 
-                            else:
-                                fe_htz.flag_limit_too_low = False
-                                fe_htz.extra_limit -= 2e-4 * fe_htz.Delta_t
-                                if(fe_htz.extra_limit<0.0):
-                                    fe_htz.extra_limit = 0.0
-
-                            fe_htz.sat_min_time_reg[ind] = 0.0
-
-                        fe_htz.sat_max_time[ind] = 0.0
-
-                    fe_htz.flag_neg2posLevelB[ind] = True 
-                    if fe_htz.flag_neg2posLevelB[ind] == True: # 寻找磁链最大值
-                        if fe_htz.psi_2[ind] > fe_htz.psi_2_max[ind]:
-                            fe_htz.psi_2_max[ind] = fe_htz.psi_2[ind]
-
-                else: # 磁链还没有变正，说明是虚假过零，比如在震荡，fe_htz.psi_2[0]<0
-                    fe_htz.flag_neg2posLevelA[ind] = False
-
-            if fe_htz.psi_2_prev[ind]<0 and fe_htz.psi_2[ind]>0: # 发现磁链由负变正的时刻
-                fe_htz.flag_neg2posLevelA[ind] = True
-                fe_htz.time_neg2pos[ind] = CTRL.timebase
-
-        # /*这里一共有四种方案，积分两种，LPF两种：
-        # 1. Holtz03原版是用u_off_original_lpf_input过LPF，
-        # 2. 我发现u_off_original_lpf_input过积分器才能完全补偿偏置电压，
-        # 3. 我还提出可以直接算出偏置电压补偿误差（可加LPF），
-        # 4. 我还提出了用饱和时间去做校正的方法*/
-
-        INTEGRAL_INPUT_ALPHA = fe_htz.u_off_saturation_time_correction[0] # exact offset calculation for compensation
-        INTEGRAL_INPUT_BETA  = fe_htz.u_off_saturation_time_correction[1] # exact offset calculation for compensation
-
-        if fe_htz.GAIN_OFFSET_REALTIME != 0.0:
-            integer_local_sum = fe_htz.negative_cycle_in_count[0] + fe_htz.positive_cycle_in_count[0] + fe_htz.negative_cycle_in_count[1] + fe_htz.positive_cycle_in_count[1]
-            if integer_local_sum>0:
-                fe_htz.gain_off = fe_htz.GAIN_OFFSET_REALTIME * fe_htz.GAIN_OFFSET_INIT / (integer_local_sum*CTRL.CL_TS)
-        else:
-            fe_htz.gain_off = fe_htz.GAIN_OFFSET_INIT
-
-        fe_htz.u_offset[0] += 0.9*fe_htz.gain_off * 100 * CTRL.CL_TS * INTEGRAL_INPUT_ALPHA
-        fe_htz.u_offset[1] += 0.9*fe_htz.gain_off * 100 * CTRL.CL_TS * INTEGRAL_INPUT_BETA
-        fe_htz.xFlux[2] = fe_htz.u_offset[0]
-        fe_htz.xFlux[3] = fe_htz.u_offset[1]
-
-        fe_htz.psi_2_prev[0] = fe_htz.psi_2[0]
-        fe_htz.psi_2_prev[1] = fe_htz.psi_2[1]
-
-        # psi_2_ampl 在限幅前已经算过了，还有必要限幅后在这里再算一次吗？
-        # fe_htz.psi_A_ampl = np.sqrt(fe_htz.psi_A[0] **2 + fe_htz.psi_A[1] **2)
-        # if fe_htz.psi_A_ampl == 0:
-        #     fe_htz.psi_A_ampl = 1.0
-        # amplitude_inverse = 1.0 / fe_htz.psi_A_ampl
-        fe_htz.psi_A_ampl = np.sqrt(fe_htz.psi_A[0] **2 + fe_htz.psi_A[1] **2)
-        CTRL.flux_estimate_amplitude = fe_htz.psi_A_ampl
-        if fe_htz.psi_A_ampl == 0:
-            fe_htz.psi_A_ampl = 1.0
-        amplitude_inverse = 1.0 / fe_htz.psi_A_ampl
-
-        CTRL.cosT = fe_htz.psi_A[0] * amplitude_inverse
-        CTRL.sinT = fe_htz.psi_A[1] * amplitude_inverse
-        fe_htz.theta_d = np.arctan2(fe_htz.psi_A[1], fe_htz.psi_A[0]) # Costly operation, but it is needed only once per control interrupt
-        CTRL.theta_d = fe_htz.theta_d
-        CTRL.cosT = np.cos(CTRL.theta_d)
-        CTRL.sinT = np.sin(CTRL.theta_d)
-
-        while ACM.theta_d> np.pi: ACM.theta_d -= 2*np.pi
-        while ACM.theta_d<-np.pi: ACM.theta_d += 2*np.pi
-        
-        if CTRL.use_encoder_angle_no_matter_what:
-            CTRL.theta = ACM.theta_d
-            CTRL.cosT = np.cos(CTRL.theta_d)
-            CTRL.sinT = np.sin(CTRL.theta_d)
-
-        if CTRL.theta_d * ACM.theta_d > 0:
-            CTRL.thetaerror = np.sin(ACM.theta_d - CTRL.theta_d)
-        elif CTRL.theta_d * ACM.theta_d < 0:
-            CTRL.thetaerror = np.sin(CTRL.theta_d + ACM.theta_d)
-        
-        if CTRL.bool_counter_theta_error == True:
-            if CTRL.counter_theta_error < 3000: 
-                if CTRL.thetaerror_max  < CTRL.thetaerror:
-                    CTRL.thetaerror_max =  CTRL.thetaerror   
-                    CTRL.thetaerror_max_fin = CTRL.thetaerror_max 
-                if CTRL.thetaerror_min > CTRL.thetaerror:
-                    CTRL.thetaerror_min = CTRL.thetaerror
-                    CTRL.thetaerror_min_fin = CTRL.thetaerror_min
-                CTRL.thetaerror_sum += CTRL.thetaerror
-                CTRL.counter_theta_error += 1
-            if CTRL.counter_theta_error == 3000:
-                CTRL.thetaerror_avg = CTRL.thetaerror_sum / 3000
-                CTRL.counter_theta_error = 0
-                CTRL.thetaerror_sum = 0
-                CTRL.thetaerror_min = 0
-                CTRL.thetaerror_max = 0
-                CTRL.bool_counter_theta_error = False
-
-        fe_htz.psi_e = ACM.KA * np.cos(ACM.theta_d) - fe_htz.psi_A[0]
-        if CTRL.bool_counter == True:
-            if CTRL.counter_psi < 3000: 
-                if CTRL.psi_max  < fe_htz.psi_e:
-                    CTRL.psi_max =  fe_htz.psi_e    
-                    CTRL.psi_max_fin = CTRL.psi_max 
-                if CTRL.psi_min > fe_htz.psi_e:
-                    CTRL.psi_min = fe_htz.psi_e
-                    CTRL.psi_min_fin = CTRL.psi_min
-                CTRL.psi_sum += fe_htz.psi_e
-                CTRL.counter_psi += 1
-            if CTRL.counter_psi == 3000:
-                CTRL.psi_avg = CTRL.psi_sum / 3000
-                CTRL.counter_psi = 0
-                CTRL.psi_sum = 0
-                CTRL.psi_min = 0
-                CTRL.psi_max = 0
-                CTRL.bool_counter = False
-        # do this once per control interrupt
-
-    #/* 4. B. Proposed Flux Command Error feedback PI Correction in Controller Frame (xRho) */
+    # B. Proposed Flux Command Error feedback PI Correction in Controller Frame (xRho) */
     elif CTRL.index_voltage_model_flux_estimation == 2:
-        # CTRL.theta_d = ACM.theta_d
-        # CTRL.cosT = np.cos(CTRL.theta_d)
-        # CTRL.sinT = np.sin(CTRL.theta_d)
-        CTRL.cmd_psi_mu[0] = CTRL.cmd_psi * CTRL.cosT
-        CTRL.cmd_psi_mu[1] = CTRL.cmd_psi * CTRL.sinT 
-        RK4_ObserverSolver_CJH_Style(rhf_CmdErrFdkCorInFrameRho_Dynamics, fe_htz.xFlux, CTRL.CL_TS, CTRL, FE_param)
-        #// Unpack x
-        fe_htz.psi_1[0]                         = fe_htz.xFlux[0]
-        fe_htz.psi_1[1]                         = fe_htz.xFlux[1]
-        CTRL.correction_integral_term[0]        = fe_htz.xFlux[2]
-        CTRL.correction_integral_term[1]        = fe_htz.xFlux[3]
-        fe_htz.u_offset[0] = CTRL.correction_integral_term[0]
-        fe_htz.u_offset[1] = CTRL.correction_integral_term[1]
-    
-        #// rotor flux updates
+        B_Proposed_Flux_Command_Error_feedback_PI_Correction(fe_htz, CTRL, ACM, FE_param)
 
-        fe_htz.psi_2[0] = fe_htz.psi_1[0] - CTRL.Lq * CTRL.iab_curr[0]
-        fe_htz.psi_2[1] = fe_htz.psi_1[1] - CTRL.Lq * CTRL.iab_curr[1]
-
-        CTRL.theta_d = np.arctan2(fe_htz.psi_2[1], fe_htz.psi_2[0]) 
-
-        while ACM.theta_d> np.pi: ACM.theta_d -= 2*np.pi
-        while ACM.theta_d<-np.pi: ACM.theta_d += 2*np.pi
-        fe_htz.theta_d = ACM.theta_d
-        if CTRL.theta_d * fe_htz.theta_d > 0:
-            CTRL.thetaerror = np.sin(CTRL.theta_d - fe_htz.theta_d)
-        elif CTRL.theta_d * fe_htz.theta_d < 0:
-            CTRL.thetaerror = np.sin(CTRL.theta_d + fe_htz.theta_d)
-        
-        if CTRL.bool_counter_theta_error == True:
-            if CTRL.counter_theta_error < 3000: 
-                if CTRL.thetaerror_max  < CTRL.thetaerror:
-                    CTRL.thetaerror_max =  CTRL.thetaerror   
-                    CTRL.thetaerror_max_fin = CTRL.thetaerror_max 
-                if CTRL.thetaerror_min > CTRL.thetaerror:
-                    CTRL.thetaerror_min = CTRL.thetaerror
-                    CTRL.thetaerror_min_fin = CTRL.thetaerror_min
-                CTRL.thetaerror_sum += CTRL.thetaerror
-                CTRL.counter_theta_error += 1
-            if CTRL.counter_theta_error == 3000:
-                CTRL.thetaerror_avg = CTRL.thetaerror_sum / 3000
-                CTRL.counter_theta_error = 0
-                CTRL.thetaerror_sum = 0
-                CTRL.thetaerror_min = 0
-                CTRL.thetaerror_max = 0
-                CTRL.bool_counter_theta_error = False
-         
-        fe_htz.psi_e = ACM.KA * np.cos(ACM.theta_d) - fe_htz.psi_2[0]
-        if CTRL.bool_counter == True:
-            if CTRL.counter_psi < 3000: 
-                if CTRL.psi_max  < fe_htz.psi_e:
-                    CTRL.psi_max =  fe_htz.psi_e    
-                    CTRL.psi_max_fin = CTRL.psi_max 
-                if CTRL.psi_min > fe_htz.psi_e:
-                    CTRL.psi_min = fe_htz.psi_e
-                    CTRL.psi_min_fin = CTRL.psi_min
-                CTRL.psi_sum += fe_htz.psi_e
-                CTRL.counter_psi += 1
-            if CTRL.counter_psi == 3000:
-                CTRL.psi_avg = CTRL.psi_sum / 3000
-                CTRL.counter_psi = 0
-                CTRL.psi_sum = 0
-                CTRL.psi_min = 0
-                CTRL.psi_max = 0
-                CTRL.bool_counter = False
-        if CTRL.bool_theta_overwrite == 1:
-            CTRL.theta_d = ACM.theta_d
-        CTRL.cosT = np.cos(CTRL.theta_d)
-        CTRL.sinT = np.sin(CTRL.theta_d)
-    # chen saturarion psi_2 sudden change 
+    # chen saturarion time based
     elif CTRL.index_voltage_model_flux_estimation == 3:
-        # sensorless
-        RK4_ObserverSolver_CJH_Style(DYNAMICS_FluxEstimator, fe_htz.xFlux, CTRL.CL_TS, CTRL, FE_param)
-        fe_htz.psi_1[0] = fe_htz.xFlux[0]
-        fe_htz.psi_1[1] = fe_htz.xFlux[1]
+        chen_saturation_time_based(fe_htz, CTRL, ACM, FE_param, ELL_param)
 
-        # 疯狂限幅的
-        fe_htz.psi_2[0] = fe_htz.psi_1[0] - CTRL.Lq*CTRL.iab[0]
-        fe_htz.psi_2[1] = fe_htz.psi_1[1] - CTRL.Lq*CTRL.iab[1]
-        # fe_htz.psi_2_ampl = np.sqrt(fe_htz.psi_2[0]*fe_htz.psi_2[0]+fe_htz.psi_2[1]*fe_htz.psi_2[1])
-        fe_htz.psi_A[0] = fe_htz.psi_2[0]
-        fe_htz.psi_A[1] = fe_htz.psi_2[1]
-        # 限幅前求角度还是应该限幅后？
-        # fe_htz.theta_d = np.arctan2(fe_htz.psi_2[1], fe_htz.psi_2[0])
-        # fe_htz.cosT = np.cos(fe_htz.theta_d)
-        # fe_htz.sinT = np.sin(fe_htz.theta_d)
-
-        # fe_htz.psi_1_nonSat[0] += CTRL.CL_TS*(fe_htz.emf_stator[0])
-        # fe_htz.psi_1_nonSat[1] += CTRL.CL_TS*(fe_htz.emf_stator[1])
-        # fe_htz.psi_2_nonSat[0] = fe_htz.psi_1_nonSat[0] - CTRL.Lq*CTRL.iab[0]
-        # fe_htz.psi_2_nonSat[1] = fe_htz.psi_1_nonSat[1] - CTRL.Lq*CTRL.iab[1]
-
-        fe_htz.psi_aster_max = ELL_param
-
-        # 限幅是针对转子磁链限幅的
-        for ind in range(0,2):
-            if CTRL.cmd_rpm != 0.0:
-                if fe_htz.psi_2[ind]    > fe_htz.psi_aster_max: # TODO BUG呀！这里怎么可以是>应该是大于等于啊！
-                    fe_htz.psi_2[ind]   = fe_htz.psi_aster_max
-                    fe_htz.sat_max_time[ind] += CTRL.CL_TS
-                elif fe_htz.psi_2[ind] < -fe_htz.psi_aster_max:
-                    fe_htz.psi_2[ind]   = -fe_htz.psi_aster_max
-                    fe_htz.sat_min_time[ind] += CTRL.CL_TS
-                else:
-                    # 这样可以及时清零饱和时间
-                    if fe_htz.sat_max_time[ind]>0: fe_htz.sat_max_time[ind] -= CTRL.CL_TS
-                    if fe_htz.sat_min_time[ind]>0: fe_htz.sat_min_time[ind] -= CTRL.CL_TS
-
-            # 上限饱和减去下限饱和作为误差，主要为了消除实际磁链幅值大于给定的情况，实际上这种现象在常见工况下出现次数不多。
-            fe_htz.u_off_saturation_time_correction[ind] = fe_htz.sat_max_time[ind] - fe_htz.sat_min_time[ind]
-            # u_offset波动会导致sat_min_time和sat_max_time的波动，这个时候最有效的办法是减少gain_off。
-            # 但是同时，观察饱和时间sat_min_time等的波形，可以发现它里面也会出现一个正弦波包络线。
-            if fe_htz.sat_min_time[ind] > fe_htz.maximum_of_sat_min_time[ind]: fe_htz.maximum_of_sat_min_time[ind] = fe_htz.sat_min_time[ind]
-            if fe_htz.sat_max_time[ind] > fe_htz.maximum_of_sat_max_time[ind]: fe_htz.maximum_of_sat_max_time[ind] = fe_htz.sat_max_time[ind]
-
-        # 数数，算磁链周期
-        if fe_htz.psi_2[0]    > 0.0:
-            fe_htz.count_positive_in_one_cycle[0] += 1
-            if fe_htz.count_negative_in_one_cycle[0]!=0: 
-                fe_htz.negative_cycle_in_count[0] = fe_htz.count_negative_in_one_cycle[0]; fe_htz.count_negative_in_one_cycle[0] = 0
-        elif fe_htz.psi_2[0] < -0.0:
-            fe_htz.count_negative_in_one_cycle[0] += 1
-            if fe_htz.count_positive_in_one_cycle[0]!=0: 
-                fe_htz.positive_cycle_in_count[0] = fe_htz.count_positive_in_one_cycle[0]; fe_htz.count_positive_in_one_cycle[0] = 0
-
-        if fe_htz.psi_2[1]    > 0.0:
-            fe_htz.count_positive_in_one_cycle[1] += 1
-            if fe_htz.count_negative_in_one_cycle[1]!=0: 
-                fe_htz.negative_cycle_in_count[1] = fe_htz.count_negative_in_one_cycle[1]; fe_htz.count_negative_in_one_cycle[1] = 0
-        elif fe_htz.psi_2[1] < -0.0:
-            fe_htz.count_negative_in_one_cycle[1] += 1
-            if fe_htz.count_positive_in_one_cycle[1]!=0: 
-                fe_htz.positive_cycle_in_count[1] = fe_htz.count_positive_in_one_cycle[1]; fe_htz.count_positive_in_one_cycle[1] = 0
-
-        # 限幅后的转子磁链，再求取限幅后的定子磁链
-        fe_htz.psi_1[0] = fe_htz.psi_2[0] + CTRL.Lq*CTRL.iab[0]
-        fe_htz.psi_1[1] = fe_htz.psi_2[1] + CTRL.Lq*CTRL.iab[1]
-        fe_htz.xFlux[0] = fe_htz.psi_1[0]
-        fe_htz.xFlux[1] = fe_htz.psi_1[1]
-
-        # Speed Estimation
-        # if True:
-        #     temp = (fe_htz.psi_1[0]*fe_htz.psi_1[0]+fe_htz.psi_1[1]*fe_htz.psi_1[1])
-        #     if(temp>0.001):
-        #         fe_htz.field_speed_est = - (fe_htz.psi_1[0]*-fe_htz.emf_stator[1] + fe_htz.psi_1[1]*fe_htz.emf_stator[0]) / temp
-        #     temp = (fe_htz.psi_2[0]*fe_htz.psi_2[0]+fe_htz.psi_2[1]*fe_htz.psi_2[1])
-        #     if(temp>0.001):
-        #         fe_htz.slip_est = CTRL.motor->Rreq*(CTRL.iab[0]*-fe_htz.psi_2[1]+CTRL.iab[1]*fe_htz.psi_2[0]) / temp
-        #     fe_htz.omg_est = fe_htz.field_speed_est - fe_htz.slip_est
-
-        # TODO My proposed saturation time based correction method NOTE VERY COOL
-
-        # Loop for alpha & beta components # destroy integer outside this loop to avoid accidentally usage 
-        for ind in range(0,2):
-
-            # /* 必须先检查是否进入levelA */
-            if fe_htz.flag_pos2negLevelA[ind] == True: 
-                if fe_htz.psi_2_prev[ind]<0 and fe_htz.psi_2[ind]<0: # 二次检查，磁链已经是负的了  <- 可以改为施密特触发器
-                    if fe_htz.flag_pos2negLevelB[ind] == False:
-                        fe_htz.count_negative_cycle+=1 # fe_htz.count_positive_cycle = 0
-
-                        # 第一次进入寻找最小值的levelB，说明最大值已经检测到。
-                        fe_htz.psi_1_max[ind] = fe_htz.psi_2_max[ind] # 不区别定转子磁链，区别：psi_2是连续更新的，而psi_1是离散更新的。
-                        fe_htz.Delta_t_last = fe_htz.Delta_t
-                        fe_htz.Delta_t = fe_htz.time_pos2neg[ind] - fe_htz.time_pos2neg_prev[ind]
-                        fe_htz.time_pos2neg_prev[ind] = fe_htz.time_pos2neg[ind] # 备份作为下次耗时参考点
-                        # 初始化
-                        fe_htz.flag_neg2posLevelA[ind] = False
-                        fe_htz.flag_neg2posLevelB[ind] = False
-
-                        # 注意这里是正半周到负半周切换的时候才执行一次的哦！
-                        # CALCULATE_OFFSET_VOLTAGE_COMPENSATION_TERMS
-                        if True:
-                            fe_htz.u_off_original_lpf_input[ind]         = 0.5*(fe_htz.psi_2_min[ind] + fe_htz.psi_2_max[ind]) /  (fe_htz.Delta_t+fe_htz.Delta_t_last) 
-                            fe_htz.u_off_calculated_increment[ind]       = 0.5*(fe_htz.psi_2_min[ind] + fe_htz.psi_2_max[ind]) / ((fe_htz.Delta_t+fe_htz.Delta_t_last) - (fe_htz.sat_max_time[ind]+fe_htz.sat_min_time[ind])) 
-                            fe_htz.u_off_saturation_time_correction[ind] = fe_htz.sat_max_time[ind] - fe_htz.sat_min_time[ind] 
-                            fe_htz.u_off_direct_calculated[ind] += (fe_htz.count_negative_cycle+fe_htz.count_positive_cycle>4) * fe_htz.u_off_calculated_increment[ind] # if(BOOL_USE_METHOD_DIFFERENCE_INPUT) 
-                            # 引入 count：刚起动时的几个磁链正负半周里，Delta_t_last 存在巨大的计算误差，所以要放弃更新哦。
-
-                        # fe_htz.accumulated__u_off_saturation_time_correction[ind] += fe_htz.u_off_saturation_time_correction[ind]
-                        fe_htz.sign__u_off_saturation_time_correction[ind] = -1.0
-                        # 饱和时间的正弦包络线的正负半周的频率比磁链频率低多啦！需要再额外加一个低频u_offset校正
-                        fe_htz.sat_time_offset[ind] = fe_htz.maximum_of_sat_max_time[ind] - fe_htz.maximum_of_sat_min_time[ind]
-                        fe_htz.maximum_of_sat_max_time[ind] = 0.0
-                        fe_htz.maximum_of_sat_min_time[ind] = 0.0
-
-                        fe_htz.psi_1_min[ind] = 0.0
-                        fe_htz.psi_2_min[ind] = 0.0
-                        if False: # BOOL_TURN_ON_ADAPTIVE_EXTRA_LIMIT):
-                            fe_htz.sat_min_time_reg[ind] = fe_htz.sat_min_time[ind]
-                            if(fe_htz.sat_max_time_reg[ind]>CL_TS and fe_htz.sat_min_time_reg[ind]>CL_TS):
-                                fe_htz.flag_limit_too_low = True
-                                fe_htz.extra_limit += 1e-2 * (fe_htz.sat_max_time_reg[ind] + fe_htz.sat_min_time_reg[ind]) / fe_htz.Delta_t 
-                            else:
-                                fe_htz.flag_limit_too_low = False
-                                fe_htz.extra_limit -= 2e-4 * fe_htz.Delta_t
-                                if(bool_positive_extra_limit):
-                                    if(fe_htz.extra_limit<0.0):
-                                        fe_htz.extra_limit = 0.0
-
-                            fe_htz.sat_max_time_reg[ind] = 0.0
-
-                        fe_htz.sat_min_time[ind] = 0.0
-
-                    fe_htz.flag_pos2negLevelB[ind] = True
-                    if fe_htz.flag_pos2negLevelB[ind] == True: # 寻找磁链最小值
-                        if fe_htz.psi_2[ind] < fe_htz.psi_2_min[ind]:
-                            fe_htz.psi_2_min[ind] = fe_htz.psi_2[ind]
-
-                else: # 磁链还没有变负，说明是虚假过零，比如在震荡，fe_htz.psi_2[0]>0
-                    fe_htz.flag_pos2negLevelA[ind] = False # /* 震荡的话，另一方的检测就有可能被触动？ */
-
-            if fe_htz.psi_2_prev[ind]>0 and fe_htz.psi_2[ind]<0: # 发现磁链由正变负的时刻
-                fe_htz.flag_pos2negLevelA[ind] = True
-                fe_htz.time_pos2neg[ind] = CTRL.timebase
-
-            if fe_htz.flag_neg2posLevelA[ind] == True:
-                if fe_htz.psi_2_prev[ind]>0 and fe_htz.psi_2[ind]>0: # 二次检查，磁链已经是正的了
-                    if fe_htz.flag_neg2posLevelB[ind] == False:
-                        fe_htz.count_positive_cycle+=1 # fe_htz.count_negative_cycle = 0
-                        # 第一次进入寻找最大值的levelB，说明最小值已经检测到。
-                        fe_htz.psi_1_min[ind] = fe_htz.psi_2_min[ind] # 不区别定转子磁链，区别：psi_2是连续更新的，而psi_1是离散更新的。
-                        fe_htz.Delta_t_last = fe_htz.Delta_t
-                        fe_htz.Delta_t = fe_htz.time_neg2pos[ind] - fe_htz.time_neg2pos_prev[ind]
-                        fe_htz.time_neg2pos_prev[ind] = fe_htz.time_neg2pos[ind] # 备份作为下次耗时参考点
-                        # 初始化
-                        fe_htz.flag_pos2negLevelA[ind] = False
-                        fe_htz.flag_pos2negLevelB[ind] = False
-
-                        if True:
-                            fe_htz.u_off_original_lpf_input[ind]         = 0.5*(fe_htz.psi_2_min[ind] + fe_htz.psi_2_max[ind]) /  (fe_htz.Delta_t+fe_htz.Delta_t_last) 
-                            fe_htz.u_off_calculated_increment[ind]       = 0.5*(fe_htz.psi_2_min[ind] + fe_htz.psi_2_max[ind]) / ((fe_htz.Delta_t+fe_htz.Delta_t_last) - (fe_htz.sat_max_time[ind]+fe_htz.sat_min_time[ind])) 
-                            fe_htz.u_off_saturation_time_correction[ind] = fe_htz.sat_max_time[ind] - fe_htz.sat_min_time[ind] 
-                            fe_htz.u_off_direct_calculated[ind] += (fe_htz.count_negative_cycle+fe_htz.count_positive_cycle>4) * fe_htz.u_off_calculated_increment[ind] # if(BOOL_USE_METHOD_DIFFERENCE_INPUT) 
-                            # 引入 count：刚起动时的几个磁链正负半周里，Delta_t_last 存在巨大的计算误差，所以要放弃更新哦。
-
-                        # fe_htz.accumulated__u_off_saturation_time_correction[ind] += fe_htz.u_off_saturation_time_correction[ind]
-                        fe_htz.sign__u_off_saturation_time_correction[ind] = 1.0
-
-                        fe_htz.psi_1_max[ind] = 0.0
-                        fe_htz.psi_2_max[ind] = 0.0
-                        if False: # BOOL_TURN_ON_ADAPTIVE_EXTRA_LIMIT):
-                            fe_htz.sat_max_time_reg[ind] = fe_htz.sat_max_time[ind]
-                            if(fe_htz.sat_min_time_reg[ind]>CL_TS and fe_htz.sat_max_time_reg[ind]>CL_TS):
-                                fe_htz.flag_limit_too_low = True
-                                fe_htz.extra_limit += 1e-2 * (fe_htz.sat_min_time_reg[ind] + fe_htz.sat_max_time_reg[ind]) / fe_htz.Delta_t 
-                            else:
-                                fe_htz.flag_limit_too_low = False
-                                fe_htz.extra_limit -= 2e-4 * fe_htz.Delta_t
-                                if(fe_htz.extra_limit<0.0):
-                                    fe_htz.extra_limit = 0.0
-
-                            fe_htz.sat_min_time_reg[ind] = 0.0
-
-                        fe_htz.sat_max_time[ind] = 0.0
-
-                    fe_htz.flag_neg2posLevelB[ind] = True 
-                    if fe_htz.flag_neg2posLevelB[ind] == True: # 寻找磁链最大值
-                        if fe_htz.psi_2[ind] > fe_htz.psi_2_max[ind]:
-                            fe_htz.psi_2_max[ind] = fe_htz.psi_2[ind]
-
-                else: # 磁链还没有变正，说明是虚假过零，比如在震荡，fe_htz.psi_2[0]<0
-                    fe_htz.flag_neg2posLevelA[ind] = False
-
-            if fe_htz.psi_2_prev[ind]<0 and fe_htz.psi_2[ind]>0: # 发现磁链由负变正的时刻
-                fe_htz.flag_neg2posLevelA[ind] = True
-                fe_htz.time_neg2pos[ind] = CTRL.timebase
-
-        # /*这里一共有四种方案，积分两种，LPF两种：
-        # 1. Holtz03原版是用u_off_original_lpf_input过LPF，
-        # 2. 我发现u_off_original_lpf_input过积分器才能完全补偿偏置电压，
-        # 3. 我还提出可以直接算出偏置电压补偿误差（可加LPF），
-        # 4. 我还提出了用饱和时间去做校正的方法*/
-
-        INTEGRAL_INPUT_ALPHA = fe_htz.u_off_saturation_time_correction[0] # exact offset calculation for compensation
-        INTEGRAL_INPUT_BETA  = fe_htz.u_off_saturation_time_correction[1] # exact offset calculation for compensation
-
-        if fe_htz.GAIN_OFFSET_REALTIME != 0.0:
-            integer_local_sum = fe_htz.negative_cycle_in_count[0] + fe_htz.positive_cycle_in_count[0] + fe_htz.negative_cycle_in_count[1] + fe_htz.positive_cycle_in_count[1]
-            if integer_local_sum>0:
-                fe_htz.gain_off = fe_htz.GAIN_OFFSET_REALTIME * fe_htz.GAIN_OFFSET_INIT / (integer_local_sum*CTRL.CL_TS)
-        else:
-            fe_htz.gain_off = fe_htz.GAIN_OFFSET_INIT
-
-        fe_htz.u_offset[0] += 0.9*fe_htz.gain_off * 10 * CTRL.CL_TS * INTEGRAL_INPUT_ALPHA
-        fe_htz.u_offset[1] += 0.9*fe_htz.gain_off * 10 * CTRL.CL_TS * INTEGRAL_INPUT_BETA
-        fe_htz.xFlux[2] = fe_htz.u_offset[0]
-        fe_htz.xFlux[3] = fe_htz.u_offset[1]
-
-        fe_htz.psi_2_prev[0] = fe_htz.psi_2[0]
-        fe_htz.psi_2_prev[1] = fe_htz.psi_2[1]
-
-        # psi_2_ampl 在限幅前已经算过了，还有必要限幅后在这里再算一次吗？
-        # fe_htz.psi_A_ampl = np.sqrt(fe_htz.psi_A[0] **2 + fe_htz.psi_A[1] **2)
-        # if fe_htz.psi_A_ampl == 0:
-        #     fe_htz.psi_A_ampl = 1.0
-        # amplitude_inverse = 1.0 / fe_htz.psi_A_ampl
-        fe_htz.psi_2_ampl = np.sqrt(fe_htz.psi_2[0] **2 + fe_htz.psi_2[1] **2)
-        CTRL.flux_estimate_amplitude = fe_htz.psi_2_ampl
-        if fe_htz.psi_2_ampl == 0:
-            fe_htz.psi_2_ampl = 1.0
-        amplitude_inverse = 1.0 / fe_htz.psi_2_ampl
-
-        CTRL.cosT = fe_htz.psi_2[0] * amplitude_inverse
-        CTRL.sinT = fe_htz.psi_2[1] * amplitude_inverse
-        fe_htz.theta_d = np.arctan2(fe_htz.psi_2[1], fe_htz.psi_2[0]) # Costly operation, but it is needed only once per control interrupt
-        CTRL.theta_d = fe_htz.theta_d
-        CTRL.cosT = np.cos(CTRL.theta_d)
-        CTRL.sinT = np.sin(CTRL.theta_d)
-
-        while ACM.theta_d> np.pi: ACM.theta_d -= 2*np.pi
-        while ACM.theta_d<-np.pi: ACM.theta_d += 2*np.pi
-        
-        if CTRL.theta_d * ACM.theta_d > 0:
-            CTRL.thetaerror = np.sin(ACM.theta_d - CTRL.theta_d)
-        elif CTRL.theta_d * ACM.theta_d < 0:
-            CTRL.thetaerror = np.sin(CTRL.theta_d + ACM.theta_d)
-        
-        if CTRL.use_encoder_angle_no_matter_what:
-            CTRL.theta = ACM.theta_d
-            CTRL.cosT = np.cos(CTRL.theta_d)
-            CTRL.sinT = np.sin(CTRL.theta_d)
-
-        # if CTRL.bool_counter_theta_error == True:
-        #     if CTRL.counter_theta_error < 3000: 
-        #         if CTRL.thetaerror_max  < CTRL.thetaerror:
-        #             CTRL.thetaerror_max =  CTRL.thetaerror   
-        #             CTRL.thetaerror_max_fin = CTRL.thetaerror_max 
-        #         if CTRL.thetaerror_min > CTRL.thetaerror:
-        #             CTRL.thetaerror_min = CTRL.thetaerror
-        #             CTRL.thetaerror_min_fin = CTRL.thetaerror_min
-        #         CTRL.thetaerror_sum += CTRL.thetaerror
-        #         CTRL.counter_theta_error += 1
-        #     if CTRL.counter_theta_error == 3000:
-        #         CTRL.thetaerror_avg = CTRL.thetaerror_sum / 3000
-        #         CTRL.counter_theta_error = 0
-        #         CTRL.thetaerror_sum = 0
-        #         CTRL.thetaerror_min = 0
-        #         CTRL.thetaerror_max = 0
-        #         CTRL.bool_counter_theta_error = False
-        
-        # if CTRL.bool_reverse_rotation == True:
-        #     if ACM.theta_d > 3.09  :
-        #         CTRL.counter_rotation = CTRL.counter_rotation + 1
-        #         if CTRL.counter_rotation == 2.5 * ACM.npp:
-        #             CTRL.counter_rotation = 0
-        #             CTRL.cmd_rpm  = -1 * CTRL.cmd_rpm 
-
-        fe_htz.psi_e = ACM.KA * np.cos(ACM.theta_d) - fe_htz.psi_2[0]
-        if CTRL.bool_counter == True:
-            if CTRL.counter_psi < 3000: 
-                if CTRL.psi_max  < fe_htz.psi_e:
-                    CTRL.psi_max =  fe_htz.psi_e    
-                    CTRL.psi_max_fin = CTRL.psi_max 
-                if CTRL.psi_min > fe_htz.psi_e:
-                    CTRL.psi_min = fe_htz.psi_e
-                    CTRL.psi_min_fin = CTRL.psi_min
-                CTRL.psi_sum += fe_htz.psi_e
-                CTRL.counter_psi += 1
-            if CTRL.counter_psi == 3000:
-                CTRL.psi_avg = CTRL.psi_sum / 3000
-                CTRL.counter_psi = 0
-                CTRL.psi_sum = 0
-                CTRL.psi_min = 0
-                CTRL.psi_max = 0
-                CTRL.bool_counter = False
-    
+    # cancel saturation and estimate K_E and u_offset from \psi_max and \psi_min
+    elif CTRL.index_voltage_model_flux_estimation == 4:
+        no_saturation_to_cal_KE_and_uoffset(fe_htz, CTRL, ACM, FE_param)
     """ Park Transformation Essentials """
     # Park transformation
     CTRL.idq[0] = CTRL.iab[0] * CTRL.cosT + CTRL.iab[1] * CTRL.sinT
@@ -1557,46 +1604,12 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
         #TODO simulate the encoder
         CTRL.omega_r_elec = ACM.omega_r_elec
     elif CTRL.index_separate_speed_estimation == 1:
-        RK4_ObserverSolver_CJH_Style(DYNAMICS_SpeedObserver, CTRL.xSpeed, CTRL.CL_TS, CTRL, FE_param)
-        while CTRL.xSpeed[0]> np.pi: CTRL.xSpeed[0] -= 2*np.pi
-        while CTRL.xSpeed[0]<-np.pi: CTRL.xSpeed[0] += 2*np.pi
-        # CTRL.uab_prev[0] = CTRL.uab_curr[0] # This is needed only if voltage is measured, e.g., by eCAP. Remember to update the code below marked by [$].
-        # CTRL.uab_prev[1] = CTRL.uab_curr[1] # This is needed only if voltage is measured, e.g., by eCAP. Remember to update the code below marked by [$].
-        """ Speed Observer Outputs """
-        CTRL.vartheta_d = CTRL.xSpeed[0]
-        CTRL.omega_r_elec = CTRL.xSpeed[1]
-        if CTRL.use_disturbance_feedforward_rejection == 0:
-            CTRL.total_disrubance_feedforward = 0.0
-        if CTRL.use_disturbance_feedforward_rejection == 1:
-            CTRL.total_disrubance_feedforward = CTRL.xSpeed[2]
-        elif CTRL.use_disturbance_feedforward_rejection == 2:
-            CTRL.total_disrubance_feedforward = CTRL.xSpeed[2] + CTRL.ell2*CTRL.speed_observer_output_error
-    
+        SEPARATE_SPEED_OBSERVER(CTRL, FE_param)
+
         """ Nature Speed Observer """
     elif CTRL.index_separate_speed_estimation == 2:
-        CTRL.idq_c[0] = CTRL.iab_curr[0] * CTRL.cosT + CTRL.iab_curr[1] * CTRL.sinT
-        CTRL.idq_c[1] = CTRL.iab_curr[0] *-CTRL.sinT + CTRL.iab_curr[1] * CTRL.cosT
-        if CTRL.nsoaf_set_omega_ob != CTRL.nsoaf_omega_ob:
-            CTRL.nsoaf_omega_ob = CTRL.nsoaf_set_omega_ob
-            nso_one_parameter_tuning(CTRL)
-        # init_nsoaf(CTRL)
-        CTRL.nsoaf_xIq      = CTRL.nsoaf_xSpeed[0]
-        CTRL.nsoaf_xOmg     = CTRL.nsoaf_xSpeed[1]
-        CTRL.nsoaf_xTL      = CTRL.nsoaf_xSpeed[2]
-        CTRL.nsoaf_uQ = CTRL.udq[1]
-        # CTRL.uQ_now_filtered = _lpf(CTRL.nsoaf_uQ, CTRL.uQ_now_filtered, 30, CTRL)
-        CTRL.nsoaf_output_error = CTRL.idq_c[1] - CTRL.nsoaf_xIq
-        
-        CTRL.active_power_real =  1* CTRL.idq_c[1]
-        CTRL.active_power_est =  1* CTRL.nsoaf_xIq
-        CTRL.active_power_error =  1* CTRL.nsoaf_output_error
-        CTRL.KA = CTRL.KE + (CTRL.Ld - CTRL.Lq ) * CTRL.idq_c[0]
-        CTRL.nsoaf_xTem = CTRL.CLARKE_TRANS_TORQUE_GAIN * CTRL.npp * CTRL.KA * CTRL.nsoaf_xIq
-        RK4_ObserverSolver_CJH_Style(NSO_Dynamics,CTRL.nsoaf_xSpeed,CTRL.CL_TS, CTRL, FE_param)
-        """ Speed Observer Outputs """
+        NATRUE_SPEED_OBSERVER(CTRL, FE_param)
 
-        # CTRL.omega_r_elec = ACM.omega_r_elec 
-        CTRL.omega_r_elec = CTRL.nsoaf_xOmg 
     """ (Optional) Do Park transformation again using the position estimate from the speed observer """
     pass
 
@@ -1606,19 +1619,7 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
 
     """ Speed and Current Controller (two cascaded closed loops) """
     FOC(CTRL, reg_speed, reg_id, reg_iq)
-    if CTRL.bool_reverse_rotation == True:
-        if ACM.theta_d > 2.5 and CTRL.flag_reverse_rotation == True:
-            CTRL.counter_rotation = CTRL.counter_rotation + 1
-            CTRL.flag_reverse_rotation = False
-        elif ACM.theta_d < - 2.5 and CTRL.flag_reverse_rotation == False:
-            CTRL.flag_reverse_rotation = True
-        if CTRL.counter_rotation == 2 * ACM.npp:
-            if CTRL.bool_apply_speed_closed_loop_control == True:
-                CTRL.counter_rotation = 0
-                CTRL.cmd_rpm  = -1 * CTRL.cmd_rpm
-            else:
-                CTRL.counter_rotation = 0
-                CTRL.cmd_idq[1] = -1 * CTRL.cmd_idq[1]
+    reverse_rotation(CTRL, ACM)
     # [$] Inverse Park transformation: get voltage commands in alpha-beta frame as SVPWM input
     CTRL.cmd_uab[0] = CTRL.cmd_udq[0] * CTRL.cosT + CTRL.cmd_udq[1] *-CTRL.sinT
     CTRL.cmd_uab[1] = CTRL.cmd_udq[0] * CTRL.sinT + CTRL.cmd_udq[1] * CTRL.cosT
@@ -1798,8 +1799,21 @@ def gate_signal_generator(ii, v, CPU_TICK_PER_SAMPLING_PERIOD, DEAD_TIME_AS_COUN
             else:
                 pass # False
 
-
-
+# 让电机正反转
+def reverse_rotation(CTRL, ACM):
+    if CTRL.bool_reverse_rotation == True:
+            if ACM.theta_d > 2.5 and CTRL.flag_reverse_rotation == True:
+                CTRL.counter_rotation = CTRL.counter_rotation + 1
+                CTRL.flag_reverse_rotation = False
+            elif ACM.theta_d < - 2.5 and CTRL.flag_reverse_rotation == False:
+                CTRL.flag_reverse_rotation = True
+            if CTRL.counter_rotation == 2 * ACM.npp:
+                if CTRL.bool_apply_speed_closed_loop_control == True:
+                    CTRL.counter_rotation = 0
+                    CTRL.cmd_rpm  = -1 * CTRL.cmd_rpm
+                else:
+                    CTRL.counter_rotation = 0
+                    CTRL.cmd_idq[1] = -1 * CTRL.cmd_idq[1]
 ############################################# Wrapper level 1 (Main simulation | Incremental Edition)
 """ MAIN for  ('-time simulation """
 def vehicel_load_model(t, ACM):
