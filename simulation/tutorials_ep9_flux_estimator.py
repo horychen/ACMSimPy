@@ -50,6 +50,7 @@ class The_Motor_Controller:
         self.sinT = 0.0
         # commands
         self.cmd_idq = np.zeros(2, dtype=np.float64)
+        self.cmd_idq[1] = 2
         self.cmd_udq = np.zeros(2, dtype=np.float64)
         self.cmd_uab = np.zeros(2, dtype=np.float64)
         self.cmd_rpm = 0.0
@@ -58,12 +59,13 @@ class The_Motor_Controller:
         else:
             self.cmd_psi = init_KE # [Wb]
         self.index_voltage_model_flux_estimation = 3
-        self.index_separate_speed_estimation = 1
+        self.index_separate_speed_estimation = 2
         self.use_disturbance_feedforward_rejection = 0
-        self.bool_apply_decoupling_voltages_to_current_regulation = False
+        self.bool_apply_decoupling_voltages_to_current_regulation = True
         self.bool_apply_speed_closed_loop_control = True
         self.bool_zero_id_control = True
         self.bool_reverse_rotation = True
+        self.flag_reverse_rotation = True
         self.counter_rotation = 10
         self.bool_reverse = -1
         #psi error calculate
@@ -106,10 +108,13 @@ class The_Motor_Controller:
         self.R    = init_R
         self.Ld   = init_Ld
         self.Lq   = init_Lq
-        self.KE   = ELL_param
+        self.KE   = init_KE
         self.Rreq = init_Rreq
         self.Js   = init_Js
         self.DC_BUS_VOLTAGE = DC_BUS_VOLTAGE
+        self.Js_inv = 1 / init_Js
+        self.Lq_inv = 1 / init_Lq
+
         
         ''' OBSERVER '''
         # feedback / input
@@ -179,6 +184,29 @@ class The_Motor_Controller:
         self.K1_for_max_ell = 1000 
         self.K2_for_min_ell = -0.005
 
+        # natural speed observer
+        self.nsoaf_KP = 0.0
+        self.nsoaf_KI = 0.0
+        self.nsoaf_KD = 0.0
+        self.nsoaf_omega_ob = 0.0
+        self.nsoaf_set_omega_ob = 200
+        self.TUNING_IGNORE_UQ  = False
+        self.tuning_nsoaf = True
+        self.nsoaf_output_error = 0.0
+        self.udq = np.zeros(2, dtype=np.float64)
+        self.NSOAF_SPMSM_OR_IPMSM = 1
+        self.nsoaf_uQ = 0.0
+        self.active_power_real = 0.0
+        self.active_power_est = 0.0
+        self.active_power_error = 0.0
+        self.nsoaf_xTem = 0.0
+        self.CLARKE_TRANS_TORQUE_GAIN = 1.5 
+        self.nsoaf_xIq      = 0.0
+        self.nsoaf_xOmg     = 0.0
+        self.nsoaf_xTL      = 0.0
+        self.nsoaf_xSpeed = np.zeros(NS_GLOBAL, dtype=np.float64)
+        self.uQ_now_filtered = 0.0
+        self.idq_c = np.zeros(2, dtype=np.float64)
 class The_AC_Machine:
     def __init__(self, CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=1, ACM_param=1.0):
         # name plate data
@@ -190,11 +218,12 @@ class The_AC_Machine:
         self.Ld  = CTRL.Ld
         self.Lq  = CTRL.Lq * ACM_param
         print(f'ACM: {self.Lq=}')
+
         self.KE  = CTRL.KE
         self.Rreq  = CTRL.Rreq
         # mechanical parameters
         self.Js  = CTRL.Js # kg.m^2
-        self.Js_inv = 1.0/self.Js
+
         # states
         self.NS = 5
         self.x = np.zeros(self.NS, dtype=np.float64)
@@ -304,6 +333,7 @@ class Variables_FluxEstimator_Holtz03:
 
         self.xFlux = np.zeros(NS_GLOBAL, dtype=np.float64)
         self.xFlux[0] = init_KE
+        self.xFlux[1] = 0
         self.xFlux[4] = init_KE
         self.psi_1 = np.zeros(2, dtype=np.float64)
         self.psi_2 = np.zeros(2, dtype=np.float64)
@@ -397,6 +427,64 @@ def DYNAMICS_FluxEstimator(x, CTRL, FE_param=1.0):
     fx[5] = CTRL.uab[1] - CTRL.R * FE_param * CTRL.iab[1] - (x[3] + uhf_beta)
     
     
+    return fx
+
+def init_nsoaf(CTRL):
+    NSOAF_TL_P = 1
+    NSOAF_TL_I =20
+    NSOAF_TL_D = 0
+    NSOAF_OMEGA_OBSERVER = 200
+
+    CTRL.nsoaf_KP = NSOAF_TL_P
+    CTRL.nsoaf_KI = NSOAF_TL_I
+    CTRL.nsoaf_KD = NSOAF_TL_D
+    CTRL.nsoaf_set_omega_ob = NSOAF_OMEGA_OBSERVER
+
+    CTRL.KA = CTRL.KE + (CTRL.Ld - CTRL.Lq) * CTRL.idq[0]
+    CTRL.nsoaf_omega_ob = CTRL.nsoaf_set_omega_ob
+    nso_one_parameter_tuning(CTRL)
+
+def nso_one_parameter_tuning(CTRL):
+    if CTRL.nsoaf_omega_ob < 170:
+        CTRL.nsoaf_set_omega_ob = 170
+    one_over__npp_divided_by_Js__times__Lq_id_plus_KActive = 1 / (CTRL.npp * CTRL.Js_inv * CTRL.Lq_inv * (CTRL.Lq * CTRL.cmd_idq[0] + CTRL.KA) )
+    # uq_inv = 1.0 / CTRL.cmd_udq[1]
+    uq_inv = 1.0
+    if CTRL.TUNING_IGNORE_UQ :
+        uq_inv = 1.0
+    CTRL.nsoaf_KD = (3 * CTRL.nsoaf_omega_ob - CTRL.R * CTRL.Lq_inv) * one_over__npp_divided_by_Js__times__Lq_id_plus_KActive                       * uq_inv
+    CTRL.nsoaf_KP = ( (3 * CTRL.nsoaf_omega_ob*CTRL.nsoaf_omega_ob)         * one_over__npp_divided_by_Js__times__Lq_id_plus_KActive - 1.5 * CTRL.npp * CTRL.KA ) * uq_inv
+    CTRL.nsoaf_KI = CTRL.nsoaf_omega_ob * CTRL.nsoaf_omega_ob * CTRL.nsoaf_omega_ob      * one_over__npp_divided_by_Js__times__Lq_id_plus_KActive                    * uq_inv
+
+def _lpf(x, y, tau_inv,CTRL):
+    return y + tau_inv * (x - y) * CTRL.CL_TS
+
+def NSO_Dynamics(x, CTRL, param = 1.0):
+    fx = np.zeros(NS_GLOBAL)
+    xIq  =  x[0]
+    xOmg = x[1]
+    xTL  =  x[2]
+    CTRL.nsoaf_uQ = CTRL.udq[1]
+    CTRL.nsoaf_output_error = CTRL.idq_c[1] - xIq
+    if CTRL.Ld-CTRL.Lq != 0:
+        CTRL.uQ_now_filtered = _lpf(CTRL.nsoaf_uQ, CTRL.uQ_now_filtered, 30, CTRL)
+
+        # CTRL.active_power_real =  abs(CTRL.nsoaf_uQ ) * CTRL.idq_c[1]
+        # CTRL.active_power_est = abs(CTRL.nsoaf_uQ ) *xIq
+        # CTRL.active_power_error =  abs(CTRL.nsoaf_uQ ) * CTRL.nsoaf_output_error
+        CTRL.active_power_real =  1 * CTRL.idq_c[1]
+        CTRL.active_power_est = 1 *xIq
+        CTRL.active_power_error =  1 * CTRL.nsoaf_output_error
+    else:
+        CTRL.active_power_real =  CTRL.idq_c[1]
+        CTRL.active_power_est =  xIq
+        CTRL.active_power_error =  CTRL.nsoaf_output_error
+
+    fx[0] = CTRL.Lq_inv * (CTRL.udq[1] - CTRL.R * xIq - xOmg * (CTRL.KE + CTRL.Ld * CTRL.idq_c[0]) ) - CTRL.nsoaf_KD * CTRL.active_power_error
+
+    CTRL.nsoaf_xTem = CTRL.CLARKE_TRANS_TORQUE_GAIN * CTRL.npp * CTRL.KA * xIq
+    fx[1] = CTRL.Js_inv * CTRL.npp * (CTRL.nsoaf_xTem - xTL -CTRL.nsoaf_KP * CTRL.active_power_error)
+    fx[2] = CTRL.nsoaf_KI * CTRL.active_power_error
     return fx
 
 def RK4_ObserverSolver_CJH_Style(THE_DYNAMICS, x, hs, CTRL, param=1.0):
@@ -1410,30 +1498,30 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
             CTRL.cosT = np.cos(CTRL.theta_d)
             CTRL.sinT = np.sin(CTRL.theta_d)
 
-        if CTRL.bool_counter_theta_error == True:
-            if CTRL.counter_theta_error < 3000: 
-                if CTRL.thetaerror_max  < CTRL.thetaerror:
-                    CTRL.thetaerror_max =  CTRL.thetaerror   
-                    CTRL.thetaerror_max_fin = CTRL.thetaerror_max 
-                if CTRL.thetaerror_min > CTRL.thetaerror:
-                    CTRL.thetaerror_min = CTRL.thetaerror
-                    CTRL.thetaerror_min_fin = CTRL.thetaerror_min
-                CTRL.thetaerror_sum += CTRL.thetaerror
-                CTRL.counter_theta_error += 1
-            if CTRL.counter_theta_error == 3000:
-                CTRL.thetaerror_avg = CTRL.thetaerror_sum / 3000
-                CTRL.counter_theta_error = 0
-                CTRL.thetaerror_sum = 0
-                CTRL.thetaerror_min = 0
-                CTRL.thetaerror_max = 0
-                CTRL.bool_counter_theta_error = False
+        # if CTRL.bool_counter_theta_error == True:
+        #     if CTRL.counter_theta_error < 3000: 
+        #         if CTRL.thetaerror_max  < CTRL.thetaerror:
+        #             CTRL.thetaerror_max =  CTRL.thetaerror   
+        #             CTRL.thetaerror_max_fin = CTRL.thetaerror_max 
+        #         if CTRL.thetaerror_min > CTRL.thetaerror:
+        #             CTRL.thetaerror_min = CTRL.thetaerror
+        #             CTRL.thetaerror_min_fin = CTRL.thetaerror_min
+        #         CTRL.thetaerror_sum += CTRL.thetaerror
+        #         CTRL.counter_theta_error += 1
+        #     if CTRL.counter_theta_error == 3000:
+        #         CTRL.thetaerror_avg = CTRL.thetaerror_sum / 3000
+        #         CTRL.counter_theta_error = 0
+        #         CTRL.thetaerror_sum = 0
+        #         CTRL.thetaerror_min = 0
+        #         CTRL.thetaerror_max = 0
+        #         CTRL.bool_counter_theta_error = False
         
-        if CTRL.bool_reverse_rotation == True:
-            if ACM.theta_d > 3.13  :
-                CTRL.counter_rotation = CTRL.counter_rotation + 1
-                if CTRL.counter_rotation == 5 * ACM.npp:
-                    CTRL.counter_rotation = 0
-                    CTRL.cmd_rpm  = -1 * CTRL.cmd_rpm 
+        # if CTRL.bool_reverse_rotation == True:
+        #     if ACM.theta_d > 3.09  :
+        #         CTRL.counter_rotation = CTRL.counter_rotation + 1
+        #         if CTRL.counter_rotation == 2.5 * ACM.npp:
+        #             CTRL.counter_rotation = 0
+        #             CTRL.cmd_rpm  = -1 * CTRL.cmd_rpm 
 
         fe_htz.psi_e = ACM.KA * np.cos(ACM.theta_d) - fe_htz.psi_2[0]
         if CTRL.bool_counter == True:
@@ -1458,7 +1546,8 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
     # Park transformation
     CTRL.idq[0] = CTRL.iab[0] * CTRL.cosT + CTRL.iab[1] * CTRL.sinT
     CTRL.idq[1] = CTRL.iab[0] *-CTRL.sinT + CTRL.iab[1] * CTRL.cosT
-
+    CTRL.udq[0] = CTRL.cmd_uab[0] * CTRL.cosT + CTRL.cmd_uab[1] * CTRL.sinT
+    CTRL.udq[1] = CTRL.cmd_uab[0] *-CTRL.sinT + CTRL.cmd_uab[1] * CTRL.cosT
     # now we are ready to calculate torque using dq-currents
     CTRL.KA = (CTRL.Ld - CTRL.Lq) * CTRL.idq[0] + CTRL.KE # 有功磁链计算
     CTRL.Tem =     1.5 * CTRL.npp * CTRL.idq[1] * CTRL.KA # 电磁转矩计算
@@ -1473,7 +1562,6 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
         while CTRL.xSpeed[0]<-np.pi: CTRL.xSpeed[0] += 2*np.pi
         # CTRL.uab_prev[0] = CTRL.uab_curr[0] # This is needed only if voltage is measured, e.g., by eCAP. Remember to update the code below marked by [$].
         # CTRL.uab_prev[1] = CTRL.uab_curr[1] # This is needed only if voltage is measured, e.g., by eCAP. Remember to update the code below marked by [$].
-
         """ Speed Observer Outputs """
         CTRL.vartheta_d = CTRL.xSpeed[0]
         CTRL.omega_r_elec = CTRL.xSpeed[1]
@@ -1483,7 +1571,32 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
             CTRL.total_disrubance_feedforward = CTRL.xSpeed[2]
         elif CTRL.use_disturbance_feedforward_rejection == 2:
             CTRL.total_disrubance_feedforward = CTRL.xSpeed[2] + CTRL.ell2*CTRL.speed_observer_output_error
+    
+        """ Nature Speed Observer """
+    elif CTRL.index_separate_speed_estimation == 2:
+        CTRL.idq_c[0] = CTRL.iab_curr[0] * CTRL.cosT + CTRL.iab_curr[1] * CTRL.sinT
+        CTRL.idq_c[1] = CTRL.iab_curr[0] *-CTRL.sinT + CTRL.iab_curr[1] * CTRL.cosT
+        if CTRL.nsoaf_set_omega_ob != CTRL.nsoaf_omega_ob:
+            CTRL.nsoaf_omega_ob = CTRL.nsoaf_set_omega_ob
+            nso_one_parameter_tuning(CTRL)
+        # init_nsoaf(CTRL)
+        CTRL.nsoaf_xIq      = CTRL.nsoaf_xSpeed[0]
+        CTRL.nsoaf_xOmg     = CTRL.nsoaf_xSpeed[1]
+        CTRL.nsoaf_xTL      = CTRL.nsoaf_xSpeed[2]
+        CTRL.nsoaf_uQ = CTRL.udq[1]
+        # CTRL.uQ_now_filtered = _lpf(CTRL.nsoaf_uQ, CTRL.uQ_now_filtered, 30, CTRL)
+        CTRL.nsoaf_output_error = CTRL.idq_c[1] - CTRL.nsoaf_xIq
+        
+        CTRL.active_power_real =  1* CTRL.idq_c[1]
+        CTRL.active_power_est =  1* CTRL.nsoaf_xIq
+        CTRL.active_power_error =  1* CTRL.nsoaf_output_error
+        CTRL.KA = CTRL.KE + (CTRL.Ld - CTRL.Lq ) * CTRL.idq_c[0]
+        CTRL.nsoaf_xTem = CTRL.CLARKE_TRANS_TORQUE_GAIN * CTRL.npp * CTRL.KA * CTRL.nsoaf_xIq
+        RK4_ObserverSolver_CJH_Style(NSO_Dynamics,CTRL.nsoaf_xSpeed,CTRL.CL_TS, CTRL, FE_param)
+        """ Speed Observer Outputs """
 
+        # CTRL.omega_r_elec = ACM.omega_r_elec 
+        CTRL.omega_r_elec = CTRL.nsoaf_xOmg 
     """ (Optional) Do Park transformation again using the position estimate from the speed observer """
     pass
 
@@ -1493,7 +1606,19 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
 
     """ Speed and Current Controller (two cascaded closed loops) """
     FOC(CTRL, reg_speed, reg_id, reg_iq)
-
+    if CTRL.bool_reverse_rotation == True:
+        if ACM.theta_d > 2.5 and CTRL.flag_reverse_rotation == True:
+            CTRL.counter_rotation = CTRL.counter_rotation + 1
+            CTRL.flag_reverse_rotation = False
+        elif ACM.theta_d < - 2.5 and CTRL.flag_reverse_rotation == False:
+            CTRL.flag_reverse_rotation = True
+        if CTRL.counter_rotation == 2 * ACM.npp:
+            if CTRL.bool_apply_speed_closed_loop_control == True:
+                CTRL.counter_rotation = 0
+                CTRL.cmd_rpm  = -1 * CTRL.cmd_rpm
+            else:
+                CTRL.counter_rotation = 0
+                CTRL.cmd_idq[1] = -1 * CTRL.cmd_idq[1]
     # [$] Inverse Park transformation: get voltage commands in alpha-beta frame as SVPWM input
     CTRL.cmd_uab[0] = CTRL.cmd_udq[0] * CTRL.cosT + CTRL.cmd_udq[1] *-CTRL.sinT
     CTRL.cmd_uab[1] = CTRL.cmd_udq[0] * CTRL.sinT + CTRL.cmd_udq[1] * CTRL.cosT

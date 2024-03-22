@@ -36,3 +36,4 @@ CTRL.cmd_psi_mu[1], beta-axis active flux estimate, Wb, $\psi_\alpha^*$, flux
 CTRL.iab[0], alpha-axis stator current, A, $I_{\alpha}$, current
 CTRL.iab[1], beta-axis stator current, A, $I_{\beta}$, current
 CTRL.ell, estimate ell, Wb, $\ell$, ell
+CTRL.nsoaf_xSpeed[1], r/min, nsoaf_xSpeed
