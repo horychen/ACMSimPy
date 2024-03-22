@@ -1,38 +1,43 @@
-fe_htz.psi_2[0], alpha-axis flux estimate, Wb, $\psi_{\alpha 2}$, flux
-fe_htz.psi_2[1], beta-axis flux estimate, Wb, $\psi_{\beta 2}$, flux
+fe_htz.psi_2[0]@ alpha-axis flux estimate@ Wb@ $\psi_{\alpha 2}$@ flux
+fe_htz.psi_2[1]@ beta-axis flux estimate@ Wb@ $\psi_{\beta 2}$@ flux
 
-fe_htz.u_offset[0], alpha-axis offset voltage, V, $u_offset$, voltage
-fe_htz.u_offset[1], beta-axis offset voltage, V, $u_offset$, voltage
+fe_htz.u_offset[0]@ alpha-axis offset voltage@ V@ $u_{\alpha , \rm offset}$@ voltage
+fe_htz.u_offset[1]@ beta-axis offset voltage@ V@ $u_{\beta , \rm offset}$@ voltage
 
-CTRL.cmd_rpm, mechnical speed command, r/min, $\omega_r^*$, speed
-ACM.omega_r_mech/(2*np.pi)*60, mechnical speed, r/min, $\omega_r$, speed
-CTRL.omega_r_elec/(2*np.pi*ACM.npp)*60, elec speed, r/min, $\omega_e$, speed
-CTRL.idq[0], d-axis current, A, $i_d$, current
-CTRL.idq[1], q-axis current, A, $i_q$, current
+CTRL.cmd_rpm@ mechnical speed command@ r/min@ $\omega_r^*$@ speed
+ACM.omega_r_mech/(2*np.pi)*60@ mechnical speed@ r/min@ $\omega_r$@ speed
+CTRL.omega_r_elec/(2*np.pi*ACM.npp)*60@ elec speed@ r/min@ $\omega_e$@ speed
+CTRL.idq[0]@ d-axis current@ A@ $i_d$@ current
+CTRL.idq[1]@ q-axis current@ A@ $i_q$@ current
 
-CTRL.cmd_idq[0], comanded d-axis current, A, $i_d^*$, current
-CTRL.cmd_idq[1], comanded q-axis current, A, $i_q^*$, current
+CTRL.cmd_idq[0]@ comanded d-axis current@ A@ $i_d^*$@ current
+CTRL.cmd_idq[1]@ comanded q-axis current@ A@ $i_q^*$@ current
 
-CTRL.cmd_udq[0], commanded d-axis voltage, V, $u_{d}$, voltage
-CTRL.cmd_udq[1], commanded q-axis voltage, V, $u_{q}$, voltage
+CTRL.cmd_udq[0]@ commanded d-axis voltage@ V@ $u_{d}$@ voltage
+CTRL.cmd_udq[1]@ commanded q-axis voltage@ V@ $u_{q}$@ voltage
 
-CTRL.cmd_uab[0], comamanded alpha-axis voltage, V, $u_\alpha$, voltage
-CTRL.cmd_uab[1], comamanded beta-axis voltage, V, $u_\beta$, voltage
+CTRL.cmd_uab[0]@ comamanded alpha-axis voltage@ V@ $u_\alpha$@ voltage
+CTRL.cmd_uab[1]@ comamanded beta-axis voltage@ V@ $u_\beta$@ voltage
 
-CTRL.omega_syn, synchronous angular speed, rad/s, $\omega_{\rm syn}$, speed
+CTRL.omega_syn@ synchronous angular speed@ rad/s@ $\omega_{\rm syn}$@ speed
 
-ACM.Tem, Temmotor torque, Nm, $T_{\rm em}$, torque
-CTRL.Tem, calculated torque, Nm, $T_{\rm em}$, torque
+ACM.Tem@ Temmotor torque@ Nm@ $T_{\rm em}$@ torque
+CTRL.Tem@ calculated torque@ Nm@ $T_{\rm em}$@ torque
 
-CTRL.theta_tilde, estimate theta_tilde, rad, $\tilde\theta$, degree
-CTRL.window_counter, counter, 1,$counter$, 1
+CTRL.theta_tilde@ estimate theta_tilde@ rad@ $\tilde\theta$@ degree
+CTRL.window_counter@ counter@ 1@$counter$@ 1
 
-CTRL.thetaerror, thetaerror, rad , $\theta_e$, degree
+CTRL.thetaerror@ thetaerror@ rad @ $\theta_e$@ degree
 
-fe_htz.psi_A[0], alpha-axis active flux estimate, Wb, $\psi_{\rm A \alpha}$, flux
-fe_htz.psi_A[1], beta-axis active flux estimate, Wb, $\psi_{\rm A \beta}$, flux
-CTRL.cmd_psi_mu[0], alpha-axis active flux estimate, Wb, $\psi_\alpha^*$, flux 
-CTRL.cmd_psi_mu[1], beta-axis active flux estimate, Wb, $\psi_\alpha^*$, flux
-CTRL.iab[0], alpha-axis stator current, A, $I_{\alpha}$, current
-CTRL.iab[1], beta-axis stator current, A, $I_{\beta}$, current
-CTRL.ell, estimate ell, Wb, $\ell$, ell
+fe_htz.psi_A[0]@ alpha-axis active flux estimate@ Wb@ $\psi_{\rm A \alpha}$@ flux
+fe_htz.psi_A[1]@ beta-axis active flux estimate@ Wb@ $\psi_{\rm A \beta}$@ flux
+CTRL.cmd_psi_mu[0]@ alpha-axis active flux estimate@ Wb@ $\psi_\alpha^*$@ flux 
+CTRL.cmd_psi_mu[1]@ beta-axis active flux estimate@ Wb@ $\psi_\alpha^*$@ flux
+CTRL.iab[0]@ alpha-axis stator current@ A@ $I_{\alpha}$@ current
+CTRL.iab[1]@ beta-axis stator current@ A@ $I_{\beta}$@ current
+CTRL.ell@ estimate ell@ Wb@ $\ell$@ ell
+CTRL.nsoaf_xSpeed[1]@ r/min@ nsoaf_xSpeed
+fe_htz.psi_2_max[0]@ maximum alpha-axis flux estimation @Wb @ $\psi_{\alpha 2 , \rm max}$ @ flux
+fe_htz.psi_2_max[1]@ maximum beta-axis flux estimation @Wb @ $\psi_{\beta 2 , \rm max}$ @ flux
+fe_htz.psi_2_min[0]@ minimum alpha-axis flux estimation @Wb @ $\psi_{\alpha 2 , \rm min}$ @ flux
+fe_htz.psi_2_min[1]@ minimum beta-axis flux estimation @Wb @ $\psi_{\beta 2 , \rm min}$ @ flux

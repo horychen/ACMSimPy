@@ -2,19 +2,19 @@ import numpy as np
 def humans_give_commands(CTRL, ACM, t):
     """ Console @ CL_TS """
 
-    if t < 0.1:
-        CTRL.cmd_rpm = 50
-        CTRL.cmd_idq[1] = 5
-        ACM.TLoad = CTRL.cmd_rpm*0.0142
-    elif t < 1:
+    if t < 0.2:
         CTRL.cmd_rpm = 100
-        ACM.TLoad = CTRL.cmd_rpm*0.0142
-    elif t < 2:
+        ACM.TLoad = 0
+    elif t < 0.5:
         CTRL.cmd_rpm = 100
-        ACM.TLoad = CTRL.cmd_rpm*0.0142
-    elif t < 3:
+        ACM.TLoad = 0.3
+        CTRL.cmd_idq[1] = 3
+    elif t < 0.7:
         CTRL.cmd_rpm = 100
-        ACM.TLoad = CTRL.cmd_rpm*0.0142
+        ACM.TLoad = 0.6
+        CTRL.cmd_idq[1] = 3
+    # if CTRL.timebase < 2:
+    #     CTRL.cmd_idq[1] = 8* np.sin(2*np.pi* 2 *CTRL.timebase)
     # elif t < 4:
     #     CTRL.cmd_rpm = 300
     # elif t < 4.1:
@@ -89,6 +89,4 @@ def humans_give_commands(CTRL, ACM, t):
             # speed control - open-loop sweep
             CTRL.cmd_idq[1] = CTRL.CMD_CURRENT_SINE_AMPERE * np.sin(2*np.pi*CTRL.CMD_SPEED_SINE_HZ*(CTRL.timebase - CTRL.CMD_SPEED_SINE_LAST_END_TIME))
 
-    if CTRL.bool_yanzhengzhang == True:
-        # dasdasdsa
-        pass
+
