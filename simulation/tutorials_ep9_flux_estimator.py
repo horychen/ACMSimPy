@@ -58,17 +58,12 @@ class The_Motor_Controller:
         else:
             self.cmd_psi = init_KE # [Wb]
         self.index_voltage_model_flux_estimation = 3
-<<<<<<< HEAD
         self.index_separate_speed_estimation = 0
-=======
-
-        self.index_separate_speed_estimation = 1
->>>>>>> 936fa5cd184f4272e7b64bd24e7a867b6da16d8d
         self.use_disturbance_feedforward_rejection = 0
         self.bool_apply_decoupling_voltages_to_current_regulation = False
-        self.bool_apply_speed_closed_loop_control = False
+        self.bool_apply_speed_closed_loop_control = True
         self.bool_zero_id_control = True
-        self.bool_reverse_rotation = True
+        self.bool_reverse_rotation = False
         self.counter_rotation = 10
         self.bool_reverse = -1
         #psi error calculate
@@ -115,7 +110,7 @@ class The_Motor_Controller:
         self.Rreq = init_Rreq
         self.Js   = init_Js
         self.DC_BUS_VOLTAGE = DC_BUS_VOLTAGE
-
+        
         ''' OBSERVER '''
         # feedback / input
         self.idq = np.zeros(2, dtype=np.float64)
@@ -183,9 +178,6 @@ class The_Motor_Controller:
         self.Kp_KE_estimate = -150
         self.K1_for_max_ell = 1000 
         self.K2_for_min_ell = -0.005
-
-        self.use_encoder_angle_no_matter_what = True
-        self.flux_estimate_amplitude = init_KE
 
 class The_AC_Machine:
     def __init__(self, CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=1, ACM_param=1.0):
@@ -327,9 +319,6 @@ class Variables_FluxEstimator_Holtz03:
         self.psi_2_min= np.zeros(2, dtype=np.float64)
         self.psi_2_max= np.zeros(2, dtype=np.float64)
 
-        self.psi_s= np.zeros(2, dtype=np.float64)
-        self.psi_A= np.zeros(2, dtype=np.float64)
-
         self.rs_est   = IM_STAOTR_RESISTANCE
         # self.rreq_est = IM_ROTOR_RESISTANCE
         self.theta_d = 0.0
@@ -398,19 +387,15 @@ def DYNAMICS_SpeedObserver(x, CTRL, SO_param=1.0):
 
 def DYNAMICS_FluxEstimator(x, CTRL, FE_param=1.0):
     fx = np.zeros(NS_GLOBAL)
-<<<<<<< HEAD
-    fx[0] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] - x[2] + 1
-=======
-
     fx[0] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] - x[2]
->>>>>>> 936fa5cd184f4272e7b64bd24e7a867b6da16d8d
     fx[1] = CTRL.uab[1] - CTRL.R * FE_param * CTRL.iab[1] - x[3] 
 
     uhf_alfa = CTRL.cosT * (CTRL.ell - CTRL.flux_estimate_amplitude) * CTRL.Kp_KE_estimate
     uhf_beta = CTRL.sinT * (CTRL.ell - CTRL.flux_estimate_amplitude) * CTRL.Kp_KE_estimate
 
-    fx[4] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] - (x[2] + uhf_alfa) + 1
+    fx[4] = CTRL.uab[0] - CTRL.R * FE_param * CTRL.iab[0] - (x[2] + uhf_alfa)
     fx[5] = CTRL.uab[1] - CTRL.R * FE_param * CTRL.iab[1] - (x[3] + uhf_beta)
+    
     
     return fx
 
@@ -1023,14 +1008,13 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
         else:
             fe_htz.gain_off = fe_htz.GAIN_OFFSET_INIT
 
-        fe_htz.u_offset[0] += 0.9*fe_htz.gain_off * 100 * CTRL.CL_TS * INTEGRAL_INPUT_ALPHA
-        fe_htz.u_offset[1] += 0.9*fe_htz.gain_off * 100 * CTRL.CL_TS * INTEGRAL_INPUT_BETA
+        fe_htz.u_offset[0] += 0.9*fe_htz.gain_off * 1000 * CTRL.CL_TS * INTEGRAL_INPUT_ALPHA
+        fe_htz.u_offset[1] += 0.9*fe_htz.gain_off * 1000 * CTRL.CL_TS * INTEGRAL_INPUT_BETA
         fe_htz.xFlux[2] = fe_htz.u_offset[0]
         fe_htz.xFlux[3] = fe_htz.u_offset[1]
 
         fe_htz.psi_2_prev[0] = fe_htz.psi_2[0]
         fe_htz.psi_2_prev[1] = fe_htz.psi_2[1]
-
 
         # psi_2_ampl 在限幅前已经算过了，还有必要限幅后在这里再算一次吗？
         # fe_htz.psi_A_ampl = np.sqrt(fe_htz.psi_A[0] **2 + fe_htz.psi_A[1] **2)
@@ -1038,20 +1022,17 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
         #     fe_htz.psi_A_ampl = 1.0
         # amplitude_inverse = 1.0 / fe_htz.psi_A_ampl
         fe_htz.psi_A_ampl = np.sqrt(fe_htz.psi_A[0] **2 + fe_htz.psi_A[1] **2)
-
         CTRL.flux_estimate_amplitude = fe_htz.psi_A_ampl
         if fe_htz.psi_A_ampl == 0:
             fe_htz.psi_A_ampl = 1.0
         amplitude_inverse = 1.0 / fe_htz.psi_A_ampl
 
-
         CTRL.cosT = fe_htz.psi_A[0] * amplitude_inverse
         CTRL.sinT = fe_htz.psi_A[1] * amplitude_inverse
         fe_htz.theta_d = np.arctan2(fe_htz.psi_A[1], fe_htz.psi_A[0]) # Costly operation, but it is needed only once per control interrupt
         CTRL.theta_d = fe_htz.theta_d
-
-        # CTRL.cosT = np.cos(CTRL.theta_d)
-        # CTRL.sinT = np.sin(CTRL.theta_d)
+        CTRL.cosT = np.cos(CTRL.theta_d)
+        CTRL.sinT = np.sin(CTRL.theta_d)
 
         while ACM.theta_d> np.pi: ACM.theta_d -= 2*np.pi
         while ACM.theta_d<-np.pi: ACM.theta_d += 2*np.pi
@@ -1413,17 +1394,6 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, FE_param=1.0,ELL_param = 0
         CTRL.sinT = fe_htz.psi_2[1] * amplitude_inverse
         fe_htz.theta_d = np.arctan2(fe_htz.psi_2[1], fe_htz.psi_2[0]) # Costly operation, but it is needed only once per control interrupt
         CTRL.theta_d = fe_htz.theta_d
-=======
-
-    # 情况一： CTRL.use_encoder_angle_no_matter_what = False
-    # 情况二： CTRL.use_encoder_angle_no_matter_what = True
-    if CTRL.use_encoder_angle_no_matter_what:
-        while ACM.theta_d> np.pi: ACM.theta_d -= 2*np.pi
-        while ACM.theta_d<-np.pi: ACM.theta_d += 2*np.pi
-
-        CTRL.theta_d = ACM.theta_d
-        # do this once per control interrupt
->>>>>>> numba_is_making_things_complicated
         CTRL.cosT = np.cos(CTRL.theta_d)
         CTRL.sinT = np.sin(CTRL.theta_d)
 
