@@ -1,10 +1,14 @@
+speed [r/min]@CTRL.nsoaf_xOmg/(2*np.pi*ACM.npp)*60@ CTRL.cmd_rpm@ ACM.omega_r_mech/(2*np.pi)*60
 
-elec speed [r/min]@CTRL.omega_r_elec/(2*np.pi*ACM.npp)*60@ CTRL.cmd_rpm@ ACM.omega_r_mech/(2*np.pi)*60
+speed [r/min]@fe_htz.field_speed_est_lpf/(2*np.pi*ACM.npp)*60@ CTRL.cmd_rpm@ ACM.omega_r_mech/(2*np.pi)*60
 
-motor torque [Nm]@ ACM.Tem@ CTRL.Tem
+$T_{\rm {Load}}$  and  $\hat{T}_{\rm {Load}}$ [Nm]@ ACM.TLoad@ CTRL.nsoaf_xTL  
+$\ell$ Wb@ CTRL.ell
 
-flux estimate@ fe_htz.psi_2[0]@fe_htz.psi_2[1]
+$u_{\rm {offset}}$ [V] @fe_htz.u_offset[0] @fe_htz.u_offset[1]
 
-flux estimate@ fe_htz.psi_1[0]@fe_htz.psi_1[1]
+$\hat{r}_s$ [$\Omega$]@fe_htz.rs_cal
 
-u_offset @fe_htz.u_offset[0] @fe_htz.u_offset[1]
+$\psi_1$ [Wb]@fe_htz.psi_1[0]@fe_htz.psi_1[1]
+($\psi_{\rm {1, max}}$+$\psi_{\rm {1, min}}$)* 0.5 [Wb]@CTRL.psi_com[0]@CTRL.psi_com[1]
+$\theta_e$ [rad/s]@CTRL.thetaerror 

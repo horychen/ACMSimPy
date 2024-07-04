@@ -2,18 +2,46 @@ import numpy as np
 def humans_give_commands(CTRL, ACM, t):
     """ Console @ CL_TS """
 
-    if t < 0.3:
+    # if t < 1:
+    #     CTRL.cmd_rpm = 10
+    # elif t < 2:
+    #     ACM.TLoad = 0.0
+    # elif t < 4:
+    #     CTRL.cmd_rpm = 600
+    #     ACM.TLoad = 0.2       # CTRL.index_voltage_model_flux_estimation = 4
+    # elif t < 8:
+    #     CTRL.cmd_rpm = 500
+    #     ACM.TLoad = 0.2
+    # elif t < 10:
+    #     CTRL.cmd_rpm = 600
+    #     ACM.TLoad = 0.2
+
+
+    if t < 5:
+        if CTRL.cmd_rpm <= 60:
+            CTRL.cmd_rpm = CTRL.cmd_rpm + 0.01
+    elif t < 7:
+        ACM.TLoad = 2
+    elif t < 10:
+        if CTRL.cmd_rpm >= -60:
+            CTRL.cmd_rpm = CTRL.cmd_rpm - 0.01
+    elif t < 25:
+        if CTRL.cmd_rpm <= 60:
+            CTRL.cmd_rpm = CTRL.cmd_rpm + 0.001
+    elif t < 25.3:
+        if CTRL.cmd_rpm >= -60:
+            CTRL.cmd_rpm = CTRL.cmd_rpm - 0.1
+    elif t < 25.6:
+        if CTRL.cmd_rpm <= 60:
+            CTRL.cmd_rpm = CTRL.cmd_rpm + 0.1       
+    elif t < 25.9:
+        if CTRL.cmd_rpm >= -60:
+            CTRL.cmd_rpm = CTRL.cmd_rpm - 0.1
+    elif t < 28:
         CTRL.cmd_rpm = 100
-        ACM.TLoad = 0.3
-    elif t < 0.8:
-        CTRL.cmd_rpm = 150
-        ACM.TLoad = 0.7
-        CTRL.cmd_idq[1] = 1
-        # CTRL.index_voltage_model_flux_estimation = 4
-    elif t < 1.5:
-        CTRL.cmd_rpm = 150
-        ACM.TLoad = 1
-        CTRL.cmd_idq[1] = 3
+    elif t < 32:
+        CTRL.cmd_rpm = 100 * np.sin(2*np.pi*t) + 100
+    
 
     if CTRL.bool_overwrite_speed_commands == False:
         if t < 1.0:
