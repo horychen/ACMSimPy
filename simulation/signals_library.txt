@@ -23,10 +23,10 @@ CTRL.cmd_uab[0]@ comamanded alpha-axis voltage@ V@ $u_\alpha$@ voltage
 CTRL.cmd_uab[1]@ comamanded beta-axis voltage@ V@ $u_\beta$@ voltage
 
 CTRL.omega_syn@ synchronous angular speed@ rad/s@ $\omega_{\rm syn}$@ speed
-
+ACM.TLoad@ load torque@Nm@$T_{\rm {load}}$@ torque
 ACM.Tem@ Temmotor torque@ Nm@ $T_{\rm em}$@ torque
 CTRL.Tem@ calculated torque@ Nm@ $T_{\rm em}$@ torque
-
+CTRL.nsoaf_xTL@ est torque@ Nm@ $\hat{T}_{\rm Load}$@ torque
 CTRL.theta_tilde@ estimate theta_tilde@ rad@ $\tilde\theta$@ degree
 CTRL.window_counter@ counter@ 1@$counter$@ 1
 
@@ -46,6 +46,11 @@ fe_htz.psi_2_min[0]@ minimum alpha-axis flux estimation @Wb @ $\psi_{\alpha 2 , 
 fe_htz.psi_2_min[1]@ minimum beta-axis flux estimation @Wb @ $\psi_{\beta 2 , \rm min}$ @ flux
 CTRL.psi_com[0]@ alpha-axis flux estimation compensation@Wb @ $\psi_{\alpha , \rm com}$ @ flux
 CTRL.psi_com[1]@ beta-axis flux estimation compensation@Wb @ $\psi_{\beta , \rm com}$ @ flux
-CTRL.CLARKE_TRANS_TORQUE_GAIN * CTRL.npp * (CTRL.marino_psi_Dmu * CTRL.idq[1] - CTRL.marino_psi_Qmu * CTRL.idq[0])@xTem@Nm @ xTem @ torque
-- CTRL.marino_gama_inv * CTRL.Js * CTRL.cmd_psi * CTRL.e_psi_Qmu@ xTL@Nm@xTL @ torque
+CTRL.CLARKE_TRANS_TORQUE_GAIN * CTRL.npp * (CTRL.marino_psi_Dmu * CTRL.idq[1] - CTRL.marino_psi_Qmu * CTRL.idq[0])@xTem@Nm @ xTem @ torque 
+- CTRL.marino_gama_inv * CTRL.Js * CTRL.cmd_psi * CTRL.e_psi_Qmu@ xTL@Nm@$\hat{T}_{\rm {Load}}$@ torque
 fe_htz.psi_2[0] * - CTRL.sinT + fe_htz.psi_2[1] * CTRL.cosT@ psi@Wb@psi @ flux
+fe_htz.field_speed_est_lpf/(2*np.pi*ACM.npp)*60 @ speed estimation @r/min @ $\hat{\omega}_{\rm {VM}}$ @ speed
+fe_htz.rs_cal @ rs estimation @ $\Omega$ @ $\hat{r}_s$ @ resistance
+CTRL.nsoaf_xOmg/(2*np.pi*ACM.npp)*60 @nature speed @ r/min @ $\hat{\omega}_n$ @ resistance
+(fe_htz.psi_1_max[0] + fe_htz.psi_1_min[0]) * 0.5@maximum and minimum flux @Wb@ ($\psi_{\rm {1, \alpha, max}}$+$\psi_{\rm {1, \alpha, min}}$)* 0.5@flux
+(fe_htz.psi_1_max[1] + fe_htz.psi_1_min[1]) * 0.5@maximum and minimum flux @Wb@ ($\psi_{\rm {1, \beta, max}}$+$\psi_{\rm {1, \beta, min}}$)* 0.5@flux

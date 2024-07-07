@@ -149,7 +149,7 @@ class The_Motor_Controller:
         self.K2_for_min_ell = kwargs.get('K2_for_min_ell', -0.005)
         # boldea 2008
         self.rotor_flux_error = kwargs.get('rotor_flux_error', np.zeros(NS_GLOBAL, dtype=np.float64))
-        self.OFFSET_VOLTAGE_ALPHA = kwargs.get('OFFSET_VOLTAGE_ALPHA', 0.0)
+        self.OFFSET_VOLTAGE_ALPHA = kwargs.get('OFFSET_VOLTAGE_ALPHA', 0.1)
         self.OFFSET_VOLTAGE_BETA = kwargs.get('OFFSET_VOLTAGE_BETA', 0.0)
         self.VM_PROPOSED_PI_CORRECTION_GAIN_P = kwargs.get('VM_PROPOSED_PI_CORRECTION_GAIN_P', 100)
         self.VM_PROPOSED_PI_CORRECTION_GAIN_I = kwargs.get('VM_PROPOSED_PI_CORRECTION_GAIN_I', 100)
@@ -179,20 +179,57 @@ class The_Motor_Controller:
         self.nsoaf_xSpeed = kwargs.get('nsoaf_xSpeed', np.zeros(NS_GLOBAL, dtype=np.float64))
         self.uQ_now_filtered = kwargs.get('uQ_now_filtered', 0.0)
         self.idq_c = kwargs.get('idq_c', np.zeros(2, dtype=np.float64))
-        self.NO_Saturation_PI_CORRECTION_GAIN_P = kwargs.get('NO_Saturation_PI_CORRECTION_GAIN_P', 20)
-        self.NO_Saturation_PI_CORRECTION_GAIN_I = kwargs.get('NO_Saturation_PI_CORRECTION_GAIN_I', 20)
+        self.NO_Saturation_PI_CORRECTION_GAIN_I = kwargs.get('NO_Saturation_PI_CORRECTION_GAIN_I', 100)
         self.psi_com = kwargs.get('psi_com', np.zeros(2, dtype=np.float64))
         # marino 2005 observer and controller
         self.CL_TS_INV = 1 / self.CL_TS
+        self.marino_gama_inv = kwargs.get('marino_gama_inv', 170000)
+        self.e_psi_Qmu = kwargs.get('e_psi_Qmu', 0.0)
+        self.e_psi_Dmu = kwargs.get('e_psi_Dmu', 0.0)
+        self.marino_lamda_inv = kwargs.get('marino_lambda_inv', 15000)
+        self.marino_xRho = kwargs.get('marino_xRho', 0.0)
+        self.marino_xTL = kwargs.get('marino_xTL', 0.0)
+        self.marino_xOmg = kwargs.get('marino_xOmg', 0.0)
+        self.x_temp = kwargs.get('x_temp', np.zeros(NS_GLOBAL, dtype=np.float64))
+        self.increment_1 = kwargs.get('increment_1', np.zeros(NS_GLOBAL, dtype=np.float64))
+        self.increment_2 = kwargs.get('increment_2', np.zeros(NS_GLOBAL, dtype=np.float64))
+        self.increment_3 = kwargs.get('increment_3', np.zeros(NS_GLOBAL, dtype=np.float64))
+        self.increment_4 = kwargs.get('increment_4', np.zeros(NS_GLOBAL, dtype=np.float64))
+        self.increment_n = kwargs.get('increment_n', np.zeros(NS_GLOBAL, dtype=np.float64))
+        self.marino_deriv_xTL = kwargs.get('marino_deriv_xTL', 0.0)
+        self.marino_deriv_xOmg = kwargs.get('marino_deriv_xOmg', 0.0)
+        self.CLARKE_TRANS_TORQUE_GAIN = kwargs.get('CLARKE_TRANS_TORQUE_GAIN', 1.5)
+        self.CLARKE_TRANS_TORQUE_GAIN_INVERSE = 1 / self.CLARKE_TRANS_TORQUE_GAIN
+        self.marino_psi_Dmu = kwargs.get('marino_psi_Dmu ', 0.0)
+        self.marino_psi_Qmu = kwargs.get('marino_psi_Qmu ', 0.0)
+        self.marino_cosT = kwargs.get('marino_cosT', 1.0)
+        self.marino_sinT = kwargs.get('marino_sinT', 0.0)
+        self.marino_deriv_iQ_cmd = kwargs.get('marino_deriv_iQ_cmd', 0.0)
+        self.marino_deriv_iD_cmd = kwargs.get('marino_deriv_iD_cmd', 0.0)
+        self.cmd_deriv_psi = kwargs.get('cmd_deriv_psi_Dmu', 0.0)
+        self.marino_k_omega = kwargs.get('marino_k_omega', 0.0)
+        self.cmd_dderiv_omega_r_elec = kwargs.get('cmd_dderiv_omega_r_elec', 0.0)
+        self.cmd_deriv_omega_r_elec = kwargs.get('cmd_deriv_omega_r_elec', 0.0)
+        self.marino_e_iDs = kwargs.get('marino_e_iDs', 0.0)
+        self.marino_e_iQs = kwargs.get('marino_e_iQs', 0.0)
+        self.marino_torque_cmd = kwargs.get('marino_torque_cmd', 0.0)
+        self.marino_torque_fb = kwargs.get('marino_torque_fb', 0.0)
+        self.marino_zD = kwargs.get('marino_zD', 0.0)
+        self.marino_zQ = kwargs.get('marino_zQ', 0.0)
+        self.marino_Gamma_D = kwargs.get('marino_Gamma_D', 0.0)
+        self.marino_Gamma_Q = kwargs.get('marino_Gamma_Q', 0.0)
+        self.marino_kz = kwargs.get('marino_kz', 0.0)
         self.cmd_omega_r_elec = kwargs.get('cmd_omega_r_elec', 0.0)
         self.Ld_inv = 1 / self.Ld
         self.npp_inv = 1 / self.npp
+        self.marino_kappa = kwargs.get('marino_kappa', 1e4*24)
         self.cmd_psi_inv = 1 / self.cmd_psi
+        self.marino_e_psi_Dmu = kwargs.get('marino_e_psi_Dmu', 0.0)
+        self.marino_e_psi_Qmu = kwargs.get('marino_e_psi_Qmu', 0.0)
         self.cmd_iab = kwargs.get('cmd_iab', np.zeros(2, dtype=np.float64))
         self.gamma_res_transient = kwargs.get('gamma_res_transient', 0.0)
         self.gamma_res_transient_shape = kwargs.get('gamma_res_transient', 2000)
         self.rs_cal = kwargs.get('rs_cal', 0.04)
-        self.bool_rs_est_on = kwargs.get('bool_rs_est_on', False)
 
 class The_AC_Machine:
     def __init__(self, CTRL, MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD=1, Lq_param=1.0):
@@ -333,8 +370,8 @@ class Variables_FluxEstimator_Holtz03:
         self.psi_1_nonSat= np.zeros(2, dtype=np.float64)
         self.psi_2_nonSat= np.zeros(2, dtype=np.float64)
 
-        self.psi_1_min= np.full(2, -1 * init_KE, dtype=np.float64)
-        self.psi_1_max= np.full(2, init_KE, dtype=np.float64)
+        self.psi_1_min= np.zeros(2, dtype=np.float64)
+        self.psi_1_max= np.zeros(2, dtype=np.float64)
         self.psi_2_min= np.zeros(2, dtype=np.float64)
         self.psi_2_max= np.zeros(2, dtype=np.float64)
 
@@ -418,69 +455,6 @@ def DYNAMICS_SpeedObserver(x, CTRL, SO_param=1.0):
     fx[1] = CTRL.ell2*output_error + (CTRL.Tem + x[2]) * CTRL.npp/CTRL.Js # elec. angular rotor speed
     fx[2] = CTRL.ell3*output_error + x[3]
     fx[3] = CTRL.ell4*output_error + 0.0
-    return fx
-# nature speed oberver init
-def init_nsoaf(CTRL):
-    NSOAF_TL_P = 1
-    NSOAF_TL_I =20
-    NSOAF_TL_D = 0
-    NSOAF_OMEGA_OBSERVER = 200
-
-    CTRL.nsoaf_KP = NSOAF_TL_P
-    CTRL.nsoaf_KI = NSOAF_TL_I
-    CTRL.nsoaf_KD = NSOAF_TL_D
-    CTRL.nsoaf_set_omega_ob = NSOAF_OMEGA_OBSERVER
-
-    CTRL.KA = CTRL.KE + (CTRL.Ld - CTRL.Lq) * CTRL.idq[0]
-    CTRL.nsoaf_omega_ob = CTRL.nsoaf_set_omega_ob
-    nso_one_parameter_tuning(CTRL)
-# nature speed oberver tuning
-def nso_one_parameter_tuning(CTRL):
-    if CTRL.nsoaf_omega_ob < 170:
-        CTRL.nsoaf_set_omega_ob = 100
-    one_over__npp_divided_by_Js__times__Lq_id_plus_KActive = 1 / (CTRL.npp * CTRL.Js_inv * CTRL.Lq_inv * (CTRL.Lq * CTRL.cmd_idq[0] + CTRL.KA) )
-    # uq_inv = 1.0 / CTRL.cmd_udq[1]
-    uq_inv = 1.0
-    if CTRL.TUNING_IGNORE_UQ :
-        uq_inv = 1.0
-    if CTRL.bool_rs_est_on == True:
-        CTRL.nsoaf_KD = (3 * CTRL.nsoaf_omega_ob - CTRL.rs_cal * CTRL.Lq_inv) * one_over__npp_divided_by_Js__times__Lq_id_plus_KActive                       * uq_inv
-    elif CTRL.bool_rs_est_on == False:
-        CTRL.nsoaf_KD = (3 * CTRL.nsoaf_omega_ob - CTRL.R * CTRL.Lq_inv) * one_over__npp_divided_by_Js__times__Lq_id_plus_KActive                       * uq_inv
-    CTRL.nsoaf_KP = ( (3 * CTRL.nsoaf_omega_ob*CTRL.nsoaf_omega_ob)         * one_over__npp_divided_by_Js__times__Lq_id_plus_KActive - 1.5 * CTRL.npp * CTRL.KA ) * uq_inv
-    CTRL.nsoaf_KI = CTRL.nsoaf_omega_ob * CTRL.nsoaf_omega_ob * CTRL.nsoaf_omega_ob      * one_over__npp_divided_by_Js__times__Lq_id_plus_KActive                    * uq_inv
-
-# 低通滤波器
-def _lpf(x, y, tau_inv,CTRL):
-    return y + tau_inv * CTRL.CL_TS * (x - y)
-# nature speed oberver dynamics
-def NSO_Dynamics(x, CTRL, param = 1.0):
-    fx = np.zeros(NS_GLOBAL)
-    xIq  =  x[0]
-    xOmg = x[1]
-    xTL  =  x[2]
-    CTRL.nsoaf_uQ = CTRL.udq[1]
-    CTRL.nsoaf_output_error = CTRL.idq_c[1] - xIq
-    if CTRL.Ld-CTRL.Lq != 0:
-        CTRL.uQ_now_filtered = _lpf(CTRL.nsoaf_uQ, CTRL.uQ_now_filtered, 30, CTRL)
-
-        # CTRL.active_power_real =  abs(CTRL.nsoaf_uQ ) * CTRL.idq_c[1]
-        # CTRL.active_power_est = abs(CTRL.nsoaf_uQ ) *xIq
-        # CTRL.active_power_error =  abs(CTRL.nsoaf_uQ ) * CTRL.nsoaf_output_error
-        CTRL.active_power_real =  1 * CTRL.idq_c[1]
-        CTRL.active_power_est = 1 *xIq
-        CTRL.active_power_error =  1 * CTRL.nsoaf_output_error
-    else:
-        CTRL.active_power_real =  CTRL.idq_c[1]
-        CTRL.active_power_est =  xIq
-        CTRL.active_power_error =  CTRL.nsoaf_output_error
-    if CTRL.bool_rs_est_on == True:
-        fx[0] = CTRL.Lq_inv * (CTRL.udq[1] - CTRL.rs_cal * xIq - xOmg * (CTRL.KE + CTRL.Ld * CTRL.idq_c[0]) ) - CTRL.nsoaf_KD * CTRL.active_power_error
-    elif CTRL.bool_rs_est_on == False:
-        fx[0] = CTRL.Lq_inv * (CTRL.udq[1] - CTRL.R * xIq - xOmg * (CTRL.KE + CTRL.Ld * CTRL.idq_c[0]) ) - CTRL.nsoaf_KD * CTRL.active_power_error
-    CTRL.nsoaf_xTem = CTRL.CLARKE_TRANS_TORQUE_GAIN * CTRL.npp * CTRL.KA * xIq
-    fx[1] = CTRL.Js_inv * CTRL.npp * (CTRL.nsoaf_xTem - xTL -CTRL.nsoaf_KP * CTRL.active_power_error)
-    fx[2] = CTRL.nsoaf_KI * CTRL.active_power_error
     return fx
 
 def RK4_ObserverSolver_CJH_Style(THE_DYNAMICS, x, hs, CTRL, param=1.0):
@@ -569,136 +543,47 @@ def cal_psi_error(CTRL, fe_htz, ACM):
             CTRL.psi_max = 0
             CTRL.bool_counter = False
 '''flux estimators'''
-#4. no saturation time based
-def DYNAMICS_No_Saturation_FluxEstimator(x, CTRL, Rs_param=1.0):
+
+#5 Syn IFO(Lascu and Andreescus 2006)
+
+def DYNAMICS_SynIFO_flux_estimator(x, CTRL, Rs_param):
     fx = np.zeros(NS_GLOBAL)
-    if CTRL.bool_rs_est_on == True:
-        fx[0] = CTRL.uab[0] - CTRL.rs_cal * Rs_param * CTRL.iab[0] - CTRL.NO_Saturation_PI_CORRECTION_GAIN_P * CTRL.psi_com[0] - x[2] + CTRL.OFFSET_VOLTAGE_ALPHA
-        fx[1] = CTRL.uab[1] - CTRL.rs_cal * Rs_param * CTRL.iab[1] - CTRL.NO_Saturation_PI_CORRECTION_GAIN_P * CTRL.psi_com[1] - x[3] + CTRL.OFFSET_VOLTAGE_BETA
-    elif CTRL.bool_rs_est_on == False:
-        fx[0] = CTRL.uab[0] - CTRL.R * Rs_param * CTRL.iab[0] - CTRL.NO_Saturation_PI_CORRECTION_GAIN_P * CTRL.psi_com[0] - x[2] + CTRL.OFFSET_VOLTAGE_ALPHA
-        fx[1] = CTRL.uab[1] - CTRL.R * Rs_param * CTRL.iab[1] - CTRL.NO_Saturation_PI_CORRECTION_GAIN_P * CTRL.psi_com[1] - x[3] + CTRL.OFFSET_VOLTAGE_BETA
-    fx[2] = CTRL.NO_Saturation_PI_CORRECTION_GAIN_I * CTRL.psi_com[0]
-    fx[3] = CTRL.NO_Saturation_PI_CORRECTION_GAIN_I * CTRL.psi_com[1]
+    
+    CTRL.rotor_flux_error[0] = ( CTRL.cmd_psi_mu[0] - (x[0]-CTRL.Lq * CTRL.iab[0]) )
+    CTRL.rotor_flux_error[1] = ( CTRL.cmd_psi_mu[1] - (x[1]-CTRL.Lq * CTRL.iab[1]) )
+
+    CTRL.emf_stator[0] = CTRL.uab[0] - CTRL.R * Rs_param * CTRL.iab[0] + CTRL.OFFSET_VOLTAGE_ALPHA + CTRL.VM_PROPOSED_PI_CORRECTION_GAIN_P * CTRL.rotor_flux_error[0] + x[2]
+    CTRL.emf_stator[1] = CTRL.uab[1] - CTRL.R * Rs_param * CTRL.iab[1] + CTRL.OFFSET_VOLTAGE_BETA  + CTRL.VM_PROPOSED_PI_CORRECTION_GAIN_P * CTRL.rotor_flux_error[1] + x[3]
+    fx[0] = CTRL.emf_stator[0]
+    fx[1] = CTRL.emf_stator[1]
+    fx[2] = CTRL.VM_PROPOSED_PI_CORRECTION_GAIN_I * CTRL.rotor_flux_error[0]
+    fx[3] = CTRL.VM_PROPOSED_PI_CORRECTION_GAIN_I * CTRL.rotor_flux_error[1]
     return fx
 
-def no_saturation_to_cal_KE_and_uoffset(fe_htz, CTRL, ACM, Rs_param):
-    RK4_ObserverSolver_CJH_Style(DYNAMICS_No_Saturation_FluxEstimator, fe_htz.xFlux, CTRL.CL_TS, CTRL, Rs_param)
-    fe_htz.psi_1[0] = fe_htz.xFlux[0]
-    fe_htz.psi_1[1] = fe_htz.xFlux[1]
-    # fe_htz.psi_1[0] = fe_htz.xFlux[0]
-    # fe_htz.psi_1[1] = fe_htz.xFlux[1]
-    fe_htz.u_offset[0] = fe_htz.xFlux[2]
-    fe_htz.u_offset[1] = fe_htz.xFlux[3]
+def SynIFO_flux_estimator(fe_htz, CTRL, ACM, Rs_param):
+    CTRL.KA = CTRL.KE + (CTRL.Ld - CTRL.Lq) * (CTRL.iab[0] * CTRL.cosT + CTRL.iab[1] * CTRL.sinT)
+    CTRL.cmd_psi_mu[0] = CTRL.KA  * CTRL.cosT
+    CTRL.cmd_psi_mu[1] = CTRL.KA  * CTRL.sinT
+    RK4_ObserverSolver_CJH_Style(DYNAMICS_SynIFO_flux_estimator, fe_htz.xFlux, CTRL.CL_TS, CTRL, Rs_param)
+    #// Unpack x
+    fe_htz.psi_1[0]                         = fe_htz.xFlux[0]
+    fe_htz.psi_1[1]                         = fe_htz.xFlux[1]
+    CTRL.correction_integral_term[0]        = fe_htz.xFlux[2]
+    CTRL.correction_integral_term[1]        = fe_htz.xFlux[3]
+    fe_htz.u_offset[0] = CTRL.correction_integral_term[0]
+    fe_htz.u_offset[1] = CTRL.correction_integral_term[1]   
+    #// rotor flux updates
+
     fe_htz.psi_2[0] = fe_htz.psi_1[0] - CTRL.Lq * CTRL.iab[0]
     fe_htz.psi_2[1] = fe_htz.psi_1[1] - CTRL.Lq * CTRL.iab[1]
 
-    fe_htz.xFlux[0] = fe_htz.psi_1[0]
-    fe_htz.xFlux[1] = fe_htz.psi_1[1]
-    for ind in range(0,2):
-        # /* 必须先检查是否进入levelA */
-        if fe_htz.flag_pos2negLevelA[ind] == True: 
-            if fe_htz.psi_1_prev[ind]<0 and fe_htz.psi_1[ind]<0: # 二次检查，磁链已经是负的了  <- 可以改为施密特触发器
-                if fe_htz.flag_pos2negLevelB[ind] == False:
-                    fe_htz.count_negative_cycle+=1 # fe_htz.count_positive_cycle = 0
+    fe_htz.theta_d = np.arctan2(fe_htz.psi_2[1], fe_htz.psi_2[0]) 
 
-                    # 第一次进入寻找最小值的levelB，说明最大值已经检测到。
-                    fe_htz.psi_2_max[ind] = fe_htz.psi_1_max[ind] # 不区别定转子磁链，区别：psi_2是连续更新的，而psi_1是离散更新的。
-                    fe_htz.Delta_t_last = fe_htz.Delta_t
-                    fe_htz.Delta_t = fe_htz.time_pos2neg[ind] - fe_htz.time_pos2neg_prev[ind]
-                    fe_htz.time_pos2neg_prev[ind] = fe_htz.time_pos2neg[ind] # 备份作为下次耗时参考点
-                    # 初始化
-                    fe_htz.flag_neg2posLevelA[ind] = False
-                    fe_htz.flag_neg2posLevelB[ind] = False
-                    # if CTRL.cmd_rpm >= 159:
-                    #     CTRL.ell = (fe_htz.psi_1_max[ind] - fe_htz.psi_1_min[ind]) * 0.5
-                    CTRL.psi_com[0] = (fe_htz.psi_1_max[0] + fe_htz.psi_1_min[0]) * 0.5
-                    CTRL.psi_com[1] = (fe_htz.psi_1_max[1] + fe_htz.psi_1_min[1]) * 0.5
-
-                    fe_htz.psi_1_min[ind] = 0.0
-                    fe_htz.psi_2_min[ind] = 0.0
-
-                fe_htz.flag_pos2negLevelB[ind] = True
-                if fe_htz.flag_pos2negLevelB[ind] == True: # 寻找磁链最小值
-                    if fe_htz.psi_1[ind] < fe_htz.psi_1_min[ind]:
-                        fe_htz.psi_1_min[ind] = fe_htz.psi_1[ind]
-
-            else: # 磁链还没有变负，说明是虚假过零，比如在震荡，fe_htz.psi_2[0]>0
-                fe_htz.flag_pos2negLevelA[ind] = False # /* 震荡的话，另一方的检测就有可能被触动？ */
-
-        if fe_htz.psi_1_prev[ind]>0 and fe_htz.psi_1[ind]<0: # 发现磁链由正变负的时刻
-            fe_htz.flag_pos2negLevelA[ind] = True
-            fe_htz.time_pos2neg[ind] = CTRL.timebase
-
-        if fe_htz.flag_neg2posLevelA[ind] == True:
-            if fe_htz.psi_1_prev[ind]>0 and fe_htz.psi_1[ind]>0: # 二次检查，磁链已经是正的了
-                if fe_htz.flag_neg2posLevelB[ind] == False:
-                    fe_htz.count_positive_cycle+=1 # fe_htz.count_negative_cycle = 0
-                    # 第一次进入寻找最大值的levelB，说明最小值已经检测到。
-                    fe_htz.psi_1_min[ind] = fe_htz.psi_1_min[ind] # 不区别定转子磁链，区别：psi_2是连续更新的，而psi_1是离散更新的。
-                    fe_htz.Delta_t_last = fe_htz.Delta_t
-                    fe_htz.Delta_t = fe_htz.time_neg2pos[ind] - fe_htz.time_neg2pos_prev[ind]
-                    fe_htz.time_neg2pos_prev[ind] = fe_htz.time_neg2pos[ind] # 备份作为下次耗时参考点
-                    # 初始化
-                    fe_htz.flag_pos2negLevelA[ind] = False
-                    fe_htz.flag_pos2negLevelB[ind] = False
-
-                    # fe_htz.accumulated__u_off_saturation_time_correction[ind] += fe_htz.u_off_saturation_time_correction[ind]
-                    # if CTRL.cmd_rpm >= 159:
-                    #     CTRL.ell = (fe_htz.psi_1_max[ind] - fe_htz.psi_1_min[ind]) * 0.5
-                    CTRL.psi_com[0] = (fe_htz.psi_1_max[0] + fe_htz.psi_1_min[0]) * 0.5
-                    CTRL.psi_com[1] = (fe_htz.psi_1_max[1] + fe_htz.psi_1_min[1]) * 0.5
-                    
-                    fe_htz.psi_1_max[ind] = 0.0
-                    fe_htz.psi_2_max[ind] = 0.0
-
-                fe_htz.flag_neg2posLevelB[ind] = True 
-                if fe_htz.flag_neg2posLevelB[ind] == True: # 寻找磁链最大值
-                    if fe_htz.psi_1[ind] > fe_htz.psi_1_max[ind]:
-                        fe_htz.psi_1_max[ind] = fe_htz.psi_1[ind]
-
-            else: # 磁链还没有变正，说明是虚假过零，比如在震荡，fe_htz.psi_2[0]<0
-                fe_htz.flag_neg2posLevelA[ind] = False
-
-        if fe_htz.psi_1_prev[ind]<0 and fe_htz.psi_1[ind]>0: # 发现磁链由负变正的时刻
-            fe_htz.flag_neg2posLevelA[ind] = True
-            fe_htz.time_neg2pos[ind] = CTRL.timebase
-    #由于原本的uoffset所得的结果使得谐波有抖动，于是想滤波但是没滤成
-    
-    # fe_htz.u_offset_filered[0] =_lpf(fe_htz.u_offset[0], fe_htz.u_offset_filered[0], 1, CTRL)
-    # fe_htz.u_offset_filered[1] =_lpf(fe_htz.u_offset[1], fe_htz.u_offset_filered[1], 1, CTRL)
-    # fe_htz.xFlux[2] = fe_htz.u_offset_filered[0]
-    # fe_htz.xFlux[3] = fe_htz.u_offset_filered[1]
-    # fe_htz.u_offset[0] =  fe_htz.xFlux[4]
-    # fe_htz.u_offset[1] =  fe_htz.xFlux[5]
-    # fe_htz.xFlux[2] = fe_htz.u_offset[0]
-    # fe_htz.xFlux[3] = fe_htz.u_offset[1]
-
-    fe_htz.psi_1_prev[0] = fe_htz.psi_1[0]
-    fe_htz.psi_1_prev[1] = fe_htz.psi_1[1]
-
-    # psi_2_ampl 在限幅前已经算过了，还有必要限幅后在这里再算一次吗？
-    # fe_htz.psi_A_ampl = np.sqrt(fe_htz.psi_A[0] **2 + fe_htz.psi_A[1] **2)
-    # if fe_htz.psi_A_ampl == 0:
-    #     fe_htz.psi_A_ampl = 1.0
-    # amplitude_inverse = 1.0 / fe_htz.psi_A_ampl
-    fe_htz.psi_2_ampl = np.sqrt(fe_htz.psi_2[0] **2 + fe_htz.psi_2[1] **2)
-    CTRL.flux_estimate_amplitude = fe_htz.psi_2_ampl
-    if fe_htz.psi_2_ampl == 0:
-        fe_htz.psi_2_ampl = 1.0
-    amplitude_inverse = 1.0 / fe_htz.psi_2_ampl
-
-    CTRL.cosT = fe_htz.psi_2[0] * amplitude_inverse
-    CTRL.sinT = fe_htz.psi_2[1] * amplitude_inverse
-    fe_htz.theta_d = np.arctan2(fe_htz.psi_2[1], fe_htz.psi_2[0]) # Costly operation, but it is needed only once per control interrupt
+    while ACM.theta_d> np.pi: ACM.theta_d -= 2*np.pi
+    while ACM.theta_d<-np.pi: ACM.theta_d += 2*np.pi
     CTRL.theta_d = fe_htz.theta_d
     CTRL.cosT = np.cos(CTRL.theta_d)
     CTRL.sinT = np.sin(CTRL.theta_d)
-    CTRL.thetaerror = angle_diff(ACM.theta_d, CTRL.theta_d)
-    
-    while ACM.theta_d> np.pi: ACM.theta_d -= 2*np.pi
-    while ACM.theta_d<-np.pi: ACM.theta_d += 2*np.pi
-    #使用编码器进入仅观测状态
     if CTRL.use_encoder_angle_no_matter_what == True:
         CTRL.theta_d = ACM.theta_d
         CTRL.cosT = np.cos(CTRL.theta_d)
@@ -706,65 +591,95 @@ def no_saturation_to_cal_KE_and_uoffset(fe_htz, CTRL, ACM, Rs_param):
 '''speed observers'''
 # According to CTRL.index_separate_speed_estimation, chose your speed observer
 #0. encoder for speed
+#1. SEPARATE_SPEED_OBSERVER
 #2. NATRUE_SPEED_OBSERVER
+#3. marino_2005
 #4. NATRUE_SPEED_OBSERVER with Speed Estimation and Rs identification
-
-def NATRUE_SPEED_OBSERVER(CTRL, Rs_param):
-    CTRL.idq_c[0] = CTRL.iab_curr[0] * CTRL.cosT + CTRL.iab_curr[1] * CTRL.sinT
-    CTRL.idq_c[1] = CTRL.iab_curr[0] *-CTRL.sinT + CTRL.iab_curr[1] * CTRL.cosT
-    if CTRL.nsoaf_set_omega_ob != CTRL.nsoaf_omega_ob:
-        CTRL.nsoaf_omega_ob = CTRL.nsoaf_set_omega_ob
-        nso_one_parameter_tuning(CTRL)
-    # init_nsoaf(CTRL)
-    CTRL.nsoaf_xIq      = CTRL.nsoaf_xSpeed[0]
-    CTRL.nsoaf_xOmg     = CTRL.nsoaf_xSpeed[1]
-    CTRL.nsoaf_xTL      = CTRL.nsoaf_xSpeed[2]
-    CTRL.nsoaf_uQ = CTRL.udq[1]
-    # CTRL.uQ_now_filtered = _lpf(CTRL.nsoaf_uQ, CTRL.uQ_now_filtered, 30, CTRL)
-    CTRL.nsoaf_output_error = CTRL.idq_c[1] - CTRL.nsoaf_xIq
-    
-    CTRL.active_power_real =  + 1* CTRL.idq_c[1]
-    CTRL.active_power_est =  + 1* CTRL.nsoaf_xIq
-    CTRL.active_power_error =  + 1* CTRL.nsoaf_output_error
-    CTRL.KA = CTRL.KE + (CTRL.Ld - CTRL.Lq ) * CTRL.idq_c[0]
-    CTRL.nsoaf_xTem = CTRL.CLARKE_TRANS_TORQUE_GAIN * CTRL.npp * CTRL.KA * CTRL.nsoaf_xIq
-    RK4_ObserverSolver_CJH_Style(NSO_Dynamics,CTRL.nsoaf_xSpeed,CTRL.CL_TS, CTRL, Rs_param)
-    CTRL.nsoaf_xIq      = CTRL.nsoaf_xSpeed[0]
-    CTRL.nsoaf_xOmg     = CTRL.nsoaf_xSpeed[1]
-    CTRL.nsoaf_xTL      = CTRL.nsoaf_xSpeed[2]
+def SEPARATE_SPEED_OBSERVER(CTRL, Rs_param):
+    RK4_ObserverSolver_CJH_Style(DYNAMICS_SpeedObserver, CTRL.xSpeed, CTRL.CL_TS, CTRL, Rs_param)
+    while CTRL.xSpeed[0]> np.pi: CTRL.xSpeed[0] -= 2*np.pi
+    while CTRL.xSpeed[0]<-np.pi: CTRL.xSpeed[0] += 2*np.pi
+    # CTRL.uab_prev[0] = CTRL.uab_curr[0] # This is needed only if voltage is measured, e.g., by eCAP. Remember to update the code below marked by [$].
+    # CTRL.uab_prev[1] = CTRL.uab_curr[1] # This is needed only if voltage is measured, e.g., by eCAP. Remember to update the code below marked by [$].
     """ Speed Observer Outputs """
-    # CTRL.omega_r_elec = ACM.omega_r_elec 
-    CTRL.omega_r_elec = CTRL.nsoaf_xOmg 
+    CTRL.vartheta_d = CTRL.xSpeed[0]
+    CTRL.omega_r_elec = CTRL.xSpeed[1]
+    if CTRL.use_disturbance_feedforward_rejection == 0:
+        CTRL.total_disrubance_feedforward = 0.0
+    if CTRL.use_disturbance_feedforward_rejection == 1:
+        CTRL.total_disrubance_feedforward = CTRL.xSpeed[2]
+    elif CTRL.use_disturbance_feedforward_rejection == 2:
+        CTRL.total_disrubance_feedforward = CTRL.xSpeed[2] + CTRL.ell2*CTRL.speed_observer_output_error
+# marino 2005
+def rhs_func_marino2005(increment_n, CTRL, xRho, xTL, xOmg):
+    CTRL.marino_cosT = np.cos(xRho)
+    CTRL.marino_sinT = np.sin(xRho)
 
-# AlternativeSolution--Speed Estimation
-def Speed_Estimation_4_VM_FluxEstimation(fe_htz, CTRL, Rs_param):
-    if CTRL.bool_rs_est_on == True:
-        fe_htz.emf_stator[0] = CTRL.uab[0] - CTRL.rs_cal * Rs_param * CTRL.iab[0]
-        fe_htz.emf_stator[1] = CTRL.uab[1] - CTRL.rs_cal * Rs_param * CTRL.iab[1]
-    elif CTRL.bool_rs_est_on == False:
-        fe_htz.emf_stator[0] = CTRL.uab[0] - CTRL.R * Rs_param * CTRL.iab[0]
-        fe_htz.emf_stator[1] = CTRL.uab[1] - CTRL.R * Rs_param * CTRL.iab[1]
-    fe_htz.field_speed_est = - (fe_htz.psi_1[0] * - fe_htz.emf_stator[1] + fe_htz.psi_1[1] * fe_htz.emf_stator[0]) / (fe_htz.psi_1[0] * fe_htz.psi_1[0] + fe_htz.psi_1[1]*fe_htz.psi_1[1])
-    fe_htz.field_speed_est_lpf = _lpf(fe_htz.field_speed_est, fe_htz.field_speed_est_lpf, 5, CTRL)
+    CTRL.idq[0] = CTRL.iab[0] * CTRL.cosT + CTRL.iab[1] * CTRL.sinT
+    CTRL.idq[1] = CTRL.iab[0] *-CTRL.sinT + CTRL.iab[1] * CTRL.cosT
 
-# AlternativeSolution--Rs identification
-def Rs_Identification(CTRL, fe_htz, ACM):
-    CTRL.omg_ctrl_err = CTRL.omega_r_elec - CTRL.cmd_rpm / 60 * CTRL.npp * 2 * np.pi
-    CTRL.gamma_res_transient = np.exp(-CTRL.omg_ctrl_err * CTRL.omg_ctrl_err * CTRL.gamma_res_transient_shape)
-    fe_htz.xTem = CTRL.npp * (CTRL.iab[1] * fe_htz.psi_2[0] - CTRL.iab[0] * fe_htz.psi_2[1])
-    fe_htz.voltage_drop_mod = CTRL.iab[0] * CTRL.uab[0] + CTRL.iab[1] * CTRL.uab[1] - CTRL.npp_inv * fe_htz.field_speed_est_lpf * fe_htz.xTem
-    fe_htz.current_mod = CTRL.iab[0] * CTRL.iab[0] + CTRL.iab[1] * CTRL.iab[1]
+    fx = np.zeros(NS_GLOBAL)
+    # xRho
+    fx[0] = xOmg
+    # xTL
+    fx[1] = - CTRL.marino_gama_inv * CTRL.Js * CTRL.cmd_psi * CTRL.e_psi_Qmu
+    # xOmg
+    xTem  = CTRL.CLARKE_TRANS_TORQUE_GAIN * CTRL.npp * (CTRL.marino_psi_Dmu * CTRL.idq[1] - CTRL.marino_psi_Qmu * CTRL.idq[0])
+    # fx[2] = CTRL.npp * CTRL.Js_inv * (xTem - xTL) + 2 * CTRL.marino_lamda_inv * CTRL.cmd_psi * CTRL.e_psi_Qmu
+    fx[2] = CTRL.npp * CTRL.Js_inv * (xTem - xTL) + 2 * CTRL.marino_lamda_inv * CTRL.cmd_psi * CTRL.e_psi_Qmu
 
-    if fe_htz.count_rs < 0.2 * 4000 *1: # ++akt.count_rs < P1*TS_INVERSE*1 TS_INVERSE (IM_TS_INVERSE*DOWN_FREQ_EXE_INVERSE) // 4000
-        fe_htz.count_rs += 1
-        fe_htz.the_u += 2.5e-4 * CTRL.gamma_res_transient * fe_htz.current_mod
-        fe_htz.the_y += 2.5e-4 * CTRL.gamma_res_transient * fe_htz.voltage_drop_mod
-    else:
-        fe_htz.rs_cal += fe_htz.GAIN_RS * fe_htz.the_u /(1 + fe_htz.the_u * fe_htz.the_u * fe_htz.GAIN_RS) * (fe_htz.the_y - fe_htz.rs_cal * fe_htz.the_u)
-        fe_htz.count_rs = 0
-        fe_htz.the_u = 0
-        fe_htz.the_y = 0
-        CTRL.rs_cal = fe_htz.rs_cal
+
+    increment_n[0] = ( fx[0] ) * CTRL.CL_TS
+    increment_n[1] = ( fx[1] ) * CTRL.CL_TS
+    increment_n[2] = ( fx[2] ) * CTRL.CL_TS
+    return fx
+
+def marino05_dedicated_rk4_solver(CTRL):
+    x_temp = np.zeros(3)
+    increment_1 = np.zeros(3)
+    increment_2 = np.zeros(3)
+    increment_3 = np.zeros(3)
+    increment_4 = np.zeros(3)
+    # xtemp[0] = CTRL.marino_xRho
+    # xtemp[1] = CTRL.marino_xTL
+    # xtemp[2] = CTRL.marino_xOmg
+
+    rhs_func_marino2005(increment_1, CTRL, CTRL.marino_xRho, CTRL.marino_xTL, CTRL.marino_xOmg)
+    x_temp[0]  = CTRL.marino_xRho   + increment_1[0] * 0.5
+    x_temp[1]  = CTRL.marino_xTL    + increment_1[1] * 0.5
+    x_temp[2]  = CTRL.marino_xOmg   + increment_1[2] * 0.5
+
+    rhs_func_marino2005(increment_2, CTRL, x_temp[0], x_temp[1], x_temp[2])
+    x_temp[0]  = CTRL.marino_xRho   + increment_2[0] * 0.5
+    x_temp[1]  = CTRL.marino_xTL    + increment_2[1] * 0.5
+    x_temp[2]  = CTRL.marino_xOmg   + increment_2[2] * 0.5
+
+    rhs_func_marino2005(increment_3, CTRL, x_temp[0], x_temp[1], x_temp[2])
+    x_temp[0]  = CTRL.marino_xRho   + increment_3[0]
+    x_temp[1]  = CTRL.marino_xTL    + increment_3[1]
+    x_temp[2]  = CTRL.marino_xOmg   + increment_3[2]
+
+    rhs_func_marino2005(increment_4, CTRL, x_temp[0], x_temp[1], x_temp[2])
+    CTRL.marino_xRho        += (increment_1[0] + 2*(increment_2[0] + increment_3[0]) + increment_4[0])*0.166666666666667
+    CTRL.marino_xTL         += (increment_1[1] + 2*(increment_2[1] + increment_3[1]) + increment_4[1])*0.166666666666667
+    CTRL.marino_xOmg        += (increment_1[2] + 2*(increment_2[2] + increment_3[2]) + increment_4[2])*0.166666666666667
+
+    # CTRL.omega_syn = CTRL.marino_xOmg 
+    CTRL.marino_deriv_xTL    = (increment_1[1] + 2*(increment_2[1] + increment_3[1]) + increment_4[1])*0.166666666666667 * CTRL.CL_TS_INV
+    CTRL.marino_deriv_xOmg   = (increment_1[2] + 2*(increment_2[2] + increment_3[2]) + increment_4[2])*0.166666666666667 * CTRL.CL_TS_INV
+
+    if CTRL.marino_xRho > np.pi:
+        CTRL.marino_xRho -= 2*np.pi
+    elif CTRL.marino_xRho < -np.pi:
+        CTRL.marino_xRho += 2*np.pi
+    
+def MARINO_2005_observer(CTRL, Rs_param, fe_htz):
+
+    CTRL.marino_psi_Dmu = fe_htz.psi_2[0] *   CTRL.cosT + fe_htz.psi_2[1] * CTRL.sinT
+    CTRL.marino_psi_Qmu = fe_htz.psi_2[0] * - CTRL.sinT + fe_htz.psi_2[1] * CTRL.cosT
+    CTRL.e_psi_Dmu = CTRL.marino_psi_Dmu - CTRL.cmd_psi
+    CTRL.e_psi_Qmu = CTRL.marino_psi_Qmu - 0.0
+    marino05_dedicated_rk4_solver(CTRL)
 
 ############################################# MACHINE SIMULATION SECTION
 def DYNAMICS_MACHINE(t, x, ACM, CLARKE_TRANS_TORQUE_GAIN=1.5):
@@ -931,43 +846,9 @@ def FOC(CTRL, reg_speed, reg_id, reg_iq):
     else: # PMSM
         CTRL.omega_slip = 0.0
 
-        # if CTRL.bool_zero_id_control == True:
-        #     CTRL.cmd_idq[0] = 0
-        # else:
-        #     # Field weakening control (simple)
-        #         # 电气转折速度 = CTRL.DC_BUS_VOLTAGE/1.732 / CTRL.KA * 0.7
-        #         # print('Turning point', 电气转折速度 * 60 / (2*np.pi * CTRL.npp), 'r/min')
-        #         # if CTRL.omega_r_elec > 电气转折速度:
-        #         #     # 计算弱磁电流
-        #         #     下一弱磁速度增量 = 10 / 60 * 2*np.pi * CTRL.npp
-        #         #     CTRL.cmd_idq[0] = - (CTRL.KE - 电气转折速度 / (CTRL.omega_r_elec + 下一弱磁速度增量)) / (CTRL.Ld - CTRL.Lq)
-        #         #     # 修改速度环输出限幅
-        #         #     reg_speed.OutLimit = np.sqrt((CTRL.IN*1.414)**2 - CTRL.cmd_idq[0]**2)
-        #         #     print(f'{reg_speed.OutLimit=}')
-        #     当前速度 = CTRL.omega_r_elec*60/(2*np.pi*CTRL.npp)
-        #     MAX_DEMAG_CURRENT = 60
-        #     if 当前速度 < 450:
-        #         CTRL.cmd_idq[0] = 0
-        #     elif 当前速度 < 1000:
-        #         CTRL.cmd_idq[0] = (当前速度 - 450) / (1000 - 450) * -MAX_DEMAG_CURRENT
-        #     else:
-        #         CTRL.cmd_idq[0] = -MAX_DEMAG_CURRENT
-        #     if CTRL.IN*1.414 > CTRL.cmd_idq[0]:
-        #         reg_speed.OutLimit = np.sqrt((CTRL.IN*1.414)**2 - CTRL.cmd_idq[0]**2)
-
         if CTRL.bool_zero_id_control == True:
             CTRL.cmd_idq[0] = 0
         else:
-            # Field weakening control (simple)
-                # 电气转折速度 = CTRL.DC_BUS_VOLTAGE/1.732 / CTRL.KA * 0.7
-                # print('Turning point', 电气转折速度 * 60 / (2*np.pi * CTRL.npp), 'r/min')
-                # if CTRL.omega_r_elec > 电气转折速度:
-                #     # 计算弱磁电流
-                #     下一弱磁速度增量 = 10 / 60 * 2*np.pi * CTRL.npp
-                #     CTRL.cmd_idq[0] = - (CTRL.KE - 电气转折速度 / (CTRL.omega_r_elec + 下一弱磁速度增量)) / (CTRL.Ld - CTRL.Lq)
-                #     # 修改速度环输出限幅
-                #     reg_speed.OutLimit = np.sqrt((CTRL.IN*1.414)**2 - CTRL.cmd_idq[0]**2)
-                #     print(f'{reg_speed.OutLimit=}')
             当前速度 = CTRL.omega_r_elec*60/(2*np.pi*CTRL.npp)
             MAX_DEMAG_CURRENT = 60
             if 当前速度 < 450:
@@ -987,11 +868,6 @@ def FOC(CTRL, reg_speed, reg_id, reg_iq):
     # incremental_pi(reg_id)
     tustin_pid(reg_id)
     CTRL.cmd_udq[0] = reg_id.Out
-
-        # if HUMAN.use_disturbance_feedforward_rejection == 0:
-        #     CTRL.cmd_idq[1] = reg_speed.Out
-        # else:
-        #     CTRL.cmd_idq[1] = HUMAN.KP*(reg_speed.setpoint-reg_speed.measurement) + OB.total_disrubance_feedforward
 
     # q-axis
     reg_iq.setpoint = CTRL.cmd_idq[1]
@@ -1023,6 +899,73 @@ def SFOC_Dynamic(CTRL, reg_speed, reg_id, reg_iq):
 
     CTRL.cmd_udq[1] = reg_iq.Out
 
+def sat_kappa(x, CTRL):
+    if(x > CTRL.marino_kappa):
+        return CTRL.marino_kappa
+    elif(x < -CTRL.marino_kappa):
+        return -CTRL.marino_kappa
+    else:
+        return x
+
+def deriv_sat_kappa(x, CTRL):
+    if(x > CTRL.marino_kappa):
+        return 0
+    elif(x < -CTRL.marino_kappa):
+        return 0
+    else:
+        return 1
+# 暂时无法使用的控制器需要重新设计
+def controller_marino2005(CTRL, fe_htz, ACM):
+    # CTRL.theta_d = CTRL.marino_xRho
+    CTRL.theta_d = ACM.theta_d
+    CTRL.omega_r_elec = ACM.omega_r_elec
+    CTRL.TLoad        = CTRL.marino_xTL
+    # αβ to DQ
+    CTRL.cosT = np.cos(CTRL.theta_d)
+    CTRL.sinT = np.sin(CTRL.theta_d)
+    CTRL.idq[0] = CTRL.iab[0] *   CTRL.cosT + CTRL.iab[1] * CTRL.sinT
+    CTRL.idq[1] = CTRL.iab[0] * - CTRL.sinT + CTRL.iab[1] * CTRL.cosT
+
+    # 当磁链幅值给定平稳时，这项就是零。
+    CTRL.marino_deriv_iD_cmd = 1.0 * CTRL.Ld_inv * CTRL.cmd_deriv_psi
+    # 重新写！
+    # REAL mu_temp     = CTRL.motor->npp_inv*CTRL.motor->Js * CLARKE_TRANS_TORQUE_GAIN_INVERSE*CTRL.motor->npp_inv;
+    # REAL mu_temp_inv = CTRL.motor->npp*CTRL.motor->Js_inv * CLARKE_TRANS_TORQUE_GAIN*CTRL.motor->npp;
+    # 第一项很有用，第二项无用。
+    CTRL.marino_deriv_iQ_cmd =   CTRL.npp_inv * CTRL.Js * CTRL.CLARKE_TRANS_TORQUE_GAIN_INVERSE * CTRL.npp_inv * (\
+        1.0*(- CTRL.marino_k_omega * deriv_sat_kappa(CTRL.omega_r_elec - CTRL.cmd_omega_r_elec, CTRL) * (CTRL.marino_deriv_xOmg - CTRL.cmd_deriv_omega_r_elec) + CTRL.Js_inv * CTRL.npp * CTRL.marino_deriv_xTL + CTRL.cmd_dderiv_omega_r_elec ) * CTRL.cmd_psi_inv\
+      - 1.0*(- CTRL.marino_k_omega *       sat_kappa(CTRL.omega_r_elec - CTRL.cmd_omega_r_elec, CTRL) + CTRL.Js_inv * CTRL.npp * CTRL.TLoad + CTRL.cmd_deriv_omega_r_elec) * (CTRL.cmd_deriv_psi * CTRL.cmd_psi_inv * CTRL.cmd_psi_inv)
+        )
+    
+    # current error quantities
+    CTRL.cmd_idq[0] = CTRL.cmd_psi * CTRL.Ld_inv
+    CTRL.cmd_idq[1] = (CTRL.npp_inv * CTRL.Js * ( 1 * CTRL.cmd_deriv_omega_r_elec - CTRL.marino_k_omega * sat_kappa(CTRL.omega_r_elec - CTRL.cmd_omega_r_elec, CTRL) ) + CTRL.TLoad ) * (CTRL.CLARKE_TRANS_TORQUE_GAIN_INVERSE * CTRL.npp_inv * CTRL.cmd_psi_inv)
+    CTRL.marino_e_iDs = CTRL.idq[0] - CTRL.cmd_idq[0]
+    CTRL.marino_e_iQs = CTRL.idq[1] - CTRL.cmd_idq[1]
+    CTRL.marino_torque_cmd = CTRL.CLARKE_TRANS_TORQUE_GAIN * CTRL.npp * CTRL.cmd_idq[1] * CTRL.cmd_psi
+    CTRL.marino_torque_fb  = CTRL.CLARKE_TRANS_TORQUE_GAIN * CTRL.npp * (CTRL.idq[1]     * CTRL.marino_psi_Dmu - CTRL.idq[0] * CTRL.marino_psi_Qmu)
+    # marino.torque__fb = CLARKE_TRANS_TORQUE_GAIN * CTRL.motor->npp * (CTRL.I->idq[1]     * marino.psi_Dmu)
+
+    # linear combination of error
+    CTRL.marino_zD = CTRL.marino_e_iDs + CTRL.Lq_inv * CTRL.marino_e_psi_Dmu
+    CTRL.marino_zQ = CTRL.marino_e_iQs + CTRL.Lq_inv * CTRL.marino_e_psi_Qmu
+    # known signals to feedforward (to cancel)
+    CTRL.marino_Gamma_D = CTRL.Lq_inv * (- CTRL.R * CTRL.idq[0] + CTRL.omega_syn * CTRL.marino_e_psi_Qmu) + CTRL.omega_syn * CTRL.idq[1] - CTRL.marino_deriv_iD_cmd
+    CTRL.marino_Gamma_Q = CTRL.Lq_inv * (- CTRL.R * CTRL.idq[1] - CTRL.omega_r_elec  * CTRL.cmd_psi - CTRL.omega_syn * CTRL.marino_e_psi_Dmu) - CTRL.omega_syn * CTRL.idq[0] - CTRL.marino_deriv_iQ_cmd
+    # voltage commands
+    CTRL.cmd_udq[0] = CTRL.Lq * (- CTRL.marino_kz * CTRL.marino_zD - CTRL.marino_Gamma_D)
+    CTRL.cmd_udq[1] = CTRL.Lq * (- CTRL.marino_kz * CTRL.marino_zQ - CTRL.marino_Gamma_Q)
+    CTRL.cmd_uab[0] = CTRL.cmd_udq[0] * CTRL.cosT - CTRL.cmd_udq[1] * CTRL.sinT
+    CTRL.cmd_uab[1] = CTRL.cmd_udq[0] * CTRL.sinT + CTRL.cmd_udq[1] * CTRL.cosT
+
+    # use the second 3 phase inverter
+    # CTRL.cmd_uab[0+2] = CTRL.cmd_uab[0]
+    # CTRL.cmd_uab[1+2] = CTRL.cmd_uab[1]
+
+    # for view in scope
+    CTRL.cmd_iab[0] = CTRL.cmd_idq[0] * CTRL.cosT - CTRL.cmd_idq[1] * CTRL.sinT
+    CTRL.cmd_iab[1] = CTRL.cmd_idq[0] * CTRL.sinT + CTRL.cmd_idq[1] * CTRL.cosT
+
 ############################################# DSP SECTION
 def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, Rs_param=1.0,ELL_param = 0.019):
     CTRL.timebase += CTRL.CL_TS
@@ -1037,9 +980,8 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, Rs_param=1.0,ELL_param = 0
         # do this once per control interrupt
         CTRL.cosT = np.cos(CTRL.theta_d)
         CTRL.sinT = np.sin(CTRL.theta_d)
-    # cancel saturation and estimate K_E and u_offset from \psi_max and \psi_min
-    elif CTRL.index_voltage_model_flux_estimation == 4:
-        no_saturation_to_cal_KE_and_uoffset(fe_htz, CTRL, ACM, Rs_param)
+    elif CTRL.index_voltage_model_flux_estimation == 5:
+        SynIFO_flux_estimator(fe_htz, CTRL, ACM, Rs_param)
     """ Park Transformation Essentials """
     # Park transformation
     CTRL.idq[0] = CTRL.iab[0] * CTRL.cosT + CTRL.iab[1] * CTRL.sinT
@@ -1054,14 +996,11 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, Rs_param=1.0,ELL_param = 0
     if CTRL.index_separate_speed_estimation == 0:
         #TODO simulate the encoder
         CTRL.omega_r_elec = ACM.omega_r_elec
-        """ Nature Speed Observer """
-    elif CTRL.index_separate_speed_estimation == 2:
-        NATRUE_SPEED_OBSERVER(CTRL, Rs_param)
+    elif CTRL.index_separate_speed_estimation == 1:
+        SEPARATE_SPEED_OBSERVER(CTRL, Rs_param)
+    elif CTRL.index_separate_speed_estimation == 3:
+        MARINO_2005_observer(CTRL, Rs_param, fe_htz)
         CTRL.omega_r_elec = ACM.omega_r_elec
-    elif CTRL.index_separate_speed_estimation == 4:
-        NATRUE_SPEED_OBSERVER(CTRL, Rs_param)
-        Speed_Estimation_4_VM_FluxEstimation(fe_htz, CTRL, Rs_param)
-        Rs_Identification(CTRL, fe_htz, ACM)
     """ (Optional) Do Park transformation again using the position estimate from the speed observer """
     pass
 
@@ -1072,6 +1011,8 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq, fe_htz, Rs_param=1.0,ELL_param = 0
     """ Speed and Current Controller (two cascaded closed loops) """
     if CTRL.index_controller == 0:
         FOC(CTRL, reg_speed, reg_id, reg_iq)
+    elif CTRL.index_controller == 1:
+        controller_marino2005(CTRL, fe_htz, ACM)
     reverse_rotation(CTRL, ACM)
     # [$] Inverse Park transformation: get voltage commands in alpha-beta frame as SVPWM input
     CTRL.cmd_uab[0] = CTRL.cmd_udq[0] * CTRL.cosT + CTRL.cmd_udq[1] *- CTRL.sinT
