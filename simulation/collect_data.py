@@ -9,9 +9,7 @@ def collect_data(watch_data, watch_index, CTRL, ACM, reg_id, reg_iq, reg_speed, 
 	watch_data[6][watch_index] = fe_htz.psi_2[1]
 	watch_data[7][watch_index] = fe_htz.psi_1[0]
 	watch_data[8][watch_index] = fe_htz.psi_1[1]
-	watch_data[9][watch_index] = CTRL.psi_com[0]
-	watch_data[10][watch_index] = CTRL.psi_com[1]
-	watch_data[11][watch_index] = CTRL.ell
-	watch_data[12][watch_index] = CTRL.active_power_real
+	watch_data[9][watch_index] = fe_htz.u_offset[0]
+	watch_data[10][watch_index] = fe_htz.u_offset[1]
 	watch_index += 1
 	return watch_index

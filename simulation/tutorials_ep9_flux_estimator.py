@@ -1321,7 +1321,7 @@ def NATRUE_SPEED_OBSERVER(CTRL, FE_param):
     """ Speed Observer Outputs """
     # CTRL.omega_r_elec = ACM.omega_r_elec 
     CTRL.omega_r_elec = CTRL.nsoaf_xOmg 
-    
+
 ############################################# MACHINE SIMULATION SECTION
 def DYNAMICS_MACHINE(t, x, ACM, CLARKE_TRANS_TORQUE_GAIN=1.5):
     fx = np.zeros(ACM.NS) # s x = f(x)

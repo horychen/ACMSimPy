@@ -1152,8 +1152,8 @@ def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None,
         watch_data[ 3][watch_index] = ACM.iD
         watch_data[ 4][watch_index] = ACM.iQ
         watch_data[ 5][watch_index] = ACM.Tem
-        watch_data[ 6][watch_index] =   CTRL.iab[0]
-        watch_data[ 7][watch_index] =   CTRL.iab[1]
+        watch_data[ 6][watch_index] = CTRL.iab[0]
+        watch_data[ 7][watch_index] = CTRL.iab[1]
         watch_data[ 8][watch_index] = CTRL.idq[0]
         watch_data[ 9][watch_index] = CTRL.idq[1]
         watch_data[10][watch_index] = divmod(CTRL.theta_d, 2*np.pi)[1]
@@ -1238,8 +1238,8 @@ _Unit_Watch_Mapping = [
     '[1]=svgen1.S2',
     '[1]=svgen1.S3',
     '[1]=svgen1.S4',
-    '[1]=svgen1.S5',
-    '[1]=svgen1.S6',
+    '[1]=ACM.uab[0]',
+    '[1]=ACM.uab[1]',
     '[V]=ACM.udq[0]',
     '[V]=ACM.udq[1]',
     '[V]=CTRL.cmd_udq[0]',
@@ -1339,7 +1339,8 @@ class Simulation_Benchmark:
             (r'CTRL.iD [A]',                  ( 'CTRL.cmd_idq[0]', 'CTRL.idq[0]'                    ,) ),
             (r'CTRL.iQ [A]',                  ( 'CTRL.cmd_idq[1]', 'CTRL.idq[1]'                    ,) ),
             (r'CTRL.uab [V]',                 ( 'CTRL.cmd_uab[0]', 'CTRL.cmd_uab[1]'                ,) ),
-            (r'S [1]',                        ( 'svgen1.S1', 'svgen1.S2', 'svgen1.S3', 'svgen1.S4', 'svgen1.S5', 'svgen1.S6' ,) ),
+            (r'S [1]',                        ( 'svgen1.S1', 'svgen1.S2', 'svgen1.S3', 'svgen1.S4'  ,) ),
+            (r'ACM.uab [V]',                  ( 'ACM.uab[0]', 'ACM.uab[1]'                          ,) ),
         ])
 
         if bool_start_simulation:
@@ -1465,7 +1466,7 @@ def lpf1_inverter(array):
     y_tminus1 = 0.0
     new_array = []
     for x in array:
-        new_x = y_tminus1 + 5* 0.00020828993959591752 * (x - y_tminus1)
+        new_x = y_tminus1 + 0.1* 0.00020828993959591752 * (x - y_tminus1)
         y_tminus1 = new_x
         new_array.append(y_tminus1)
     return new_array
@@ -1557,9 +1558,9 @@ if __name__ == '__main__':
         ax.set_ylabel(r'$u_q$ [V]', multialignment='center') #, fontdict=font)
 
         ax = axes[6]
-        ax.plot(global_machine_times, gdd['CTRL.cmd_uab[0]'], label=r'$u_\alpha$')
-        ax.plot(global_machine_times, gdd['CTRL.cmd_uab[1]'], label=r'$u_\beta$')
-        ax.set_ylabel(r'$u_{\alpha,\beta}$ [V]', multialignment='center') #, fontdict=font)
+        ax.plot(global_machine_times, lpf1_inverter(gdd['ACM.uab[0]'] - gdd['CTRL.cmd_uab[0]']), label=r'$u_\alpha$ error')
+        ax.plot(global_machine_times, lpf1_inverter(gdd['ACM.uab[1]'] - gdd['CTRL.cmd_uab[1]']), label=r'$u_\beta$ error')
+        ax.set_ylabel(r'$\Delta u_{\alpha,\beta}$ [V]', multialignment='center') #, fontdict=font)
 
         for ax in axes:
             ax.grid(True)
