@@ -744,8 +744,10 @@ def Speed_Estimation_4_VM_FluxEstimation(fe_htz, CTRL, Rs_param):
     elif CTRL.bool_rs_est_on == False:
         fe_htz.emf_stator[0] = CTRL.uab[0] - CTRL.R * Rs_param * CTRL.iab[0]
         fe_htz.emf_stator[1] = CTRL.uab[1] - CTRL.R * Rs_param * CTRL.iab[1]
-    fe_htz.field_speed_est = - (fe_htz.psi_1[0] * - fe_htz.emf_stator[1] + fe_htz.psi_1[1] * fe_htz.emf_stator[0]) / (fe_htz.psi_1[0] * fe_htz.psi_1[0] + fe_htz.psi_1[1]*fe_htz.psi_1[1])
-    fe_htz.field_speed_est_lpf = _lpf(fe_htz.field_speed_est, fe_htz.field_speed_est_lpf, 5, CTRL)
+    flux_amplitude_squared = (fe_htz.psi_1[0] * fe_htz.psi_1[0] + fe_htz.psi_1[1]*fe_htz.psi_1[1])
+    if flux_amplitude_squared > 1e-4:
+        fe_htz.field_speed_est = - (fe_htz.psi_1[0] * - fe_htz.emf_stator[1] + fe_htz.psi_1[1] * fe_htz.emf_stator[0]) / flux_amplitude_squared
+        fe_htz.field_speed_est_lpf = _lpf(fe_htz.field_speed_est, fe_htz.field_speed_est_lpf, 5, CTRL)
 
 # AlternativeSolution--Rs identification
 def Rs_Identification(CTRL, fe_htz, ACM):

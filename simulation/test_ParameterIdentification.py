@@ -181,7 +181,8 @@ d = {
     'disp.OutLimit': 0.0,
     'disp.IntLimit': 0.0,
     #Control index
-    'CTRL.index_voltage_model_flux_estimation': 4,
+    'CTRL.use_encoder_angle_no_matter_what': True,
+    'CTRL.index_voltage_model_flux_estimation': 0, # 4,
     'CTRL.index_separate_speed_estimation': 4,
     'CTRL.bool_apply_decoupling_voltages_to_current_regulation':  False,
     'CTRL.bool_apply_speed_closed_loop_control': True,
@@ -189,7 +190,6 @@ d = {
     'CTRL.bool_reverse_rotation': False,
     'CTRL.bool_overwrite_speed_commands': True, #False才运行
     'CTRL.bool_apply_sweeping_frequency_excitation': False,
-    'CTRL.use_encoder_angle_no_matter_what': False,
     'CTRL.index_controller': 0,
     'bool_rs_est_on': False,
     'OFFSET_VOLTAGE_ALPHA':0.0,
@@ -314,7 +314,7 @@ for lq_param in Lq_param:
     rs_param = 1
     for ell_param in ELL_param:
         CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY, fe_htz  = InitialAllGlobalClass()
-        print(f'generate {lq_param} - {rs_param} - {ell_param}')
+        print(f'\tgenerate {lq_param=} - {rs_param=} - {ell_param=}')
         d['Lq_param'] = lq_param
         d['Rs_param'] = rs_param
         d['ELL_param'] = ell_param
