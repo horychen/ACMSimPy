@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teacher Panel - Live Q&A</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0a0a0b;
+    --bg-card: #131315;
+    --bg-input: #1a1a1e;
+    --amber: #d4a043;
+    --amber-soft: #d4a04322;
+    --text: #e8e4dc;
+    --text2: #8a8680;
+    --text3: #5a5650;
+    --border: #2a2a2e;
+    --green: #4a9;
+    --red: #c55;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  .app {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+  }
+
+  h1 {
+    font-family: Georgia, serif;
+    font-weight: 400;
+    font-size: 1.6rem;
+    margin-bottom: 0.3rem;
+  }
+
+  h1 em { color: var(--amber); font-style: italic; }
+
+  .subtitle {
+    font-size: 0.8rem;
+    color: var(--text3);
+    margin-bottom: 2rem;
+    font-family: 'Courier New', monospace;
+    letter-spacing: 0.05em;
+  }
+
+  /* Compose area */
+  .compose {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .compose__label {
+    font-size: 0.7rem;
+    color: var(--amber);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 0.8rem;
+    font-family: 'Courier New', monospace;
+  }
+
+  .row {
+    display: flex;
+    gap: 0.8rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .row > * { flex: 1; }
+
+  label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text2);
+    margin-bottom: 0.3rem;
+  }
+
+  input, textarea, select {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.7rem 0.8rem;
+    font-family: inherit;
+    font-size: 0.9rem;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  input:focus, textarea:focus, select:focus {
+    border-color: var(--amber);
+  }
+
+  textarea { resize: vertical; min-height: 50px; }
+
+  .options-input {
+    font-size: 0.8rem;
+    color: var(--text2);
+  }
+
+  .options-input::placeholder { color: var(--text3); }
+
+  .compose__actions {
+    display: flex;
+    gap: 0.6rem;
+    margin-top: 1rem;
+  }
+
+  .btn {
+    padding: 0.7rem 1.5rem;
+    border-radius: 8px;
+    border: none;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .btn:active { transform: scale(0.97); }
+
+  .btn--push {
+    background: var(--amber);
+    color: var(--bg);
+  }
+
+  .btn--push:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .btn--clear {
+    background: transparent;
+    color: var(--text3);
+    border: 1px solid var(--border);
+  }
+
+  .btn--danger {
+    background: var(--red);
+    color: white;
+  }
+
+  .btn--save {
+    background: var(--green);
+    color: white;
+  }
+
+  /* Quick templates */
+  .templates {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+  }
+
+  .template-btn {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.4rem 0.7rem;
+    font-size: 0.7rem;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .template-btn:hover { border-color: var(--amber); color: var(--amber); }
+
+  /* Live responses panel */
+  .responses-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .responses-panel__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  .responses-panel__title {
+    font-size: 0.7rem;
+    color: var(--amber);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-family: 'Courier New', monospace;
+  }
+
+  .responses-panel__count {
+    font-size: 0.8rem;
+    color: var(--text2);
+  }
+
+  .current-q {
+    background: var(--bg-input);
+    border-radius: 8px;
+    padding: 0.8rem 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    color: var(--text);
+    border-left: 3px solid var(--amber);
+  }
+
+  .current-q__en {
+    font-size: 0.75rem;
+    color: var(--text3);
+    margin-top: 0.2rem;
+  }
+
+  .no-question {
+    color: var(--text3);
+    font-size: 0.85rem;
+    font-style: italic;
+    text-align: center;
+    padding: 2rem 0;
+  }
+
+  /* Answer list */
+  .answer-list { list-style: none; }
+
+  .answer-item {
+    display: flex;
+    gap: 0.8rem;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
+    animation: slideIn 0.3s ease;
+  }
+
+  .answer-item:last-child { border-bottom: none; }
+
+  .answer-item__name {
+    color: var(--amber);
+    font-weight: 500;
+    min-width: 4rem;
+    flex-shrink: 0;
+  }
+
+  .answer-item__text {
+    color: var(--text);
+    line-height: 1.5;
+    word-break: break-word;
+  }
+
+  /* History */
+  .history-section {
+    margin-top: 1.5rem;
+  }
+
+  .history-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .history-item__q {
+    font-size: 0.85rem;
+    color: var(--text2);
+    margin-bottom: 0.5rem;
+    border-left: 2px solid var(--text3);
+    padding-left: 0.6rem;
+  }
+
+  .history-item__stats {
+    font-size: 0.75rem;
+    color: var(--text3);
+  }
+
+  /* Status dot */
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.75rem;
+    color: var(--text3);
+  }
+
+  .status__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  .status__dot.inactive { background: var(--text3); animation: none; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .toolbar {
+    display: flex;
+    gap: 0.6rem;
+    margin-top: 1rem;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <h1><em>Teacher</em> Panel</h1>
+  <div class="subtitle">
+    <span class="status">
+      <span class="status__dot" id="statusDot"></span>
+      <span id="statusText">Polling...</span>
+    </span>
+  </div>
+
+  <!-- Compose -->
+  <div class="compose">
+    <div class="compose__label">Push a question</div>
+
+    <div class="templates" id="templates">
+      <button class="template-btn" onclick="useTemplate('open')">Open-ended</button>
+      <button class="template-btn" onclick="useTemplate('yn')">Yes / No</button>
+      <button class="template-btn" onclick="useTemplate('abcd')">A / B / C / D</button>
+      <button class="template-btn" onclick="useTemplate('scale')">1-5 Scale</button>
+      <button class="template-btn" onclick="useTemplate('multi')">Multi-choice</button>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Question (Chinese)</label>
+        <textarea id="textZh" rows="2" placeholder="e.g. Clarke变换的目的是什么？"></textarea>
+      </div>
+      <div>
+        <label>Question (English, optional)</label>
+        <textarea id="textEn" rows="2" placeholder="e.g. What is the purpose of Clarke transform?"></textarea>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Type</label>
+        <select id="qType" onchange="toggleOptions()">
+          <option value="textarea">Open-ended (textarea)</option>
+          <option value="single-choice">Single choice</option>
+          <option value="multi-choice">Multiple choice</option>
+        </select>
+      </div>
+      <div id="optionsGroup" style="display:none">
+        <label>Options (comma-separated)</label>
+        <input type="text" id="qOptions" class="options-input"
+               placeholder="e.g. A, B, C, D" />
+      </div>
+    </div>
+
+    <div class="compose__actions">
+      <button class="btn btn--push" id="pushBtn" onclick="pushQuestion()">Push to students</button>
+      <button class="btn btn--clear" onclick="clearQuestion()">Clear question</button>
+    </div>
+  </div>
+
+  <!-- Live responses -->
+  <div class="responses-panel">
+    <div class="responses-panel__header">
+      <div class="responses-panel__title">Live Responses</div>
+      <div class="responses-panel__count" id="answerCount">0 answers</div>
+    </div>
+    <div id="currentQuestion"></div>
+    <ul class="answer-list" id="answerList"></ul>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <button class="btn btn--save" onclick="saveSession()">Save session to disk</button>
+    <button class="btn btn--clear" onclick="toggleHistory()">Show history</button>
+  </div>
+
+  <!-- History -->
+  <div class="history-section" id="historySection" style="display:none">
+    <div id="historyList"></div>
+  </div>
+</div>
+
+<script>
+let pollTimer = null;
+let lastAnswerCount = 0;
+
+// --- Templates ---
+function useTemplate(tpl) {
+  const type = document.getElementById('qType');
+  const opts = document.getElementById('qOptions');
+  if (tpl === 'open') {
+    type.value = 'textarea';
+  } else if (tpl === 'yn') {
+    type.value = 'single-choice';
+    opts.value = 'Yes / 是, No / 否';
+  } else if (tpl === 'abcd') {
+    type.value = 'single-choice';
+    opts.value = 'A, B, C, D';
+  } else if (tpl === 'scale') {
+    type.value = 'single-choice';
+    opts.value = '1, 2, 3, 4, 5';
+  } else if (tpl === 'multi') {
+    type.value = 'multi-choice';
+    opts.value = '';
+  }
+  toggleOptions();
+}
+
+function toggleOptions() {
+  const t = document.getElementById('qType').value;
+  document.getElementById('optionsGroup').style.display =
+    (t === 'single-choice' || t === 'multi-choice') ? '' : 'none';
+}
+
+// --- Push question ---
+async function pushQuestion() {
+  const textZh = document.getElementById('textZh').value.trim();
+  const textEn = document.getElementById('textEn').value.trim();
+  const qType = document.getElementById('qType').value;
+  const optionsRaw = document.getElementById('qOptions').value;
+
+  if (!textZh) { alert('Please enter a question.'); return; }
+
+  const options = (qType !== 'textarea' && optionsRaw)
+    ? optionsRaw.split(',').map(s => s.trim()).filter(Boolean)
+    : [];
+
+  const btn = document.getElementById('pushBtn');
+  btn.disabled = true;
+
+  try {
+    const resp = await fetch('/api/question', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text_zh: textZh, text_en: textEn, type: qType, options })
+    });
+    if (!resp.ok) throw new Error('Server error');
+    // Clear inputs
+    document.getElementById('textZh').value = '';
+    document.getElementById('textEn').value = '';
+    document.getElementById('qOptions').value = '';
+  } catch(e) {
+    alert('Failed to push question: ' + e.message);
+  }
+  btn.disabled = false;
+}
+
+// --- Clear question ---
+async function clearQuestion() {
+  await fetch('/api/clear', { method: 'POST' });
+}
+
+// --- Poll responses ---
+async function pollResponses() {
+  try {
+    const resp = await fetch('/api/responses');
+    const data = await resp.json();
+
+    const dot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+
+    if (data.question) {
+      dot.classList.remove('inactive');
+      statusText.textContent = `Q#${data.question.id} active`;
+
+      document.getElementById('currentQuestion').innerHTML = `
+        <div class="current-q">
+          ${esc(data.question.text_zh)}
+          ${data.question.text_en ? `<div class="current-q__en">${esc(data.question.text_en)}</div>` : ''}
+        </div>
+      `;
+
+      const answers = data.answers || {};
+      const names = Object.keys(answers);
+      document.getElementById('answerCount').textContent = `${names.length} answers`;
+
+      const list = document.getElementById('answerList');
+      // Only re-render if count changed
+      if (names.length !== lastAnswerCount) {
+        lastAnswerCount = names.length;
+        list.innerHTML = names.map(name => {
+          const val = answers[name];
+          const display = Array.isArray(val) ? val.join(', ') : val;
+          return `<li class="answer-item">
+            <span class="answer-item__name">${esc(name)}</span>
+            <span class="answer-item__text">${esc(display)}</span>
+          </li>`;
+        }).join('');
+      }
+    } else {
+      dot.classList.add('inactive');
+      statusText.textContent = 'No active question';
+      document.getElementById('currentQuestion').innerHTML = '<div class="no-question">No question pushed yet. Compose one above.</div>';
+      document.getElementById('answerList').innerHTML = '';
+      document.getElementById('answerCount').textContent = '0 answers';
+      lastAnswerCount = 0;
+    }
+  } catch(e) {
+    document.getElementById('statusText').textContent = 'Connection error';
+    document.getElementById('statusDot').classList.add('inactive');
+  }
+}
+
+// --- Save session ---
+async function saveSession() {
+  try {
+    const resp = await fetch('/api/save-history', { method: 'POST' });
+    const data = await resp.json();
+    alert('Saved to: ' + (data.file || 'disk'));
+  } catch(e) {
+    alert('Failed to save: ' + e.message);
+  }
+}
+
+// --- History ---
+let historyVisible = false;
+async function toggleHistory() {
+  historyVisible = !historyVisible;
+  const section = document.getElementById('historySection');
+  section.style.display = historyVisible ? '' : 'none';
+  if (historyVisible) {
+    const resp = await fetch('/api/history');
+    const data = await resp.json();
+    const list = document.getElementById('historyList');
+    if (!data.history || data.history.length === 0) {
+      list.innerHTML = '<div class="no-question">No history yet.</div>';
+    } else {
+      list.innerHTML = data.history.map((item, i) => {
+        const count = Object.keys(item.answers || {}).length;
+        const answersPreview = Object.entries(item.answers || {}).slice(0, 3)
+          .map(([n, a]) => `${n}: ${Array.isArray(a) ? a.join(', ') : a}`).join(' | ');
+        return `<div class="history-item">
+          <div class="history-item__q">Q${i+1}: ${esc(item.question.text_zh)}</div>
+          <div class="history-item__stats">${count} answers. ${esc(answersPreview)}${count > 3 ? ' ...' : ''}</div>
+        </div>`;
+      }).join('');
+    }
+  }
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+// Start polling
+pollResponses();
+pollTimer = setInterval(pollResponses, 2000);
+</script>
+
+</body>
+</html>

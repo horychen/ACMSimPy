@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(conda create:*)",
+      "Bash(where conda:*)",
+      "Bash(C:/Users/lenovo/anaconda3/Scripts/conda.exe create:*)",
+      "Bash(C:/Users/lenovo/anaconda3/envs/acmsimpy/python.exe:*)",
+      "Bash(grep:*)",
+      "Bash(taskkill:*)",
+      "Bash(curl:*)"
+    ]
+  }
+}

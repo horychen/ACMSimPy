@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Electric Motor Control - Lecture 1 Survey</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-deep: #0a0a0b;
+    --bg-card: #131315;
+    --bg-input: #1a1a1e;
+    --bg-hover: #222228;
+    --amber: #d4a043;
+    --amber-soft: #d4a04322;
+    --amber-glow: #d4a04344;
+    --text-primary: #e8e4dc;
+    --text-secondary: #8a8680;
+    --text-muted: #5a5650;
+    --border: #2a2a2e;
+    --border-focus: #d4a04366;
+    --font-display: Georgia, 'Noto Serif SC', serif;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+    --font-mono: 'Courier New', monospace;
+  }
+
+  html { font-size: 16px; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    pointer-events: none;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    top: -40%;
+    right: -20%;
+    width: 70vw;
+    height: 70vw;
+    background: radial-gradient(circle, var(--amber-soft) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 2rem 1.2rem 4rem;
+    min-height: 100vh;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 2rem;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards;
+  }
+
+  .header__label {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 300;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin-bottom: 0.8rem;
+  }
+
+  .header__title {
+    font-family: var(--font-display);
+    font-size: 1.8rem;
+    font-weight: 400;
+    line-height: 1.3;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+  }
+
+  .header__title em { font-style: italic; color: var(--amber); }
+
+  .header__sub {
+    font-size: 0.85rem;
+    font-weight: 300;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  /* Progress */
+  .progress {
+    margin-bottom: 2rem;
+    opacity: 0;
+    animation: fadeUp 0.8s ease 0.2s forwards;
+  }
+
+  .progress__bar {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .progress__fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--amber), #e8b84d);
+    border-radius: 2px;
+    transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    box-shadow: 0 0 12px var(--amber-glow);
+    width: 0%;
+  }
+
+  .progress__meta {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+  }
+
+  /* Completed section badges */
+  .completed-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .section-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    opacity: 0;
+    animation: fadeUp 0.4s ease forwards;
+  }
+
+  .section-badge__check {
+    color: var(--amber);
+    font-size: 0.8rem;
+  }
+
+  /* Section card */
+  .section-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.8rem 1.4rem;
+    opacity: 0;
+    transform: translateY(24px);
+    transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .section-card.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .section-card.exiting {
+    opacity: 0;
+    transform: translateY(-24px);
+  }
+
+  .section-card__header {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    font-weight: 300;
+    letter-spacing: 0.2em;
+    color: var(--amber);
+    text-transform: uppercase;
+    margin-bottom: 1.5rem;
+  }
+
+  /* Question inside section */
+  .question {
+    margin-bottom: 1.8rem;
+  }
+
+  .question:last-of-type {
+    margin-bottom: 1.2rem;
+  }
+
+  .question__label-zh {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    line-height: 1.5;
+    margin-bottom: 0.2rem;
+  }
+
+  .question__label-en {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+    margin-bottom: 0.8rem;
+  }
+
+  /* Text inputs */
+  .text-input {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.9rem 1rem;
+    font-family: var(--font-body);
+    font-size: 16px; /* prevents iOS zoom */
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    resize: none;
+  }
+
+  .text-input:focus {
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 3px var(--amber-soft);
+  }
+
+  .text-input::placeholder {
+    color: var(--text-muted);
+  }
+
+  textarea.text-input {
+    min-height: 80px;
+    line-height: 1.6;
+  }
+
+  /* Skip link */
+  .skip-link {
+    display: block;
+    text-align: center;
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.2s;
+    background: none;
+    border: none;
+    font-family: var(--font-body);
+    padding: 0.4rem;
+  }
+
+  .skip-link:hover, .skip-link:active {
+    color: var(--text-secondary);
+  }
+
+  .question.skipped .text-input {
+    opacity: 0.4;
+    border-style: dashed;
+  }
+
+  .question.skipped .skip-link {
+    color: var(--amber);
+  }
+
+  /* Choice buttons */
+  .choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .choice-btn {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.65rem 1rem;
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  .choice-btn:active {
+    transform: scale(0.97);
+  }
+
+  .choice-btn.selected {
+    background: var(--amber-soft);
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+
+  /* Actions */
+  .actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.8rem;
+    margin-top: 1.5rem;
+  }
+
+  .btn {
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    font-weight: 500;
+    padding: 0.8rem 1.8rem;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-height: 48px;
+  }
+
+  .btn--primary {
+    background: var(--amber);
+    color: var(--bg-deep);
+  }
+
+  .btn--primary:active {
+    filter: brightness(0.9);
+    transform: scale(0.97);
+  }
+
+  .btn--primary:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    transform: none;
+    filter: none;
+  }
+
+  .btn--ghost {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+
+  .btn--ghost:active {
+    border-color: var(--text-muted);
+  }
+
+  /* Thank you screen */
+  .thankyou {
+    text-align: center;
+    padding: 3rem 1rem;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards;
+  }
+
+  .thankyou__check {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--amber-soft);
+    border: 2px solid var(--amber);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1.5rem;
+    font-size: 1.8rem;
+    color: var(--amber);
+    animation: scaleIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both;
+  }
+
+  .thankyou__title {
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    color: var(--text-primary);
+    margin-bottom: 0.8rem;
+  }
+
+  .thankyou__sub {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  /* Error banner */
+  .error-banner {
+    background: #c4444422;
+    border: 1px solid #c44;
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    text-align: center;
+    font-size: 0.85rem;
+    color: #e88;
+    display: none;
+  }
+
+  .error-banner.visible { display: block; }
+
+  /* Animations */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes scaleIn {
+    from { transform: scale(0); }
+    to { transform: scale(1); }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <header class="header">
+    <div class="header__label">Lecture 1 Pre-Survey</div>
+    <h1 class="header__title"><em>Electric Motor Control</em></h1>
+    <p class="header__sub">A quick survey to understand your background. There are no wrong answers.</p>
+  </header>
+
+  <div class="progress">
+    <div class="progress__bar">
+      <div class="progress__fill" id="progressFill"></div>
+    </div>
+    <div class="progress__meta">
+      <span id="progressLabel">Section 1 of 3</span>
+      <span id="progressPercent">0%</span>
+    </div>
+  </div>
+
+  <div id="completedSections" class="completed-sections"></div>
+  <div id="errorBanner" class="error-banner"></div>
+  <div id="sectionArea"></div>
+</div>
+
+<script>
+const SECTIONS = [
+  {
+    id: 'about',
+    title: 'Part 1 / About You',
+    questions: [
+      {
+        id: 'q00_name',
+        zh: '你的姓名',
+        en: 'Your name',
+        type: 'text',
+        required: true,
+        placeholder: '请输入姓名...'
+      },
+      {
+        id: 'q01_experience',
+        zh: '你之前接触过电机控制吗？',
+        en: 'Have you had prior exposure to motor control?',
+        type: 'single-choice',
+        options: ['从未 / Never', '课程学过 / Studied in class', '做过项目 / Hands-on project', '工作经验 / Industry experience']
+      },
+      {
+        id: 'q02_languages',
+        zh: '你用过哪些编程语言？',
+        en: 'Which programming languages have you used?',
+        type: 'multi-choice',
+        options: ['Python', 'MATLAB', 'C/C++', 'Julia', '其他 / Other']
+      },
+      {
+        id: 'q03_math',
+        zh: '你对以下哪些数学工具比较熟悉？',
+        en: 'Which mathematical tools are you comfortable with?',
+        type: 'multi-choice',
+        options: ['微分方程 / ODEs', '线性代数 / Linear Algebra', '拉普拉斯变换 / Laplace Transform', '复数与相量 / Complex Phasors', '状态空间 / State-Space']
+      }
+    ]
+  },
+  {
+    id: 'conceptual',
+    title: 'Part 2 / Conceptual Baseline',
+    questions: [
+      {
+        id: 'q04_im_vs_pmsm',
+        zh: '请简述交流感应电机和永磁同步电机的主要区别。',
+        en: 'Briefly describe the main difference between an AC induction motor and a PMSM.',
+        type: 'textarea',
+        skippable: true
+      },
+      {
+        id: 'q05_torque',
+        zh: '电磁转矩是如何产生的？用你自己的话解释。',
+        en: 'How is electromagnetic torque produced? Explain in your own words.',
+        type: 'textarea',
+        skippable: true
+      },
+      {
+        id: 'q06_clarke_park',
+        zh: 'Clarke变换和Park变换的目的是什么？',
+        en: 'What is the purpose of the Clarke and Park transforms?',
+        type: 'textarea',
+        skippable: true
+      },
+      {
+        id: 'q07_foc_id_zero',
+        zh: '在矢量控制（FOC）中，为什么要把 id 控制为零？（可多选）',
+        en: 'In FOC, why do we typically regulate id to zero? (select all that apply)',
+        type: 'multi-choice',
+        skippable: true,
+        options: ['减少铜损 / Reduce copper loss', '最大转矩电流比 / Max torque-per-ampere', '简化控制 / Simplify control', '不确定 / Not sure']
+      },
+      {
+        id: 'q08_svpwm_spwm',
+        zh: 'SVPWM 和 SPWM 有什么区别？',
+        en: 'What is the difference between SVPWM and SPWM?',
+        type: 'textarea',
+        skippable: true
+      },
+      {
+        id: 'q09_pid',
+        zh: 'PID 控制器的三个参数各自起什么作用？',
+        en: 'What role does each of the three PID parameters play?',
+        type: 'textarea',
+        skippable: true
+      },
+      {
+        id: 'q10_bode',
+        zh: '什么是Bode图？它能告诉我们什么？',
+        en: 'What is a Bode plot and what does it tell you?',
+        type: 'textarea',
+        skippable: true
+      },
+      {
+        id: 'q11_margins',
+        zh: '什么是增益裕度和相位裕度？它们为什么重要？',
+        en: 'What are gain margin and phase margin? Why do they matter?',
+        type: 'textarea',
+        skippable: true
+      }
+    ]
+  },
+  {
+    id: 'expectations',
+    title: 'Part 3 / Expectations',
+    questions: [
+      {
+        id: 'q12_expectations',
+        zh: '你最希望从这门课学到什么？',
+        en: 'What do you most want to learn from this course?',
+        type: 'textarea'
+      },
+      {
+        id: 'q13_learning_style',
+        zh: '你更喜欢哪种学习方式？',
+        en: 'How do you prefer to learn?',
+        type: 'multi-choice',
+        options: ['阅读理论 / Reading theory', '运行仿真 / Running simulations', '动手实验 / Hands-on experiments', '讨论与协作 / Discussion & collaboration']
+      }
+    ]
+  }
+];
+
+let currentSection = 0;
+let answers = {};
+
+// --- localStorage save/restore ---
+const STORAGE_KEY = 'lecture1_survey';
+
+function saveProgress() {
+  const data = { section: currentSection, answers: answers };
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
+}
+
+function loadProgress() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const data = JSON.parse(raw);
+      answers = data.answers || {};
+      currentSection = data.section || 0;
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
+function clearProgress() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+}
+
+// --- Progress bar ---
+function updateProgress() {
+  const pct = Math.round((currentSection / SECTIONS.length) * 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressLabel').textContent =
+    currentSection < SECTIONS.length
+      ? `Section ${currentSection + 1} of ${SECTIONS.length}`
+      : 'Complete';
+  document.getElementById('progressPercent').textContent = pct + '%';
+}
+
+// --- Render completed section badges ---
+function renderCompletedBadges() {
+  const container = document.getElementById('completedSections');
+  container.innerHTML = '';
+  for (let i = 0; i < currentSection; i++) {
+    const badge = document.createElement('div');
+    badge.className = 'section-badge';
+    badge.innerHTML = `<span class="section-badge__check">\u2713</span> ${SECTIONS[i].title}`;
+    container.appendChild(badge);
+  }
+}
+
+// --- Build a question element ---
+function buildQuestion(q) {
+  const div = document.createElement('div');
+  div.className = 'question';
+  div.dataset.id = q.id;
+
+  let inputHTML = '';
+  const savedVal = answers[q.id];
+
+  if (q.type === 'text') {
+    const val = savedVal || '';
+    inputHTML = `<input type="text" class="text-input" data-qid="${q.id}"
+                  placeholder="${q.placeholder || ''}" value="${escapeAttr(val)}" />`;
+  } else if (q.type === 'textarea') {
+    const val = savedVal || '';
+    inputHTML = `<textarea class="text-input" data-qid="${q.id}" rows="3"
+                  placeholder="请输入...">${escapeHTML(val)}</textarea>`;
+    if (q.skippable) {
+      const isSkipped = val === '还不了解';
+      inputHTML += `<button class="skip-link" data-qid="${q.id}"
+                     onclick="toggleSkip('${q.id}')">还不了解 / I don't know yet</button>`;
+      if (isSkipped) div.classList.add('skipped');
+    }
+  } else if (q.type === 'single-choice') {
+    const btns = q.options.map(o => {
+      const sel = savedVal === o ? ' selected' : '';
+      return `<button class="choice-btn${sel}" data-qid="${q.id}" data-value="${escapeAttr(o)}"
+                onclick="selectSingle(this, '${q.id}')">${escapeHTML(o)}</button>`;
+    }).join('');
+    inputHTML = `<div class="choices">${btns}</div>`;
+    if (q.skippable) {
+      inputHTML += `<button class="skip-link" data-qid="${q.id}"
+                     onclick="toggleSkipChoice('${q.id}')">还不了解 / I don't know yet</button>`;
+    }
+  } else if (q.type === 'multi-choice') {
+    const selected = Array.isArray(savedVal) ? savedVal : [];
+    const btns = q.options.map(o => {
+      const sel = selected.includes(o) ? ' selected' : '';
+      return `<button class="choice-btn${sel}" data-qid="${q.id}" data-value="${escapeAttr(o)}"
+                onclick="selectMulti(this, '${q.id}')">${escapeHTML(o)}</button>`;
+    }).join('');
+    inputHTML = `<div class="choices">${btns}</div>`;
+    if (q.skippable) {
+      inputHTML += `<button class="skip-link" data-qid="${q.id}"
+                     onclick="toggleSkipChoice('${q.id}')">还不了解 / I don't know yet</button>`;
+    }
+  }
+
+  div.innerHTML = `
+    <div class="question__label-zh">${escapeHTML(q.zh)}</div>
+    <div class="question__label-en">${escapeHTML(q.en)}</div>
+    ${inputHTML}
+  `;
+
+  return div;
+}
+
+// --- Choice handlers ---
+function selectSingle(btn, qid) {
+  btn.parentElement.querySelectorAll('.choice-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  answers[qid] = btn.dataset.value;
+  clearSkipState(qid);
+  checkContinueEnabled();
+}
+
+function selectMulti(btn, qid) {
+  btn.classList.toggle('selected');
+  const selected = [];
+  btn.parentElement.querySelectorAll('.choice-btn.selected').forEach(b => selected.push(b.dataset.value));
+  answers[qid] = selected;
+  if (selected.length > 0) clearSkipState(qid);
+  checkContinueEnabled();
+}
+
+// --- Skip / I don't know ---
+function toggleSkip(qid) {
+  const questionDiv = document.querySelector(`.question[data-id="${qid}"]`);
+  const textarea = questionDiv.querySelector('textarea');
+  if (questionDiv.classList.contains('skipped')) {
+    questionDiv.classList.remove('skipped');
+    textarea.value = '';
+    answers[qid] = '';
+  } else {
+    questionDiv.classList.add('skipped');
+    textarea.value = '还不了解';
+    answers[qid] = '还不了解';
+  }
+  checkContinueEnabled();
+}
+
+function toggleSkipChoice(qid) {
+  const questionDiv = document.querySelector(`.question[data-id="${qid}"]`);
+  if (questionDiv.classList.contains('skipped')) {
+    questionDiv.classList.remove('skipped');
+    questionDiv.querySelectorAll('.choice-btn').forEach(b => b.classList.remove('selected'));
+    answers[qid] = [];
+  } else {
+    questionDiv.classList.add('skipped');
+    questionDiv.querySelectorAll('.choice-btn').forEach(b => b.classList.remove('selected'));
+    answers[qid] = '还不了解';
+  }
+  checkContinueEnabled();
+}
+
+function clearSkipState(qid) {
+  const questionDiv = document.querySelector(`.question[data-id="${qid}"]`);
+  if (questionDiv) questionDiv.classList.remove('skipped');
+}
+
+// --- Collect answers from current section DOM ---
+function collectCurrentAnswers() {
+  const section = SECTIONS[currentSection];
+  section.questions.forEach(q => {
+    if (q.type === 'text' || q.type === 'textarea') {
+      const el = document.querySelector(`[data-qid="${q.id}"]`);
+      if (el && !document.querySelector(`.question[data-id="${q.id}"]`).classList.contains('skipped')) {
+        answers[q.id] = el.value.trim();
+      }
+    }
+    // choice answers are set on click, no need to collect
+  });
+}
+
+// --- Continue button state ---
+function checkContinueEnabled() {
+  const section = SECTIONS[currentSection];
+  const btn = document.getElementById('continueBtn');
+  if (!btn) return;
+
+  // Section 1: name is required
+  if (section.id === 'about') {
+    const nameInput = document.querySelector('[data-qid="q00_name"]');
+    btn.disabled = !nameInput || !nameInput.value.trim();
+  } else {
+    btn.disabled = false;
+  }
+}
+
+// --- Render current section ---
+function renderSection() {
+  if (currentSection >= SECTIONS.length) {
+    showThankYou();
+    return;
+  }
+
+  updateProgress();
+  renderCompletedBadges();
+  hideError();
+
+  const section = SECTIONS[currentSection];
+  const area = document.getElementById('sectionArea');
+
+  const card = document.createElement('div');
+  card.className = 'section-card';
+  card.innerHTML = `<div class="section-card__header">${section.title}</div>`;
+
+  section.questions.forEach(q => {
+    card.appendChild(buildQuestion(q));
+  });
+
+  const isLast = currentSection === SECTIONS.length - 1;
+  const actionsDiv = document.createElement('div');
+  actionsDiv.className = 'actions';
+  actionsDiv.innerHTML = `
+    ${currentSection > 0 ? '<button class="btn btn--ghost" onclick="goBack()">Back</button>' : ''}
+    <button class="btn btn--primary" id="continueBtn"
+      onclick="${isLast ? 'submitSurvey()' : 'goNext()'}">${isLast ? 'Submit' : 'Continue'}</button>
+  `;
+  card.appendChild(actionsDiv);
+
+  // Transition
+  const oldCard = area.querySelector('.section-card');
+  if (oldCard) {
+    oldCard.classList.add('exiting');
+    setTimeout(() => {
+      area.innerHTML = '';
+      area.appendChild(card);
+      requestAnimationFrame(() => card.classList.add('visible'));
+      attachInputListeners();
+      checkContinueEnabled();
+    }, 300);
+  } else {
+    area.innerHTML = '';
+    area.appendChild(card);
+    requestAnimationFrame(() => card.classList.add('visible'));
+    attachInputListeners();
+    checkContinueEnabled();
+  }
+}
+
+function attachInputListeners() {
+  // For text/textarea: update answers on input and check continue
+  document.querySelectorAll('.text-input').forEach(el => {
+    el.addEventListener('input', () => {
+      const qid = el.dataset.qid;
+      answers[qid] = el.value.trim();
+      clearSkipState(qid);
+      checkContinueEnabled();
+    });
+    // Auto-scroll into view on focus (mobile keyboard)
+    el.addEventListener('focus', () => {
+      setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
+    });
+  });
+}
+
+function goNext() {
+  collectCurrentAnswers();
+  saveProgress();
+  currentSection++;
+  saveProgress();
+  renderSection();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function goBack() {
+  collectCurrentAnswers();
+  saveProgress();
+  currentSection--;
+  renderSection();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// --- Submit ---
+async function submitSurvey() {
+  collectCurrentAnswers();
+
+  const name = (answers['q00_name'] || '').trim();
+  if (!name) {
+    showError('请先填写姓名 / Please enter your name first.');
+    return;
+  }
+
+  const btn = document.getElementById('continueBtn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+  hideError();
+
+  const payload = {
+    name: name,
+    timestamp: new Date().toISOString(),
+    answers: { ...answers }
+  };
+
+  try {
+    const resp = await fetch('/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
+
+    const result = await resp.json();
+    if (result.status === 'ok') {
+      clearProgress();
+      currentSection = SECTIONS.length;
+      showThankYou();
+    } else {
+      throw new Error(result.message || 'Unknown error');
+    }
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = 'Submit';
+    showError(`提交失败，请重试 / Submission failed: ${e.message}`);
+  }
+}
+
+function showError(msg) {
+  const banner = document.getElementById('errorBanner');
+  banner.textContent = msg;
+  banner.classList.add('visible');
+}
+
+function hideError() {
+  document.getElementById('errorBanner').classList.remove('visible');
+}
+
+function showThankYou() {
+  document.getElementById('progressFill').style.width = '100%';
+  document.getElementById('progressPercent').textContent = '100%';
+  document.getElementById('progressLabel').textContent = 'Complete';
+  document.getElementById('completedSections').innerHTML = '';
+
+  document.getElementById('sectionArea').innerHTML = `
+    <div class="thankyou">
+      <div class="thankyou__check">\u2713</div>
+      <h2 class="thankyou__title">感谢你的参与!</h2>
+      <p class="thankyou__sub">Thank you for completing the survey.<br>Your responses have been recorded.</p>
+    </div>
+  `;
+}
+
+// --- Utilities ---
+function escapeHTML(s) {
+  const div = document.createElement('div');
+  div.textContent = s || '';
+  return div.innerHTML;
+}
+
+function escapeAttr(s) {
+  return (s || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// --- Init ---
+loadProgress();
+renderSection();
+</script>
+
+</body>
+</html>

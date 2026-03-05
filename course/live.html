@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Live Q&A</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0a0a0b;
+    --bg-card: #131315;
+    --bg-input: #1a1a1e;
+    --amber: #d4a043;
+    --amber-soft: #d4a04322;
+    --amber-glow: #d4a04344;
+    --text: #e8e4dc;
+    --text2: #8a8680;
+    --text3: #5a5650;
+    --border: #2a2a2e;
+    --green: #4a9;
+  }
+
+  html { font-size: 16px; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    pointer-events: none;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 1.5rem 1.2rem 4rem;
+    min-height: 100vh;
+  }
+
+  /* Name entry */
+  .name-screen {
+    text-align: center;
+    padding-top: 20vh;
+    animation: fadeUp 0.6s ease;
+  }
+
+  .name-screen h1 {
+    font-family: Georgia, 'Noto Serif SC', serif;
+    font-weight: 400;
+    font-size: 1.8rem;
+    margin-bottom: 0.3rem;
+  }
+
+  .name-screen h1 em { color: var(--amber); font-style: italic; }
+
+  .name-screen p {
+    font-size: 0.85rem;
+    color: var(--text2);
+    margin-bottom: 2rem;
+  }
+
+  .name-input-wrap {
+    max-width: 280px;
+    margin: 0 auto;
+  }
+
+  .name-input {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.9rem 1rem;
+    font-size: 16px;
+    color: var(--text);
+    text-align: center;
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.2s;
+    margin-bottom: 1rem;
+  }
+
+  .name-input:focus { border-color: var(--amber); }
+
+  .btn {
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 0.8rem 2rem;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+    min-height: 48px;
+  }
+
+  .btn:active { transform: scale(0.97); }
+
+  .btn--primary {
+    background: var(--amber);
+    color: var(--bg);
+  }
+
+  .btn--primary:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .btn--ghost {
+    background: transparent;
+    color: var(--text3);
+    border: 1px solid var(--border);
+  }
+
+  /* Live area */
+  .live-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    animation: fadeUp 0.5s ease;
+  }
+
+  .live-header__name {
+    font-size: 0.8rem;
+    color: var(--text2);
+  }
+
+  .live-header__status {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.7rem;
+    color: var(--text3);
+    font-family: 'Courier New', monospace;
+  }
+
+  .pulse-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  /* Waiting state */
+  .waiting {
+    text-align: center;
+    padding: 4rem 1rem;
+    animation: fadeUp 0.5s ease;
+  }
+
+  .waiting__icon {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    opacity: 0.3;
+    animation: breathe 3s ease infinite;
+  }
+
+  .waiting__text {
+    font-size: 0.9rem;
+    color: var(--text3);
+    line-height: 1.6;
+  }
+
+  /* Question card */
+  .q-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.5rem 1.3rem;
+    animation: fadeUp 0.5s ease;
+  }
+
+  .q-card__number {
+    font-family: 'Courier New', monospace;
+    font-size: 0.6rem;
+    color: var(--amber);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    margin-bottom: 0.8rem;
+  }
+
+  .q-card__zh {
+    font-size: 1.05rem;
+    font-weight: 500;
+    line-height: 1.5;
+    margin-bottom: 0.3rem;
+  }
+
+  .q-card__en {
+    font-size: 0.8rem;
+    color: var(--text3);
+    line-height: 1.4;
+    margin-bottom: 1.2rem;
+  }
+
+  .q-card textarea {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.9rem 1rem;
+    font-size: 16px;
+    color: var(--text);
+    font-family: inherit;
+    outline: none;
+    resize: none;
+    min-height: 80px;
+    line-height: 1.6;
+    transition: border-color 0.2s;
+  }
+
+  .q-card textarea:focus { border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-soft); }
+
+  .choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .choice-btn {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.65rem 1rem;
+    font-family: inherit;
+    font-size: 0.85rem;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.15s;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  .choice-btn:active { transform: scale(0.97); }
+  .choice-btn.selected { background: var(--amber-soft); border-color: var(--amber); color: var(--amber); }
+
+  .q-card__actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1.2rem;
+  }
+
+  /* Submitted state */
+  .submitted-badge {
+    text-align: center;
+    padding: 1.5rem;
+    animation: fadeUp 0.4s ease;
+  }
+
+  .submitted-badge__check {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--amber-soft);
+    border: 2px solid var(--amber);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 0.8rem;
+    font-size: 1.4rem;
+    color: var(--amber);
+    animation: scaleIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+  }
+
+  .submitted-badge__text {
+    font-size: 0.85rem;
+    color: var(--text2);
+  }
+
+  .submitted-badge__text strong {
+    color: var(--text);
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes scaleIn {
+    from { transform: scale(0); }
+    to { transform: scale(1); }
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  @keyframes breathe {
+    0%, 100% { opacity: 0.2; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(1.05); }
+  }
+</style>
+</head>
+<body>
+
+<div class="app" id="app"></div>
+
+<script>
+const STORAGE_KEY = 'live_qa_name';
+let studentName = '';
+let currentQid = null;
+let answered = false;
+let myAnswer = null;
+let pollTimer = null;
+
+function init() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    studentName = saved;
+    showLive();
+  } else {
+    showNameScreen();
+  }
+}
+
+// --- Name screen ---
+function showNameScreen() {
+  document.getElementById('app').innerHTML = `
+    <div class="name-screen">
+      <h1><em>Live</em> Q&A</h1>
+      <p>Enter your name to join the session</p>
+      <div class="name-input-wrap">
+        <input type="text" class="name-input" id="nameInput"
+               placeholder="你的姓名 / Your name"
+               onkeydown="if(event.key==='Enter') joinSession()" />
+        <button class="btn btn--primary" id="joinBtn" onclick="joinSession()" disabled>Join</button>
+      </div>
+    </div>
+  `;
+  const inp = document.getElementById('nameInput');
+  inp.addEventListener('input', () => {
+    document.getElementById('joinBtn').disabled = !inp.value.trim();
+  });
+  inp.focus();
+}
+
+function joinSession() {
+  const name = document.getElementById('nameInput').value.trim();
+  if (!name) return;
+  studentName = name;
+  localStorage.setItem(STORAGE_KEY, name);
+  showLive();
+}
+
+// --- Live view ---
+function showLive() {
+  document.getElementById('app').innerHTML = `
+    <div class="live-header">
+      <div class="live-header__name">${esc(studentName)}
+        <button class="btn--ghost" style="font-size:0.7rem; padding:0.2rem 0.5rem; margin-left:0.4rem; border-radius:4px; cursor:pointer; background:transparent; color:var(--text3); border:1px solid var(--border);" onclick="changeName()">change</button>
+      </div>
+      <div class="live-header__status"><span class="pulse-dot"></span> Live</div>
+    </div>
+    <div id="liveArea"></div>
+  `;
+  currentQid = null;
+  answered = false;
+  pollQuestion();
+  pollTimer = setInterval(pollQuestion, 2000);
+}
+
+function changeName() {
+  clearInterval(pollTimer);
+  localStorage.removeItem(STORAGE_KEY);
+  studentName = '';
+  showNameScreen();
+}
+
+// --- Poll for question ---
+async function pollQuestion() {
+  try {
+    const resp = await fetch('/api/question');
+    const data = await resp.json();
+
+    if (!data.question) {
+      if (currentQid !== null) {
+        currentQid = null;
+        answered = false;
+        myAnswer = null;
+      }
+      showWaiting();
+      return;
+    }
+
+    const q = data.question;
+    if (q.id !== currentQid) {
+      currentQid = q.id;
+      answered = false;
+      myAnswer = null;
+      showQuestion(q);
+    }
+  } catch(e) {
+    // Silently retry
+  }
+}
+
+function showWaiting() {
+  document.getElementById('liveArea').innerHTML = `
+    <div class="waiting">
+      <div class="waiting__icon">...</div>
+      <div class="waiting__text">Waiting for the teacher to push a question...<br>
+      <span style="font-size:0.75rem; color:var(--text3);">等待老师发布问题...</span></div>
+    </div>
+  `;
+}
+
+function showQuestion(q) {
+  let inputHTML = '';
+
+  if (q.type === 'textarea') {
+    inputHTML = `<textarea id="answerInput" rows="3" placeholder="请输入你的回答..."></textarea>`;
+  } else if (q.type === 'single-choice') {
+    inputHTML = `<div class="choices" id="choicesArea">
+      ${q.options.map(o => `<button class="choice-btn" data-value="${escAttr(o)}" onclick="selectSingle(this)">${esc(o)}</button>`).join('')}
+    </div>`;
+  } else if (q.type === 'multi-choice') {
+    inputHTML = `<div class="choices" id="choicesArea">
+      ${q.options.map(o => `<button class="choice-btn" data-value="${escAttr(o)}" onclick="selectMulti(this)">${esc(o)}</button>`).join('')}
+    </div>`;
+  }
+
+  document.getElementById('liveArea').innerHTML = `
+    <div class="q-card">
+      <div class="q-card__number">Question #${q.id}</div>
+      <div class="q-card__zh">${esc(q.text_zh)}</div>
+      ${q.text_en ? `<div class="q-card__en">${esc(q.text_en)}</div>` : ''}
+      ${inputHTML}
+      <div class="q-card__actions">
+        <button class="btn btn--primary" id="sendBtn" onclick="sendAnswer()">Send</button>
+      </div>
+    </div>
+  `;
+
+  const ta = document.getElementById('answerInput');
+  if (ta) {
+    ta.addEventListener('focus', () => {
+      setTimeout(() => ta.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
+    });
+  }
+}
+
+// --- Choice handling ---
+function selectSingle(btn) {
+  btn.parentElement.querySelectorAll('.choice-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+}
+
+function selectMulti(btn) {
+  btn.classList.toggle('selected');
+}
+
+// --- Send answer ---
+async function sendAnswer() {
+  if (answered) return;
+
+  let answer;
+  const ta = document.getElementById('answerInput');
+  const choices = document.getElementById('choicesArea');
+
+  if (ta) {
+    answer = ta.value.trim();
+    if (!answer) { ta.focus(); return; }
+  } else if (choices) {
+    const selected = [...choices.querySelectorAll('.choice-btn.selected')].map(b => b.dataset.value);
+    if (selected.length === 0) return;
+    // Single-choice returns string, multi returns array
+    const q = await fetch('/api/question').then(r => r.json());
+    answer = (q.question && q.question.type === 'single-choice') ? selected[0] : selected;
+  }
+
+  const btn = document.getElementById('sendBtn');
+  btn.disabled = true;
+  btn.textContent = '...';
+
+  try {
+    const resp = await fetch('/api/answer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: studentName, answer: answer, question_id: currentQid })
+    });
+    const result = await resp.json();
+    if (result.status === 'ok') {
+      answered = true;
+      myAnswer = answer;
+      showSubmitted();
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Send';
+      alert(result.message || 'Error');
+    }
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = 'Send';
+  }
+}
+
+function showSubmitted() {
+  const display = Array.isArray(myAnswer) ? myAnswer.join(', ') : myAnswer;
+  document.getElementById('liveArea').innerHTML = `
+    <div class="submitted-badge">
+      <div class="submitted-badge__check">\u2713</div>
+      <div class="submitted-badge__text">
+        Answer submitted!<br>
+        <strong>${esc(display)}</strong><br>
+        <span style="font-size:0.75rem; color:var(--text3); margin-top:0.5rem; display:inline-block;">
+          Waiting for next question...
+        </span>
+      </div>
+    </div>
+  `;
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+function escAttr(s) {
+  return (s || '').replace(/"/g, '&quot;');
+}
+
+init();
+</script>
+
+</body>
+</html>

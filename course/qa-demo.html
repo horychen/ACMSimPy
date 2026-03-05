@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Brief — Tell Me What You Want</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-deep: #0a0a0b;
+    --bg-card: #131315;
+    --bg-input: #1a1a1e;
+    --bg-hover: #222228;
+    --amber: #d4a043;
+    --amber-soft: #d4a04322;
+    --amber-glow: #d4a04344;
+    --text-primary: #e8e4dc;
+    --text-secondary: #8a8680;
+    --text-muted: #5a5650;
+    --border: #2a2a2e;
+    --border-focus: #d4a04366;
+    --danger: #c44;
+    --font-display: 'Playfair Display', Georgia, serif;
+    --font-body: 'DM Sans', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  html { font-size: 16px; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Noise overlay ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    pointer-events: none;
+  }
+
+  /* ── Ambient glow ── */
+  body::after {
+    content: '';
+    position: fixed;
+    top: -40%;
+    right: -20%;
+    width: 70vw;
+    height: 70vw;
+    background: radial-gradient(circle, var(--amber-soft) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Layout ── */
+  .app {
+    position: relative;
+    z-index: 1;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 3rem 2rem 4rem;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  .header {
+    text-align: center;
+    margin-bottom: 3rem;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards;
+  }
+
+  .header__label {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 300;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin-bottom: 1rem;
+  }
+
+  .header__title {
+    font-family: var(--font-display);
+    font-size: 2.8rem;
+    font-weight: 400;
+    line-height: 1.15;
+    color: var(--text-primary);
+    margin-bottom: 0.75rem;
+  }
+
+  .header__title em {
+    font-style: italic;
+    color: var(--amber);
+  }
+
+  .header__sub {
+    font-size: 0.9rem;
+    font-weight: 300;
+    color: var(--text-secondary);
+    max-width: 440px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+
+  /* ── Progress ── */
+  .progress {
+    margin-bottom: 2.5rem;
+    opacity: 0;
+    animation: fadeUp 0.8s ease 0.2s forwards;
+  }
+
+  .progress__bar {
+    height: 2px;
+    background: var(--border);
+    border-radius: 1px;
+    overflow: hidden;
+  }
+
+  .progress__fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--amber), #e8b84d);
+    border-radius: 1px;
+    transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    box-shadow: 0 0 12px var(--amber-glow);
+  }
+
+  .progress__meta {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.6rem;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 300;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+  }
+
+  /* ── Interview area ── */
+  .interview {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  /* ── Question card ── */
+  .question-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2.2rem 2rem;
+    opacity: 0;
+    transform: translateY(24px);
+    transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .question-card.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .question-card.answered {
+    opacity: 0.5;
+    transform: scale(0.97);
+    pointer-events: none;
+  }
+
+  .question-card__number {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    font-weight: 300;
+    letter-spacing: 0.2em;
+    color: var(--amber);
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+  }
+
+  .question-card__text {
+    font-family: var(--font-display);
+    font-size: 1.45rem;
+    font-weight: 400;
+    line-height: 1.4;
+    color: var(--text-primary);
+    margin-bottom: 1.6rem;
+    min-height: 2.1em;
+  }
+
+  .question-card__text .cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1.2em;
+    background: var(--amber);
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    animation: blink 0.8s ease infinite;
+  }
+
+  /* ── Input types ── */
+  .input-area { opacity: 0; transition: opacity 0.4s ease 0.1s; }
+  .input-area.visible { opacity: 1; }
+
+  .text-input {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    font-weight: 300;
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    resize: none;
+  }
+
+  .text-input:focus {
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 3px var(--amber-soft);
+  }
+
+  .text-input::placeholder {
+    color: var(--text-muted);
+    font-weight: 300;
+  }
+
+  textarea.text-input {
+    min-height: 100px;
+    line-height: 1.6;
+  }
+
+  /* ── Choice buttons ── */
+  .choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  .choice-btn {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.7rem 1.2rem;
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    font-weight: 400;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.25s ease;
+    white-space: nowrap;
+  }
+
+  .choice-btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--amber);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+  }
+
+  .choice-btn.selected {
+    background: var(--amber-soft);
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+
+  /* ── Submit / Nav ── */
+  .actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1.2rem;
+    gap: 0.8rem;
+  }
+
+  .btn {
+    font-family: var(--font-body);
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    padding: 0.7rem 1.6rem;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.25s ease;
+  }
+
+  .btn--primary {
+    background: var(--amber);
+    color: var(--bg-deep);
+  }
+
+  .btn--primary:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px var(--amber-glow);
+  }
+
+  .btn--primary:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+    filter: none;
+  }
+
+  .btn--ghost {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+
+  .btn--ghost:hover {
+    color: var(--text-secondary);
+    border-color: var(--text-muted);
+  }
+
+  /* ── Completed answers trail ── */
+  .answer-trail {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .answer-bubble {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    opacity: 0;
+    animation: fadeUp 0.4s ease forwards;
+  }
+
+  .answer-bubble__q {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    font-weight: 300;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+    padding-top: 0.3rem;
+    min-width: 20px;
+  }
+
+  .answer-bubble__a {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.65rem 1rem;
+    font-size: 0.85rem;
+    font-weight: 300;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    max-width: 85%;
+  }
+
+  /* ── Summary ── */
+  .summary {
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards;
+  }
+
+  .summary__card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 2.5rem 2.2rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .summary__card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--amber), #e8b84d, var(--amber));
+  }
+
+  .summary__label {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    font-weight: 300;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin-bottom: 0.8rem;
+  }
+
+  .summary__title {
+    font-family: var(--font-display);
+    font-size: 1.8rem;
+    font-weight: 400;
+    color: var(--text-primary);
+    margin-bottom: 2rem;
+  }
+
+  .summary__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.6rem;
+  }
+
+  .summary__item {
+    opacity: 0;
+    animation: fadeUp 0.4s ease forwards;
+  }
+
+  .summary__item-label {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    font-weight: 300;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 0.4rem;
+  }
+
+  .summary__item-value {
+    font-size: 0.9rem;
+    font-weight: 300;
+    color: var(--text-primary);
+    line-height: 1.5;
+  }
+
+  .summary__item--full {
+    grid-column: 1 / -1;
+  }
+
+  .summary__divider {
+    grid-column: 1 / -1;
+    height: 1px;
+    background: var(--border);
+    margin: 0.2rem 0;
+  }
+
+  .summary__actions {
+    display: flex;
+    gap: 0.8rem;
+    margin-top: 2rem;
+    justify-content: center;
+  }
+
+  .btn--restart {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+
+  .btn--restart:hover {
+    border-color: var(--text-muted);
+    color: var(--text-primary);
+  }
+
+  .btn--copy {
+    background: var(--amber);
+    color: var(--bg-deep);
+  }
+
+  .btn--copy:hover {
+    filter: brightness(1.1);
+    box-shadow: 0 4px 20px var(--amber-glow);
+  }
+
+  /* ── Animations ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 600px) {
+    .app { padding: 2rem 1.2rem 3rem; }
+    .header__title { font-size: 2rem; }
+    .question-card { padding: 1.6rem 1.4rem; }
+    .question-card__text { font-size: 1.2rem; }
+    .summary__grid { grid-template-columns: 1fr; }
+    .summary__card { padding: 1.8rem 1.4rem; }
+  }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <header class="header">
+    <div class="header__label">The Brief</div>
+    <h1 class="header__title">Tell me what you <em>want.</em></h1>
+    <p class="header__sub">A short interview to understand your vision. Answer naturally — there are no wrong answers.</p>
+  </header>
+
+  <div class="progress">
+    <div class="progress__bar">
+      <div class="progress__fill" id="progressFill" style="width: 0%"></div>
+    </div>
+    <div class="progress__meta">
+      <span id="progressLabel">Question 1 of 8</span>
+      <span id="progressPercent">0%</span>
+    </div>
+  </div>
+
+  <div class="interview" id="interview">
+    <div class="answer-trail" id="answerTrail"></div>
+    <div id="questionArea"></div>
+  </div>
+
+  <div id="summaryArea" style="display:none"></div>
+</div>
+
+<script>
+const questions = [
+  {
+    id: 'project',
+    number: '01',
+    text: 'What do you want to build?',
+    placeholder: 'Describe your project idea in a few sentences...',
+    type: 'textarea',
+    summaryLabel: 'Project'
+  },
+  {
+    id: 'goal',
+    number: '02',
+    text: 'What problem does this solve, or what goal does it serve?',
+    placeholder: 'The core purpose behind this project...',
+    type: 'textarea',
+    summaryLabel: 'Goal'
+  },
+  {
+    id: 'audience',
+    number: '03',
+    text: 'Who is this for?',
+    placeholder: 'Describe your target users or audience...',
+    type: 'input',
+    summaryLabel: 'Audience'
+  },
+  {
+    id: 'stack',
+    number: '04',
+    text: 'Do you have a preferred tech stack?',
+    type: 'choice',
+    choices: ['React', 'Vue', 'Svelte', 'Next.js', 'Python', 'Node.js', 'No preference'],
+    multi: true,
+    summaryLabel: 'Tech Stack'
+  },
+  {
+    id: 'design',
+    number: '05',
+    text: 'What aesthetic are you drawn to?',
+    type: 'choice',
+    choices: ['Minimal & Clean', 'Bold & Expressive', 'Dark & Moody', 'Light & Airy', 'Retro / Vintage', 'Corporate / Professional'],
+    multi: false,
+    summaryLabel: 'Design Style'
+  },
+  {
+    id: 'timeline',
+    number: '06',
+    text: 'What\'s your timeline looking like?',
+    type: 'choice',
+    choices: ['A few hours', 'A few days', 'A week or two', 'A month+', 'No deadline'],
+    multi: false,
+    summaryLabel: 'Timeline'
+  },
+  {
+    id: 'features',
+    number: '07',
+    text: 'What are the most important features or must-haves?',
+    placeholder: 'List the key features, separated by commas...',
+    type: 'textarea',
+    summaryLabel: 'Key Features'
+  },
+  {
+    id: 'extra',
+    number: '08',
+    text: 'Anything else I should know?',
+    placeholder: 'Constraints, inspirations, pet peeves, dreams...',
+    type: 'textarea',
+    summaryLabel: 'Additional Notes'
+  }
+];
+
+let currentIndex = 0;
+let answers = {};
+let selectedChoices = [];
+let typingTimeout = null;
+
+function updateProgress() {
+  const pct = Math.round((currentIndex / questions.length) * 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressLabel').textContent =
+    currentIndex < questions.length
+      ? `Question ${currentIndex + 1} of ${questions.length}`
+      : 'Complete';
+  document.getElementById('progressPercent').textContent = pct + '%';
+}
+
+function typeText(element, text, callback) {
+  let i = 0;
+  element.innerHTML = '<span class="cursor"></span>';
+
+  function type() {
+    if (i < text.length) {
+      const cursor = element.querySelector('.cursor');
+      element.insertBefore(document.createTextNode(text[i]), cursor);
+      i++;
+      typingTimeout = setTimeout(type, 22 + Math.random() * 18);
+    } else {
+      const cursor = element.querySelector('.cursor');
+      if (cursor) {
+        setTimeout(() => cursor.remove(), 600);
+      }
+      if (callback) callback();
+    }
+  }
+  type();
+}
+
+function addAnswerBubble(number, answerText) {
+  const trail = document.getElementById('answerTrail');
+  const bubble = document.createElement('div');
+  bubble.className = 'answer-bubble';
+  bubble.innerHTML = `
+    <span class="answer-bubble__q">${number}</span>
+    <div class="answer-bubble__a">${answerText}</div>
+  `;
+  trail.appendChild(bubble);
+}
+
+function showQuestion() {
+  if (currentIndex >= questions.length) {
+    showSummary();
+    return;
+  }
+
+  const q = questions[currentIndex];
+  selectedChoices = [];
+  updateProgress();
+
+  const area = document.getElementById('questionArea');
+  area.innerHTML = '';
+
+  const card = document.createElement('div');
+  card.className = 'question-card';
+  card.innerHTML = `
+    <div class="question-card__number">Question ${q.number}</div>
+    <div class="question-card__text" id="qText"></div>
+    <div class="input-area" id="inputArea"></div>
+  `;
+  area.appendChild(card);
+
+  requestAnimationFrame(() => {
+    card.classList.add('visible');
+
+    typeText(document.getElementById('qText'), q.text, () => {
+      const inputArea = document.getElementById('inputArea');
+      buildInput(inputArea, q);
+      inputArea.classList.add('visible');
+
+      // Auto-focus text inputs
+      const firstInput = inputArea.querySelector('input, textarea');
+      if (firstInput) setTimeout(() => firstInput.focus(), 100);
+    });
+  });
+}
+
+function buildInput(container, q) {
+  let html = '';
+
+  if (q.type === 'input') {
+    html = `
+      <input type="text" class="text-input" id="answerInput"
+             placeholder="${q.placeholder || 'Type your answer...'}" />
+      <div class="actions">
+        ${currentIndex > 0 ? '<button class="btn btn--ghost" onclick="goBack()">Back</button>' : ''}
+        <button class="btn btn--primary" id="nextBtn" onclick="submitAnswer()" disabled>Continue</button>
+      </div>
+    `;
+  } else if (q.type === 'textarea') {
+    html = `
+      <textarea class="text-input" id="answerInput"
+                placeholder="${q.placeholder || 'Type your answer...'}" rows="3"></textarea>
+      <div class="actions">
+        ${currentIndex > 0 ? '<button class="btn btn--ghost" onclick="goBack()">Back</button>' : ''}
+        <button class="btn btn--primary" id="nextBtn" onclick="submitAnswer()" disabled>Continue</button>
+      </div>
+    `;
+  } else if (q.type === 'choice') {
+    const btns = q.choices.map(c =>
+      `<button class="choice-btn" onclick="selectChoice(this, '${c}', ${q.multi})">${c}</button>`
+    ).join('');
+    html = `
+      <div class="choices">${btns}</div>
+      <div class="actions">
+        ${currentIndex > 0 ? '<button class="btn btn--ghost" onclick="goBack()">Back</button>' : ''}
+        <button class="btn btn--primary" id="nextBtn" onclick="submitAnswer()" disabled>Continue</button>
+      </div>
+    `;
+  }
+
+  container.innerHTML = html;
+
+  // Enable button on input
+  const inp = container.querySelector('#answerInput');
+  if (inp) {
+    inp.addEventListener('input', () => {
+      document.getElementById('nextBtn').disabled = !inp.value.trim();
+    });
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey && q.type === 'input') {
+        e.preventDefault();
+        if (inp.value.trim()) submitAnswer();
+      }
+    });
+  }
+}
+
+function selectChoice(btn, value, multi) {
+  if (multi) {
+    btn.classList.toggle('selected');
+    if (btn.classList.contains('selected')) {
+      selectedChoices.push(value);
+    } else {
+      selectedChoices = selectedChoices.filter(v => v !== value);
+    }
+  } else {
+    document.querySelectorAll('.choice-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedChoices = [value];
+  }
+  document.getElementById('nextBtn').disabled = selectedChoices.length === 0;
+}
+
+function submitAnswer() {
+  const q = questions[currentIndex];
+  let answer = '';
+
+  if (q.type === 'choice') {
+    answer = selectedChoices.join(', ');
+  } else {
+    const inp = document.getElementById('answerInput');
+    answer = inp ? inp.value.trim() : '';
+  }
+
+  if (!answer) return;
+
+  answers[q.id] = answer;
+  addAnswerBubble(q.number, answer);
+
+  currentIndex++;
+  showQuestion();
+
+  // Scroll to bottom smoothly
+  setTimeout(() => {
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+  }, 100);
+}
+
+function goBack() {
+  if (currentIndex <= 0) return;
+  currentIndex--;
+  // Remove last answer bubble
+  const trail = document.getElementById('answerTrail');
+  if (trail.lastChild) trail.removeChild(trail.lastChild);
+  delete answers[questions[currentIndex].id];
+  showQuestion();
+}
+
+function showSummary() {
+  document.getElementById('interview').style.display = 'none';
+
+  updateProgress();
+  document.getElementById('progressFill').style.width = '100%';
+  document.getElementById('progressPercent').textContent = '100%';
+
+  const items = questions.map((q, i) => {
+    const val = answers[q.id] || '—';
+    const fullClass = (q.type === 'textarea') ? ' summary__item--full' : '';
+    return `
+      <div class="summary__item${fullClass}" style="animation-delay: ${0.1 + i * 0.08}s">
+        <div class="summary__item-label">${q.summaryLabel}</div>
+        <div class="summary__item-value">${val}</div>
+      </div>
+      ${i === 2 || i === 5 ? '<div class="summary__divider"></div>' : ''}
+    `;
+  }).join('');
+
+  const summaryArea = document.getElementById('summaryArea');
+  summaryArea.style.display = 'block';
+  summaryArea.innerHTML = `
+    <div class="summary">
+      <div class="summary__card">
+        <div class="summary__label">Your Brief</div>
+        <h2 class="summary__title">Here's what I heard.</h2>
+        <div class="summary__grid">${items}</div>
+        <div class="summary__actions">
+          <button class="btn btn--restart" onclick="restart()">Start Over</button>
+          <button class="btn btn--copy" onclick="copySummary()">Copy Brief</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  setTimeout(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, 200);
+}
+
+function restart() {
+  currentIndex = 0;
+  answers = {};
+  selectedChoices = [];
+  document.getElementById('answerTrail').innerHTML = '';
+  document.getElementById('summaryArea').style.display = 'none';
+  document.getElementById('summaryArea').innerHTML = '';
+  document.getElementById('interview').style.display = 'flex';
+  showQuestion();
+}
+
+function copySummary() {
+  let text = '── THE BRIEF ──\n\n';
+  questions.forEach(q => {
+    text += `${q.summaryLabel}: ${answers[q.id] || '—'}\n`;
+  });
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.btn--copy');
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = orig, 1500);
+  });
+}
+
+// Init
+showQuestion();
+</script>
+
+</body>
+</html>

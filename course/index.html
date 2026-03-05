@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ACMSimPy Course - Electric Motor Control</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #050506;
+    --bg2: #0c0c0e;
+    --bg-card: #111114;
+    --amber: #d4a043;
+    --amber2: #e8b84d;
+    --amber-soft: #d4a04318;
+    --amber-glow: #d4a04330;
+    --cyan: #43b4d4;
+    --violet: #9b6dd4;
+    --rose: #d4436b;
+    --text: #e8e4dc;
+    --text2: #8a8680;
+    --text3: #4a4640;
+    --border: #1e1e22;
+  }
+
+  html { font-size: 16px; scroll-behavior: smooth; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ============ CANVAS PARTICLES ============ */
+  #particleCanvas {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* ============ HERO ============ */
+  .hero {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 2rem;
+    overflow: hidden;
+  }
+
+  /* Radial glow rings */
+  .hero__glow {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    filter: blur(80px);
+    opacity: 0;
+    animation: glowPulse 8s ease-in-out infinite;
+  }
+
+  .hero__glow--1 {
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, var(--amber-glow), transparent 70%);
+    top: 10%; left: 50%; transform: translateX(-50%);
+    animation-delay: 0s;
+  }
+
+  .hero__glow--2 {
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, #43b4d415, transparent 70%);
+    bottom: 20%; left: 15%;
+    animation-delay: 3s;
+  }
+
+  .hero__glow--3 {
+    width: 350px; height: 350px;
+    background: radial-gradient(circle, #9b6dd410, transparent 70%);
+    top: 30%; right: 10%;
+    animation-delay: 5s;
+  }
+
+  .hero__badge {
+    font-family: 'Courier New', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin-bottom: 2rem;
+    opacity: 0;
+    animation: fadeDown 1s ease 0.3s forwards;
+  }
+
+  .hero__title {
+    font-family: Georgia, 'Noto Serif SC', serif;
+    font-size: clamp(2.5rem, 7vw, 5rem);
+    font-weight: 400;
+    line-height: 1.1;
+    color: var(--text);
+    margin-bottom: 0.5rem;
+    opacity: 0;
+    animation: heroReveal 1.2s cubic-bezier(0.22, 1, 0.36, 1) 0.5s forwards;
+  }
+
+  .hero__title em {
+    font-style: italic;
+    background: linear-gradient(135deg, var(--amber), var(--amber2), var(--cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    background-size: 200% 200%;
+    animation: gradientShift 6s ease infinite;
+  }
+
+  .hero__sub {
+    font-size: clamp(0.9rem, 2vw, 1.1rem);
+    font-weight: 300;
+    color: var(--text2);
+    max-width: 500px;
+    line-height: 1.7;
+    margin-top: 1rem;
+    opacity: 0;
+    animation: fadeUp 1s ease 0.9s forwards;
+  }
+
+  .hero__scroll {
+    position: absolute;
+    bottom: 2.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    opacity: 0;
+    animation: fadeUp 1s ease 1.4s forwards;
+  }
+
+  .hero__scroll-text {
+    font-family: 'Courier New', monospace;
+    font-size: 0.55rem;
+    letter-spacing: 0.2em;
+    color: var(--text3);
+    text-transform: uppercase;
+  }
+
+  .hero__scroll-line {
+    width: 1px;
+    height: 40px;
+    background: linear-gradient(to bottom, var(--amber), transparent);
+    animation: scrollLine 2s ease infinite;
+  }
+
+  /* ============ NAVIGATION CARDS ============ */
+  .nav-section {
+    position: relative;
+    z-index: 1;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 4rem 2rem 6rem;
+  }
+
+  .section-label {
+    font-family: 'Courier New', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--amber);
+    text-align: center;
+    margin-bottom: 1rem;
+  }
+
+  .section-title {
+    font-family: Georgia, 'Noto Serif SC', serif;
+    font-size: clamp(1.5rem, 4vw, 2.2rem);
+    font-weight: 400;
+    text-align: center;
+    color: var(--text);
+    margin-bottom: 3.5rem;
+    line-height: 1.3;
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .card {
+    position: relative;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 2.2rem 2rem;
+    text-decoration: none;
+    color: var(--text);
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 0.5s ease,
+                border-color 0.4s ease;
+    /* For scroll reveal */
+    opacity: 0;
+    transform: translateY(60px);
+  }
+
+  .card.revealed {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1),
+                transform 0.8s cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 0.5s ease,
+                border-color 0.4s ease;
+  }
+
+  .card:hover {
+    transform: translateY(-6px) scale(1.01);
+    border-color: var(--amber);
+    box-shadow: 0 20px 60px -10px rgba(0,0,0,0.5),
+                0 0 40px var(--amber-soft);
+  }
+
+  /* Magnetic shine on hover */
+  .card__shine {
+    position: absolute;
+    inset: 0;
+    border-radius: 20px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    background: radial-gradient(
+      300px circle at var(--mx, 50%) var(--my, 50%),
+      rgba(212, 160, 67, 0.08),
+      transparent 60%
+    );
+  }
+
+  .card:hover .card__shine { opacity: 1; }
+
+  /* Card accent line */
+  .card__accent {
+    position: absolute;
+    top: 0;
+    left: 2rem;
+    right: 2rem;
+    height: 2px;
+    border-radius: 1px;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .card:hover .card__accent { transform: scaleX(1); }
+
+  .card--survey .card__accent { background: linear-gradient(90deg, var(--amber), var(--amber2)); }
+  .card--live .card__accent { background: linear-gradient(90deg, var(--cyan), #6dd4c8); }
+  .card--teacher .card__accent { background: linear-gradient(90deg, var(--violet), #c46dd4); }
+  .card--demo .card__accent { background: linear-gradient(90deg, var(--rose), #d49b6d); }
+
+  .card__icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    margin-bottom: 1.4rem;
+    position: relative;
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .card:hover .card__icon { transform: scale(1.1) translateY(-2px); }
+
+  .card--survey .card__icon { background: #d4a04315; color: var(--amber); }
+  .card--live .card__icon { background: #43b4d415; color: var(--cyan); }
+  .card--teacher .card__icon { background: #9b6dd415; color: var(--violet); }
+  .card--demo .card__icon { background: #d4436b15; color: var(--rose); }
+
+  .card__title {
+    font-family: Georgia, 'Noto Serif SC', serif;
+    font-size: 1.25rem;
+    font-weight: 400;
+    margin-bottom: 0.5rem;
+    transition: color 0.3s;
+  }
+
+  .card__title-zh {
+    font-size: 0.85rem;
+    color: var(--text2);
+    font-weight: 300;
+    margin-bottom: 0.8rem;
+  }
+
+  .card__desc {
+    font-size: 0.82rem;
+    font-weight: 300;
+    color: var(--text2);
+    line-height: 1.7;
+    margin-bottom: 1.5rem;
+  }
+
+  .card__tag {
+    display: inline-block;
+    font-family: 'Courier New', monospace;
+    font-size: 0.55rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 0.35rem 0.7rem;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    color: var(--text3);
+    transition: all 0.3s;
+  }
+
+  .card:hover .card__tag { border-color: var(--text3); color: var(--text2); }
+
+  .card__arrow {
+    position: absolute;
+    right: 2rem;
+    bottom: 2rem;
+    font-size: 1rem;
+    color: var(--text3);
+    transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+
+  .card:hover .card__arrow {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  /* ============ TOUR SECTION ============ */
+  .tour {
+    position: relative;
+    z-index: 1;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem 2rem 8rem;
+  }
+
+  .tour__timeline {
+    position: relative;
+    padding-left: 3rem;
+  }
+
+  /* Vertical line */
+  .tour__timeline::before {
+    content: '';
+    position: absolute;
+    left: 7px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: linear-gradient(to bottom, var(--amber), var(--border) 20%, var(--border) 80%, transparent);
+  }
+
+  .tour__step {
+    position: relative;
+    margin-bottom: 4rem;
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+
+  .tour__step.revealed {
+    opacity: 1;
+    transform: translateX(0);
+    transition: all 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* Dot on timeline */
+  .tour__dot {
+    position: absolute;
+    left: -3rem;
+    top: 0.3rem;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--bg);
+    transition: all 0.4s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .tour__step.revealed .tour__dot {
+    border-color: var(--amber);
+    box-shadow: 0 0 12px var(--amber-glow);
+  }
+
+  .tour__dot::after {
+    content: '';
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--amber);
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+
+  .tour__step.revealed .tour__dot::after { opacity: 1; }
+
+  .tour__step-number {
+    font-family: 'Courier New', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    color: var(--amber);
+    margin-bottom: 0.5rem;
+  }
+
+  .tour__step-title {
+    font-family: Georgia, 'Noto Serif SC', serif;
+    font-size: 1.3rem;
+    font-weight: 400;
+    margin-bottom: 0.4rem;
+    color: var(--text);
+  }
+
+  .tour__step-desc {
+    font-size: 0.85rem;
+    font-weight: 300;
+    color: var(--text2);
+    line-height: 1.7;
+    max-width: 550px;
+  }
+
+  /* ============ FOOTER ============ */
+  .footer {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 3rem 2rem 4rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .footer__text {
+    font-size: 0.7rem;
+    color: var(--text3);
+    font-family: 'Courier New', monospace;
+    letter-spacing: 0.05em;
+  }
+
+  .footer__text a {
+    color: var(--amber);
+    text-decoration: none;
+  }
+
+  /* ============ ANIMATIONS ============ */
+  @keyframes heroReveal {
+    from { opacity: 0; transform: translateY(30px) scale(0.97); filter: blur(8px); }
+    to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes glowPulse {
+    0%, 100% { opacity: 0.4; transform: translateX(-50%) scale(1); }
+    50% { opacity: 0.7; transform: translateX(-50%) scale(1.1); }
+  }
+
+  @keyframes gradientShift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+
+  @keyframes scrollLine {
+    0% { opacity: 0; transform: scaleY(0); transform-origin: top; }
+    30% { opacity: 1; transform: scaleY(1); }
+    60% { opacity: 1; transform: scaleY(1); transform-origin: bottom; }
+    100% { opacity: 0; transform: scaleY(0); transform-origin: bottom; }
+  }
+
+  /* ============ RESPONSIVE ============ */
+  @media (max-width: 600px) {
+    .hero { min-height: 90vh; padding: 2rem 1.2rem; }
+    .nav-section { padding: 3rem 1.2rem 4rem; }
+    .cards { grid-template-columns: 1fr; }
+    .card { padding: 1.8rem 1.5rem; }
+    .tour { padding: 2rem 1.2rem 5rem; }
+    .tour__timeline { padding-left: 2.5rem; }
+    .tour__dot { left: -2.5rem; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="particleCanvas"></canvas>
+
+<!-- ===== HERO ===== -->
+<section class="hero">
+  <div class="hero__glow hero__glow--1"></div>
+  <div class="hero__glow hero__glow--2"></div>
+  <div class="hero__glow hero__glow--3"></div>
+
+  <div class="hero__badge">ACMSimPy Course Platform</div>
+  <h1 class="hero__title"><em>Electric Motor</em><br>Control Theory</h1>
+  <p class="hero__sub">
+    Graduate-level interactive course combining simulation, live Q&A, and AI-powered learning.
+    Built on the ACMSimPy codebase.
+  </p>
+
+  <div class="hero__scroll">
+    <span class="hero__scroll-text">Scroll to explore</span>
+    <div class="hero__scroll-line"></div>
+  </div>
+</section>
+
+<!-- ===== NAV CARDS ===== -->
+<section class="nav-section">
+  <div class="section-label">Course Tools</div>
+  <h2 class="section-title">Choose your entry point</h2>
+
+  <div class="cards">
+    <a class="card card--survey" href="lecture1.html" data-delay="0">
+      <div class="card__shine"></div>
+      <div class="card__accent"></div>
+      <div class="card__icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6m-6 4h4"/></svg>
+      </div>
+      <div class="card__title">Pre-Survey</div>
+      <div class="card__title-zh">课前调查问卷</div>
+      <div class="card__desc">Assess students' background in motor control, programming, and mathematics before the first lecture.</div>
+      <span class="card__tag">Students</span>
+      <span class="card__arrow">&rarr;</span>
+    </a>
+
+    <a class="card card--live" href="live.html" data-delay="100">
+      <div class="card__shine"></div>
+      <div class="card__accent"></div>
+      <div class="card__icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></svg>
+      </div>
+      <div class="card__title">Live Q&A</div>
+      <div class="card__title-zh">实时课堂问答</div>
+      <div class="card__desc">Answer questions pushed by the teacher in real-time during lectures. Open on your phone.</div>
+      <span class="card__tag">Students</span>
+      <span class="card__arrow">&rarr;</span>
+    </a>
+
+    <a class="card card--teacher" href="teacher.html" data-delay="200">
+      <div class="card__shine"></div>
+      <div class="card__accent"></div>
+      <div class="card__icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+      </div>
+      <div class="card__title">Teacher Panel</div>
+      <div class="card__title-zh">教师控制台</div>
+      <div class="card__desc">Push questions to students, monitor live responses, and save session data for AI analysis.</div>
+      <span class="card__tag">Instructor</span>
+      <span class="card__arrow">&rarr;</span>
+    </a>
+
+    <a class="card card--demo" href="qa-demo.html" data-delay="300">
+      <div class="card__shine"></div>
+      <div class="card__accent"></div>
+      <div class="card__icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      </div>
+      <div class="card__title">Q&A Demo</div>
+      <div class="card__title-zh">问答交互演示</div>
+      <div class="card__desc">An interactive interview-style demo showcasing the typewriter question flow and brief generation.</div>
+      <span class="card__tag">Demo</span>
+      <span class="card__arrow">&rarr;</span>
+    </a>
+  </div>
+</section>
+
+<!-- ===== TOUR / HOW IT WORKS ===== -->
+<section class="tour">
+  <div class="section-label">How It Works</div>
+  <h2 class="section-title" style="margin-bottom: 3rem;">A typical lecture flow</h2>
+
+  <div class="tour__timeline">
+    <div class="tour__step" data-delay="0">
+      <div class="tour__dot"></div>
+      <div class="tour__step-number">Step 01</div>
+      <div class="tour__step-title">Before class: Pre-Survey</div>
+      <div class="tour__step-desc">
+        Start the server with <code style="color:var(--amber)">python server.py</code>.
+        Students scan the QR code on their phones and fill out the background survey.
+        Their responses are saved as JSON files for AI analysis.
+      </div>
+    </div>
+
+    <div class="tour__step" data-delay="100">
+      <div class="tour__dot"></div>
+      <div class="tour__step-number">Step 02</div>
+      <div class="tour__step-title">AI analyzes responses</div>
+      <div class="tour__step-desc">
+        Feed all survey JSONs to Claude. It identifies knowledge gaps, common misconceptions,
+        and the class's math/programming comfort level. This shapes the lecture content.
+      </div>
+    </div>
+
+    <div class="tour__step" data-delay="200">
+      <div class="tour__dot"></div>
+      <div class="tour__step-number">Step 03</div>
+      <div class="tour__step-title">During lecture: Live Q&A</div>
+      <div class="tour__step-desc">
+        Open the Teacher Panel on your laptop. Push questions to students' phones in real-time.
+        See their answers stream in live. Use templates for quick polls (Yes/No, A/B/C/D, scales).
+      </div>
+    </div>
+
+    <div class="tour__step" data-delay="300">
+      <div class="tour__dot"></div>
+      <div class="tour__step-number">Step 04</div>
+      <div class="tour__step-title">After lecture: Save & analyze</div>
+      <div class="tour__step-desc">
+        Click "Save session" in the Teacher Panel. All live Q&A history is written to disk.
+        Use Claude to analyze engagement, identify who understood the material, and plan the next lecture.
+      </div>
+    </div>
+
+    <div class="tour__step" data-delay="400">
+      <div class="tour__dot"></div>
+      <div class="tour__step-number">Step 05</div>
+      <div class="tour__step-title">Iterate and improve</div>
+      <div class="tour__step-desc">
+        Each lecture builds on the previous analysis. The course adapts to your specific students'
+        needs, creating a feedback loop between teaching, assessment, and AI-assisted planning.
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="footer__text">
+    ACMSimPy &mdash; AC Motor Simulation in Python &mdash;
+    <a href="https://github.com/Acous1/ACMSimPy" target="_blank">GitHub</a>
+  </div>
+</footer>
+
+<script>
+// ============ PARTICLE SYSTEM ============
+(function() {
+  const canvas = document.getElementById('particleCanvas');
+  const ctx = canvas.getContext('2d');
+  let particles = [];
+  let mouse = { x: -1000, y: -1000 };
+  let W, H;
+
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  document.addEventListener('mousemove', e => {
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+  });
+
+  class Particle {
+    constructor() {
+      this.reset();
+    }
+    reset() {
+      this.x = Math.random() * W;
+      this.y = Math.random() * H;
+      this.vx = (Math.random() - 0.5) * 0.3;
+      this.vy = (Math.random() - 0.5) * 0.3;
+      this.r = Math.random() * 1.5 + 0.5;
+      this.alpha = Math.random() * 0.3 + 0.05;
+    }
+    update() {
+      this.x += this.vx;
+      this.y += this.vy;
+
+      // Gentle mouse repulsion
+      const dx = this.x - mouse.x;
+      const dy = this.y - mouse.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 150) {
+        const force = (150 - dist) / 150 * 0.02;
+        this.vx += (dx / dist) * force;
+        this.vy += (dy / dist) * force;
+      }
+
+      // Damping
+      this.vx *= 0.999;
+      this.vy *= 0.999;
+
+      // Wrap
+      if (this.x < -10) this.x = W + 10;
+      if (this.x > W + 10) this.x = -10;
+      if (this.y < -10) this.y = H + 10;
+      if (this.y > H + 10) this.y = -10;
+    }
+    draw() {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(212, 160, 67, ${this.alpha})`;
+      ctx.fill();
+    }
+  }
+
+  // Create particles
+  const count = Math.min(80, Math.floor(W * H / 15000));
+  for (let i = 0; i < count; i++) particles.push(new Particle());
+
+  function drawLines() {
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 120) {
+          const alpha = (1 - dist / 120) * 0.06;
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.strokeStyle = `rgba(212, 160, 67, ${alpha})`;
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  function animate() {
+    ctx.clearRect(0, 0, W, H);
+    particles.forEach(p => { p.update(); p.draw(); });
+    drawLines();
+    requestAnimationFrame(animate);
+  }
+
+  animate();
+})();
+
+// ============ SCROLL REVEAL ============
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const delay = entry.target.dataset.delay || 0;
+      setTimeout(() => entry.target.classList.add('revealed'), +delay);
+      observer.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.15, rootMargin: '0px 0px -50px 0px' });
+
+document.querySelectorAll('.card, .tour__step').forEach(el => observer.observe(el));
+
+// ============ CARD SHINE (mouse tracking) ============
+document.querySelectorAll('.card').forEach(card => {
+  card.addEventListener('mousemove', e => {
+    const rect = card.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    card.style.setProperty('--mx', x + '%');
+    card.style.setProperty('--my', y + '%');
+  });
+});
+</script>
+
+</body>
+</html>
