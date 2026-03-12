@@ -1,0 +1,35 @@
+{
+  "name": "周建",
+  "timestamp": "2026-03-06T01:24:37.460Z",
+  "answers": {
+    "q00_name": "周建",
+    "q01_experience": "课程学过 / Studied in class",
+    "q02_languages": [
+      "MATLAB",
+      "C/C++"
+    ],
+    "q03_math": [
+      "线性代数 / Linear Algebra",
+      "拉普拉斯变换 / Laplace Transform",
+      "复数与相量 / Complex Phasors",
+      "状态空间 / State-Space"
+    ],
+    "q04_im_vs_pmsm": "永磁同步电机转子采用永磁体\n汽车总成用的是永磁同步电机",
+    "q05_torque": "转子产生磁场",
+    "q06_clarke_park": "进行坐标变换\nClarke变换\nPark变换是旋转转子磁场变换到静止xy坐标轴",
+    "q07_foc_id_zero": [
+      "简化控制 / Simplify control"
+    ],
+    "q08_svpwm_spwm": "svpwm是空间矢量pwm，向量分解到相邻的空间变量\nspwm是正弦pwm，",
+    "q09_pid": "p比例，\ni积分，对误差进行积分\nd微分，",
+    "q10_bode": "传递函数，幅值和相位在频率的log坐标下的图像",
+    "q11_margins": "增益裕度是相位为180时，对应的增益值\n相位裕度是增益为0对应的频率时，相位和180之间的差值",
+    "q12_expectations": "电机控制，编程能力",
+    "q13_learning_style": [
+      "阅读理论 / Reading theory",
+      "运行仿真 / Running simulations",
+      "动手实验 / Hands-on experiments",
+      "讨论与协作 / Discussion & collaboration"
+    ]
+  }
+}

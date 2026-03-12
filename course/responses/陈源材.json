@@ -1,0 +1,16 @@
+{
+  "name": "陈源材",
+  "timestamp": "2026-03-06T03:15:25.287Z",
+  "answers": {
+    "q00_name": "陈源材",
+    "q03_math": [],
+    "q04_im_vs_pmsm": "",
+    "q05_torque": "",
+    "q06_clarke_park": "",
+    "q08_svpwm_spwm": "",
+    "q09_pid": "",
+    "q10_bode": "",
+    "q11_margins": "",
+    "q12_expectations": ""
+  }
+}

@@ -7,7 +7,9 @@
       "Bash(C:/Users/lenovo/anaconda3/envs/acmsimpy/python.exe:*)",
       "Bash(grep:*)",
       "Bash(taskkill:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(ipconfig:*)",
+      "Bash(powershell:*)"
     ]
   }
 }

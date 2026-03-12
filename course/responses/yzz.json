@@ -1,0 +1,28 @@
+{
+  "name": "yzz",
+  "timestamp": "2026-03-06T01:02:26.365Z",
+  "answers": {
+    "q00_name": "yzz",
+    "q01_experience": "课程学过 / Studied in class",
+    "q02_languages": [
+      "Python",
+      "MATLAB",
+      "C/C++"
+    ],
+    "q03_math": [
+      "微分方程 / ODEs",
+      "线性代数 / Linear Algebra",
+      "拉普拉斯变换 / Laplace Transform",
+      "复数与相量 / Complex Phasors",
+      "状态空间 / State-Space"
+    ],
+    "q04_im_vs_pmsm": "",
+    "q05_torque": "",
+    "q06_clarke_park": "",
+    "q08_svpwm_spwm": "",
+    "q09_pid": "",
+    "q10_bode": "",
+    "q11_margins": "",
+    "q12_expectations": ""
+  }
+}

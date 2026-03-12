@@ -1,0 +1,34 @@
+{
+  "name": "wjy",
+  "timestamp": "2026-03-06T01:21:18.659Z",
+  "answers": {
+    "q00_name": "wjy",
+    "q01_experience": "课程学过 / Studied in class",
+    "q02_languages": [
+      "Python",
+      "MATLAB",
+      "C/C++"
+    ],
+    "q03_math": [
+      "微分方程 / ODEs",
+      "线性代数 / Linear Algebra",
+      "拉普拉斯变换 / Laplace Transform",
+      "复数与相量 / Complex Phasors",
+      "状态空间 / State-Space"
+    ],
+    "q04_im_vs_pmsm": "磁场来源不同\n交流感应电机吧",
+    "q06_clarke_park": "还不了解",
+    "q07_foc_id_zero": "还不了解",
+    "q08_svpwm_spwm": "还不了解",
+    "q09_pid": "P 比例，影响动态响应\nI 积分，减小稳态误差\nD 微分，改善超调",
+    "q10_bode": "幅频特性和相频特性\n能提供我们传递函数的频域分析",
+    "q05_torque": "电流在磁场中产生力矩",
+    "q11_margins": "是稳定裕度\n是稳定性的重要依据",
+    "q12_expectations": "电机控制理论和实践",
+    "q13_learning_style": [
+      "阅读理论 / Reading theory",
+      "运行仿真 / Running simulations",
+      "动手实验 / Hands-on experiments"
+    ]
+  }
+}

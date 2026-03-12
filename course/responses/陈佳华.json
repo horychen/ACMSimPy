@@ -1,0 +1,30 @@
+{
+  "name": "陈佳华",
+  "timestamp": "2026-03-06T01:26:58.538Z",
+  "answers": {
+    "q00_name": "陈佳华",
+    "q01_experience": "课程学过 / Studied in class",
+    "q02_languages": [
+      "C/C++"
+    ],
+    "q03_math": [
+      "线性代数 / Linear Algebra",
+      "拉普拉斯变换 / Laplace Transform"
+    ],
+    "q04_im_vs_pmsm": "1.转子中与定子的相互作用的产生对象不一样\n2.不知道",
+    "q05_torque": "是磁场与通电导体相互作用产生的力所带来的转子旋转效果",
+    "q06_clarke_park": "在不同的坐标体系之间变换",
+    "q07_foc_id_zero": [
+      "不确定 / Not sure"
+    ],
+    "q08_svpwm_spwm": "不知道",
+    "q09_pid": "P是快速跟随\nI是消除稳态误差\nD是抑制系统振荡",
+    "q10_bode": "是对系统相频特性和幅频特性的体现。它能告诉我们系统的特性，是否稳定等等",
+    "q11_margins": "增益裕度是当相频特性经过-180°时幅频特性低于0的值，相位裕度是指幅频特性在经过0时的相频特性超过-180°的值。反应的系统的稳定程度",
+    "q12_expectations": "最希望能建立对电机从数学层面的认识到掌握coding和实际控制电机的技能",
+    "q13_learning_style": [
+      "动手实验 / Hands-on experiments",
+      "讨论与协作 / Discussion & collaboration"
+    ]
+  }
+}

@@ -318,6 +318,7 @@ let currentQid = null;
 let answered = false;
 let myAnswer = null;
 let pollTimer = null;
+let heartbeatTimer = null;
 
 function init() {
   const saved = localStorage.getItem(STORAGE_KEY);
@@ -373,13 +374,26 @@ function showLive() {
   answered = false;
   pollQuestion();
   pollTimer = setInterval(pollQuestion, 2000);
+  // Start heartbeat
+  sendHeartbeat();
+  heartbeatTimer = setInterval(sendHeartbeat, 5000);
 }
 
 function changeName() {
   clearInterval(pollTimer);
+  clearInterval(heartbeatTimer);
   localStorage.removeItem(STORAGE_KEY);
   studentName = '';
   showNameScreen();
+}
+
+function sendHeartbeat() {
+  if (!studentName) return;
+  fetch('/api/heartbeat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: studentName })
+  }).catch(() => {});
 }
 
 // --- Poll for question ---

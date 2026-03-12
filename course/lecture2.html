@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Lecture 2 — Unified AC Machine Modeling via Active Flux</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-deep: #0a0a0b;
+    --bg-card: #131315;
+    --bg-input: #1a1a1e;
+    --bg-hover: #222228;
+    --amber: #d4a043;
+    --amber-soft: #d4a04322;
+    --amber-glow: #d4a04344;
+    --text-primary: #e8e4dc;
+    --text-secondary: #8a8680;
+    --text-muted: #5a5650;
+    --border: #2a2a2e;
+    --border-focus: #d4a04366;
+    --green: #4a9;
+    --red: #c55;
+    --font-display: Georgia, 'Noto Serif SC', serif;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+    --font-mono: 'Courier New', monospace;
+  }
+
+  html { font-size: 16px; scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0; opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    pointer-events: none;
+  }
+
+  body::after {
+    content: '';
+    position: fixed; top: -40%; right: -20%;
+    width: 70vw; height: 70vw;
+    background: radial-gradient(circle, var(--amber-soft) 0%, transparent 70%);
+    pointer-events: none; z-index: 0;
+  }
+
+  .app {
+    position: relative; z-index: 1;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 2rem 1.2rem 4rem;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+    opacity: 0; animation: fadeUp 0.8s ease forwards;
+  }
+  .header__label {
+    font-family: var(--font-mono);
+    font-size: 0.65rem; font-weight: 300;
+    letter-spacing: 0.3em; text-transform: uppercase;
+    color: var(--amber); margin-bottom: 0.8rem;
+  }
+  .header__title {
+    font-family: var(--font-display);
+    font-size: 1.8rem; font-weight: 400;
+    line-height: 1.3; color: var(--text-primary);
+    margin-bottom: 0.5rem;
+  }
+  .header__title em { font-style: italic; color: var(--amber); }
+  .header__sub {
+    font-size: 0.85rem; font-weight: 300;
+    color: var(--text-secondary); line-height: 1.6;
+  }
+
+  /* TOC */
+  .toc {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.2rem 1.4rem;
+    margin-bottom: 2rem;
+    opacity: 0; animation: fadeUp 0.8s ease 0.2s forwards;
+  }
+  .toc__title {
+    font-family: var(--font-mono);
+    font-size: 0.6rem; letter-spacing: 0.2em;
+    color: var(--amber); text-transform: uppercase;
+    margin-bottom: 0.8rem;
+  }
+  .toc a {
+    display: block;
+    font-size: 0.85rem; color: var(--text-secondary);
+    text-decoration: none; padding: 0.3rem 0;
+    transition: color 0.2s;
+  }
+  .toc a:hover { color: var(--amber); }
+
+  /* Content sections */
+  .content-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.8rem 1.4rem;
+    margin-bottom: 1.5rem;
+    opacity: 0; transform: translateY(24px);
+    transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .content-section.visible { opacity: 1; transform: translateY(0); }
+
+  .content-section__tag {
+    font-family: var(--font-mono);
+    font-size: 0.6rem; font-weight: 300;
+    letter-spacing: 0.2em;
+    color: var(--amber); text-transform: uppercase;
+    margin-bottom: 1rem;
+  }
+
+  h2 {
+    font-family: var(--font-display);
+    font-size: 1.3rem; font-weight: 400;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+  }
+
+  h3 {
+    font-size: 1rem; font-weight: 500;
+    color: var(--amber);
+    margin: 1.5rem 0 0.6rem;
+  }
+
+  p, li {
+    font-size: 0.9rem;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    margin-bottom: 0.6rem;
+  }
+
+  ul { padding-left: 1.2rem; margin-bottom: 0.8rem; }
+
+  .eq-block {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    margin: 1rem 0;
+    overflow-x: auto;
+    text-align: center;
+  }
+
+  .eq-label {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-align: right;
+    margin-top: 0.3rem;
+  }
+
+  /* Code blocks */
+  .code-block {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    margin: 1rem 0;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    line-height: 1.6;
+    color: var(--text-primary);
+    white-space: pre;
+  }
+  .code-block .comment { color: var(--text-muted); }
+  .code-block .keyword { color: var(--amber); }
+  .code-block .param { color: #7cb; }
+
+  /* Param table */
+  .param-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.85rem;
+  }
+  .param-table th {
+    font-family: var(--font-mono);
+    font-size: 0.7rem; letter-spacing: 0.1em;
+    color: var(--amber);
+    text-align: left;
+    padding: 0.6rem 0.8rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .param-table td {
+    padding: 0.5rem 0.8rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+  }
+  .param-table tr:last-child td { border-bottom: none; }
+
+  /* Highlight box */
+  .highlight-box {
+    background: var(--amber-soft);
+    border-left: 3px solid var(--amber);
+    border-radius: 0 10px 10px 0;
+    padding: 1rem 1.2rem;
+    margin: 1rem 0;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    line-height: 1.6;
+  }
+
+  /* Quiz */
+  .quiz-question {
+    margin-bottom: 1.8rem;
+    padding-bottom: 1.2rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .quiz-question:last-of-type { border-bottom: none; padding-bottom: 0; }
+
+  .quiz-question__num {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--amber);
+    margin-bottom: 0.4rem;
+  }
+  .quiz-question__text {
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    margin-bottom: 0.8rem;
+    line-height: 1.5;
+  }
+  .quiz-question__text-en {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 0.8rem;
+    line-height: 1.4;
+  }
+  .choices { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .choice-btn {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.65rem 1rem;
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-height: 44px;
+    display: flex; align-items: center;
+  }
+  .choice-btn:active { transform: scale(0.97); }
+  .choice-btn.selected {
+    background: var(--amber-soft);
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+  .choice-btn.correct {
+    background: #4a922;
+    border-color: var(--green);
+    color: var(--green);
+  }
+  .choice-btn.wrong {
+    background: #c5522;
+    border-color: var(--red);
+    color: var(--red);
+  }
+
+  /* Name input */
+  .name-row {
+    display: flex; gap: 0.8rem; align-items: center;
+    margin-bottom: 1.5rem;
+  }
+  .name-row label {
+    font-size: 0.9rem; color: var(--text-primary); white-space: nowrap;
+  }
+  .text-input {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.7rem 1rem;
+    font-family: var(--font-body);
+    font-size: 16px;
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+  .text-input:focus {
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 3px var(--amber-soft);
+  }
+  .text-input::placeholder { color: var(--text-muted); }
+
+  /* Submit */
+  .btn {
+    font-family: var(--font-body);
+    font-size: 0.85rem; font-weight: 500;
+    padding: 0.8rem 1.8rem;
+    border-radius: 10px; border: none;
+    cursor: pointer; transition: all 0.2s ease;
+    min-height: 48px;
+  }
+  .btn--primary {
+    background: var(--amber);
+    color: var(--bg-deep);
+  }
+  .btn--primary:active { filter: brightness(0.9); transform: scale(0.97); }
+  .btn--primary:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .actions { display: flex; justify-content: flex-end; margin-top: 1.5rem; }
+
+  .result-banner {
+    border-radius: 10px;
+    padding: 1rem;
+    margin-top: 1rem;
+    text-align: center;
+    font-size: 0.9rem;
+    display: none;
+  }
+  .result-banner.visible { display: block; }
+  .result-banner.success { background: #4a922; border: 1px solid var(--green); color: var(--green); }
+  .result-banner.error { background: #c5522; border: 1px solid var(--red); color: #e88; }
+
+  /* Score display */
+  .score-display {
+    text-align: center;
+    padding: 1.5rem;
+    margin-top: 1rem;
+    display: none;
+  }
+  .score-display.visible { display: block; }
+  .score-display__number {
+    font-family: var(--font-display);
+    font-size: 2.5rem;
+    color: var(--amber);
+  }
+  .score-display__label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-top: 0.3rem;
+  }
+
+  /* Animations */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* KaTeX overrides for dark theme */
+  .katex { color: var(--text-primary); }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <header class="header">
+    <div class="header__label">Lecture 2</div>
+    <h1 class="header__title">Unified AC Machine Modeling via <em>Active Flux</em></h1>
+    <p class="header__sub">用 Active Flux（有效磁链）概念统一建模感应电机与永磁电机<br>A single set of ODEs for IM, PMSM, IPMSM, and SynRM</p>
+  </header>
+
+  <!-- Table of Contents -->
+  <nav class="toc">
+    <div class="toc__title">Contents / 目录</div>
+    <a href="#sec1">1. Introduction / 引言</a>
+    <a href="#sec2">2. The Unified dq-Frame Model / 统一dq坐标模型</a>
+    <a href="#sec3">3. Specialization to Machine Types / 各类电机的特殊化</a>
+    <a href="#sec4">4. Equation-to-Code Mapping / 方程与代码的对应</a>
+    <a href="#sec5">5. Quiz / 测验 (12 questions)</a>
+  </nav>
+
+  <!-- Section 1: Introduction -->
+  <section class="content-section" id="sec1">
+    <div class="content-section__tag">Section 1 / 第一节</div>
+    <h2>Introduction / 引言</h2>
+
+    <p>传统上，感应电机（IM）和永磁同步电机（PMSM）使用不同的数学模型来描述。<strong>Active Flux（有效磁链）</strong>的概念提供了一种统一的视角：定义一个新的磁链状态变量 $\psi_\text{AF}$（代码中记作 <code>KA</code>），使得所有交流电机的转矩方程、电压方程和机械动力学方程共享相同的数学结构。</p>
+
+    <p>Traditionally, IM and PMSM require separate mathematical models. The <strong>active flux</strong> concept unifies them: by defining a single flux state variable $\psi_\text{AF}$ (denoted <code>KA</code> in code), all AC machine types share the same ODE structure. The only difference is in the <em>parameters</em>.</p>
+
+    <div class="highlight-box">
+      <strong>核心思想 / Key Insight:</strong> Active flux 是与转子d轴始终对齐的磁链分量，其幅值不受q轴电流影响。对于所有交流电机，电磁转矩可统一表示为 $T_\text{em} = \tfrac{3}{2} n_\text{pp} \cdot \psi_\text{AF} \cdot i_Q$。
+    </div>
+
+    <p>Active flux 的定义（definition of active flux）：</p>
+    <div class="eq-block">
+      $$\psi_\text{AF} = \psi_d - L_q \, i_D = (L_d - L_q) \, i_D + \psi_\text{PM}$$
+      <div class="eq-label">(1)</div>
+    </div>
+
+    <p>其中 $\psi_d$ 是 d 轴总磁链，$L_q$ 是 q 轴电感，$\psi_\text{PM}$ 是永磁体磁链（代码中记为 <code>KE</code>）。这个定义对所有交流电机类型都成立——区别仅在于参数取值。</p>
+  </section>
+
+  <!-- Section 2: Unified Model -->
+  <section class="content-section" id="sec2">
+    <div class="content-section__tag">Section 2 / 第二节</div>
+    <h2>The Unified dq-Frame Model / 统一dq坐标模型</h2>
+
+    <p>统一模型使用 5 个状态变量（5 state variables）：</p>
+    <div class="eq-block">
+      $$\mathbf{x} = \begin{bmatrix} \theta_\text{mech} \\ \omega_\text{mech} \\ \psi_\text{AF} \\ i_D \\ i_Q \end{bmatrix}$$
+      <div class="eq-label">(2)</div>
+    </div>
+
+    <table class="param-table">
+      <tr><th>State</th><th>Symbol</th><th>说明 / Description</th></tr>
+      <tr><td>$x_0$</td><td>$\theta_\text{mech}$</td><td>机械转子位置角 / Mechanical rotor angle</td></tr>
+      <tr><td>$x_1$</td><td>$\omega_\text{mech}$</td><td>机械转子角速度 / Mechanical rotor speed</td></tr>
+      <tr><td>$x_2$</td><td>$\psi_\text{AF}$ (<code>KA</code>)</td><td>Active flux / 有效磁链</td></tr>
+      <tr><td>$x_3$</td><td>$i_D$</td><td>d 轴定子电流 / d-axis stator current</td></tr>
+      <tr><td>$x_4$</td><td>$i_Q$</td><td>q 轴定子电流 / q-axis stator current</td></tr>
+    </table>
+
+    <h3>2.1 Voltage Equations / 电压方程</h3>
+
+    <p>在 dq 旋转坐标系下，定子电压方程为：</p>
+    <div class="eq-block">
+      $$u_D = R_s \, i_D + \frac{d\psi_\text{AF}}{dt} + L_q \frac{di_D}{dt} - \omega_\text{syn} L_q \, i_Q$$
+      <div class="eq-label">(3a)</div>
+    </div>
+    <div class="eq-block">
+      $$u_Q = R_s \, i_Q + L_q \frac{di_Q}{dt} + \omega_\text{syn} \psi_\text{AF}$$
+      <div class="eq-label">(3b)</div>
+    </div>
+    <p>其中 $R_s$ 是定子电阻，$\omega_\text{syn}$ 是同步角速度（synchronous angular velocity），$L_q$ 是 q 轴电感。</p>
+
+    <p>从电压方程 (3) 可以解出电流微分方程（rearranged for simulation）：</p>
+    <div class="eq-block">
+      $$\frac{di_D}{dt} = \frac{1}{L_q}\left(u_D - R_s i_D + \omega_\text{syn} L_q i_Q - \frac{d\psi_\text{AF}}{dt}\right)$$
+      <div class="eq-label">(4a)</div>
+    </div>
+    <div class="eq-block">
+      $$\frac{di_Q}{dt} = \frac{1}{L_q}\left(u_Q - R_s i_Q - \omega_\text{syn} \psi_\text{AF}\right)$$
+      <div class="eq-label">(4b)</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>注意 / Note:</strong> 方程 (4a) 中包含 $d\psi_\text{AF}/dt$，其具体形式取决于电机类型（PMSM vs IM），这是统一模型中唯一需要分支处理的地方。
+    </div>
+
+    <h3>2.2 Active Flux Dynamics / 有效磁链动力学</h3>
+
+    <p><strong>对于 PMSM（$R_\text{req} = 0$）：</strong>永磁体磁链 $\psi_\text{PM}$ 恒定，因此：</p>
+    <div class="eq-block">
+      $$\frac{d\psi_\text{AF}}{dt} = (L_d - L_q)\frac{di_D}{dt} \quad \text{(PMSM)}$$
+      <div class="eq-label">(5a)</div>
+    </div>
+    <p>代入 (4a) 可得 PMSM 的 $di_D/dt$ 用 $L_d$ 而非 $L_q$ 作分母。</p>
+
+    <p><strong>对于 IM（$R_\text{req} > 0$）：</strong>active flux 是一个独立的动态状态：</p>
+    <div class="eq-block">
+      $$\frac{d\psi_\text{AF}}{dt} = R_\text{req} \, i_D - \frac{R_\text{req}}{L_d - L_q} \psi_\text{AF} \quad \text{(IM)}$$
+      <div class="eq-label">(5b)</div>
+    </div>
+    <p>这里 $R_\text{req}$ 是等效转子电阻（equivalent rotor resistance），对于感应电机 $R_\text{req} > 0$，而 $\psi_\text{PM} = 0$（无永磁体）。</p>
+
+    <h3>2.3 Torque Equation / 转矩方程</h3>
+
+    <p>统一转矩方程（unified across all machine types）：</p>
+    <div class="eq-block">
+      $$T_\text{em} = \frac{3}{2} \, n_\text{pp} \, \psi_\text{AF} \, i_Q$$
+      <div class="eq-label">(6)</div>
+    </div>
+    <p>其中 $n_\text{pp}$ 是极对数（number of pole pairs），$\frac{3}{2}$ 来自 Clarke 变换增益。</p>
+
+    <h3>2.4 Mechanical Dynamics / 机械动力学</h3>
+
+    <div class="eq-block">
+      $$\frac{d\theta_\text{mech}}{dt} = \omega_\text{mech} + \frac{\omega_\text{slip}}{n_\text{pp}}$$
+      <div class="eq-label">(7a)</div>
+    </div>
+    <div class="eq-block">
+      $$\frac{d\omega_\text{mech}}{dt} = \frac{T_\text{em} - T_\text{load}}{J_s}$$
+      <div class="eq-label">(7b)</div>
+    </div>
+    <p>其中滑差角速度 $\omega_\text{slip}$（slip angular velocity）：</p>
+    <div class="eq-block">
+      $$\omega_\text{slip} = \begin{cases} \dfrac{R_\text{req} \, i_Q}{\psi_\text{AF}} & \text{(IM, } R_\text{req} > 0\text{)} \\ 0 & \text{(PMSM/SynRM, } R_\text{req} = 0\text{)} \end{cases}$$
+      <div class="eq-label">(8)</div>
+    </div>
+
+    <h3>2.5 Synchronous Speed / 同步转速</h3>
+    <p>同步电角速度（electrical synchronous speed）：</p>
+    <div class="eq-block">
+      $$\omega_\text{syn} = n_\text{pp} \cdot \omega_\text{mech} + \omega_\text{slip}$$
+      <div class="eq-label">(9)</div>
+    </div>
+  </section>
+
+  <!-- Section 3: Specialization -->
+  <section class="content-section" id="sec3">
+    <div class="content-section__tag">Section 3 / 第三节</div>
+    <h2>Specialization to Machine Types / 各类电机的特殊化</h2>
+
+    <p>统一模型通过 4 个参数区分不同电机类型：$R_\text{req}$（等效转子电阻）、$\psi_\text{PM}$（永磁磁链，代码中 <code>KE</code>）、$L_d$ 和 $L_q$。</p>
+
+    <table class="param-table">
+      <tr><th>Machine Type</th><th>$R_\text{req}$</th><th>$\psi_\text{PM}$ (<code>KE</code>)</th><th>$L_d$ vs $L_q$</th><th>KA 特征</th></tr>
+      <tr><td><strong>SPM</strong> (表贴式永磁)</td><td>$0$</td><td>$> 0$</td><td>$L_d = L_q$</td><td>$\psi_\text{AF} = \psi_\text{PM}$ (constant)</td></tr>
+      <tr><td><strong>IPMSM</strong> (内置式永磁)</td><td>$0$</td><td>$> 0$</td><td>$L_d < L_q$</td><td>$\psi_\text{AF} = (L_d{-}L_q)i_D + \psi_\text{PM}$</td></tr>
+      <tr><td><strong>SynRM</strong> (磁阻电机)</td><td>$0$</td><td>$0$</td><td>$L_d > L_q$</td><td>$\psi_\text{AF} = (L_d{-}L_q)i_D$</td></tr>
+      <tr><td><strong>IM</strong> (感应电机)</td><td>$> 0$</td><td>$0$</td><td>$L_d = L_q$</td><td>Dynamic state (独立动态变量)</td></tr>
+    </table>
+
+    <h3>3.1 SPM — Surface-Mount PMSM / 表贴式永磁电机</h3>
+    <p>最简单的情况。$L_d = L_q$ 意味着 $(L_d - L_q) = 0$，因此：</p>
+    <div class="eq-block">
+      $$\psi_\text{AF} = \psi_\text{PM} = \text{const}, \quad \frac{d\psi_\text{AF}}{dt} = 0$$
+    </div>
+    <p>没有磁阻转矩分量（no reluctance torque），$di_D/dt$ 的分母直接用 $L_d$（$= L_q$），模型最为简洁。</p>
+
+    <h3>3.2 IPMSM — Interior PMSM / 内置式永磁电机</h3>
+    <p>由于转子凸极性（saliency），$L_d \neq L_q$，active flux 包含磁阻分量：</p>
+    <div class="eq-block">
+      $$\psi_\text{AF} = (L_d - L_q) i_D + \psi_\text{PM}$$
+    </div>
+    <p>$\frac{d\psi_\text{AF}}{dt} = (L_d - L_q)\frac{di_D}{dt}$，代入 (4a) 后，$di_D/dt$ 的分母变为 $L_d$：</p>
+    <div class="eq-block">
+      $$\frac{di_D}{dt} = \frac{1}{L_d}\left(u_D - R_s i_D + \omega_\text{syn} L_q i_Q\right)$$
+    </div>
+    <p>这里的 reluctance torque（磁阻转矩）已隐含在 $\psi_\text{AF} \cdot i_Q$ 的乘积中。</p>
+
+    <h3>3.3 SynRM — Synchronous Reluctance Machine / 同步磁阻电机</h3>
+    <p>$\psi_\text{PM} = 0$，纯粹靠凸极性产生转矩：</p>
+    <div class="eq-block">
+      $$\psi_\text{AF} = (L_d - L_q) i_D, \quad T_\text{em} = \frac{3}{2} n_\text{pp} (L_d - L_q) i_D \, i_Q$$
+    </div>
+    <p>若 $i_D = 0$，则 $\psi_\text{AF} = 0$，无法产生转矩。SynRM 必须维持非零 $i_D$。</p>
+
+    <h3>3.4 IM — Induction Machine / 感应电机</h3>
+    <p>感应电机没有永磁体（$\psi_\text{PM} = 0$），且有转子电阻（$R_\text{req} > 0$）。此时 $\psi_\text{AF}$ 不再由电流直接决定，而是一个<strong>独立的动态状态</strong>：</p>
+    <div class="eq-block">
+      $$\frac{d\psi_\text{AF}}{dt} = R_\text{req} i_D - \frac{R_\text{req}}{L_d - L_q} \psi_\text{AF}$$
+    </div>
+    <p>物理含义：$\psi_\text{AF}$ 通过 d 轴励磁电流 $i_D$ 建立（第一项），同时因转子电阻而衰减（第二项）。这就是为什么 IM 需要持续提供 $i_D$ 来维持磁场。</p>
+
+    <div class="highlight-box">
+      <strong>IM 的滑差 / Slip:</strong> 感应电机需要滑差才能感应转子电流。在 active flux 框架下，$\omega_\text{slip} = R_\text{req} \cdot i_Q / \psi_\text{AF}$，同步角速度 $\omega_\text{syn} = n_\text{pp} \omega_\text{mech} + \omega_\text{slip}$。
+    </div>
+
+    <p>注意：对于 IM，通常 $L_d = L_q$（无凸极性），此时需将 $L_d - L_q$ 理解为等效参数（sigma leakage 相关），在代码中仍保持 $L_d \neq L_q$ 的通用形式。</p>
+  </section>
+
+  <!-- Section 4: Equation-to-Code Mapping -->
+  <section class="content-section" id="sec4">
+    <div class="content-section__tag">Section 4 / 第四节</div>
+    <h2>Equation-to-Code Mapping / 方程与代码的对应</h2>
+
+    <p>以下伪代码展示了统一模型的数值仿真实现。实际代码使用 Numba jitclass 加速，但数学结构完全一致。</p>
+
+    <h3>4.1 State Variables / 状态变量定义</h3>
+    <div class="code-block"><span class="comment"># State vector x[5]</span>
+theta_mech = x[0]   <span class="comment"># mechanical rotor angle [rad]</span>
+omega_mech = x[1]   <span class="comment"># mechanical rotor speed [rad/s]</span>
+KA         = x[2]   <span class="comment"># active flux psi_AF [Wb]</span>
+iD         = x[3]   <span class="comment"># d-axis stator current [A]</span>
+iQ         = x[4]   <span class="comment"># q-axis stator current [A]</span></div>
+
+    <h3>4.2 Parameters / 参数</h3>
+    <div class="code-block"><span class="comment"># Machine parameters</span>
+npp  = 4       <span class="comment"># pole pairs</span>
+R    = 1.5     <span class="comment"># stator resistance Rs [Ohm]</span>
+Ld   = 5e-3    <span class="comment"># d-axis inductance [H]</span>
+Lq   = 6e-3    <span class="comment"># q-axis inductance [H]</span>
+KE   = 0.095   <span class="comment"># PM flux psi_PM [Wb] (0 for IM/SynRM)</span>
+Rreq = 0.0     <span class="comment"># equiv. rotor resistance [Ohm] (0 for PMSM/SynRM)</span>
+Js   = 0.001   <span class="comment"># rotor inertia [kg*m^2]</span></div>
+
+    <h3>4.3 ODE Function / 微分方程函数</h3>
+    <div class="code-block"><span class="keyword">def</span> <span class="param">dynamics</span>(x, uD, uQ, TLoad):
+    <span class="comment"># Unpack states</span>
+    theta, omega, KA, iD, iQ = x
+
+    <span class="comment"># Slip and synchronous speed</span>
+    <span class="keyword">if</span> Rreq > 0:  <span class="comment"># IM</span>
+        omega_slip = Rreq * iQ / KA
+    <span class="keyword">else</span>:         <span class="comment"># PMSM / SynRM</span>
+        omega_slip = 0.0
+    omega_syn = npp * omega + omega_slip
+
+    <span class="comment"># Torque: Eq. (6)</span>
+    Tem = 1.5 * npp * KA * iQ
+
+    <span class="comment"># Active flux dynamics: Eq. (5)</span>
+    <span class="keyword">if</span> Rreq > 0:  <span class="comment"># IM — KA is independent state</span>
+        dKA = Rreq * iD - Rreq / (Ld - Lq) * KA
+        diD = (uD - R*iD + omega_syn*Lq*iQ - dKA) / Lq
+    <span class="keyword">else</span>:         <span class="comment"># PMSM — dKA = (Ld-Lq)*diD</span>
+        diD = (uD - R*iD + omega_syn*Lq*iQ) / Ld
+        dKA = (Ld - Lq) * diD
+
+    <span class="comment"># q-axis current: Eq. (4b)</span>
+    diQ = (uQ - R*iQ - omega_syn*KA) / Lq
+
+    <span class="comment"># Mechanical: Eq. (7)</span>
+    dtheta = omega + omega_slip / npp
+    domega = (Tem - TLoad) / Js
+
+    <span class="keyword">return</span> [dtheta, domega, dKA, diD, diQ]</div>
+
+    <h3>4.4 Numerical Integration / 数值积分</h3>
+    <p>使用四阶 Runge-Kutta（RK4）方法对上述 ODE 进行积分：</p>
+    <div class="code-block"><span class="keyword">def</span> <span class="param">rk4_step</span>(x, uD, uQ, TLoad, dt):
+    k1 = dynamics(x, uD, uQ, TLoad)
+    k2 = dynamics(x + dt/2 * k1, uD, uQ, TLoad)
+    k3 = dynamics(x + dt/2 * k2, uD, uQ, TLoad)
+    k4 = dynamics(x + dt * k3, uD, uQ, TLoad)
+    <span class="keyword">return</span> x + (dt/6) * (k1 + 2*k2 + 2*k3 + k4)</div>
+    <p>每个控制周期内调用若干次 <code>rk4_step</code>，以较小的步长（如 $h_s = 1\,\mu\text{s}$）积分电机模型。</p>
+
+    <h3>4.5 Variable Mapping Summary / 变量对照表</h3>
+    <table class="param-table">
+      <tr><th>Math Symbol</th><th>Code Variable</th><th>说明</th></tr>
+      <tr><td>$\psi_\text{AF}$</td><td><code>KA</code> or <code>x[2]</code></td><td>Active flux</td></tr>
+      <tr><td>$\psi_\text{PM}$</td><td><code>KE</code></td><td>PM flux constant</td></tr>
+      <tr><td>$R_s$</td><td><code>R</code></td><td>Stator resistance</td></tr>
+      <tr><td>$R_\text{req}$</td><td><code>Rreq</code></td><td>Equiv. rotor resistance</td></tr>
+      <tr><td>$n_\text{pp}$</td><td><code>npp</code></td><td>Pole pairs</td></tr>
+      <tr><td>$J_s$</td><td><code>Js</code></td><td>Rotor inertia</td></tr>
+      <tr><td>$\omega_\text{mech}$</td><td><code>omega_r_mech</code> or <code>x[1]</code></td><td>Mechanical speed</td></tr>
+      <tr><td>$\omega_\text{syn}$</td><td><code>omega_syn</code></td><td>Synchronous elec. speed</td></tr>
+      <tr><td>$T_\text{em}$</td><td><code>Tem</code></td><td>Electromagnetic torque</td></tr>
+    </table>
+  </section>
+
+  <!-- Section 5: Quiz -->
+  <section class="content-section" id="sec5">
+    <div class="content-section__tag">Section 5 / 第五节</div>
+    <h2>Quiz / 测验</h2>
+    <p style="margin-bottom:1rem; color: var(--text-muted); font-size:0.85rem;">回答以下 12 道选择题。Answer the following 12 multiple-choice questions.</p>
+
+    <div class="name-row">
+      <label>姓名 / Name:</label>
+      <input type="text" class="text-input" id="quizName" placeholder="请输入姓名..." style="max-width:240px;">
+    </div>
+
+    <div id="quizArea"></div>
+
+    <div id="resultBanner" class="result-banner"></div>
+    <div id="scoreDisplay" class="score-display">
+      <div class="score-display__number" id="scoreNumber"></div>
+      <div class="score-display__label" id="scoreLabel"></div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn--primary" id="submitQuizBtn" onclick="submitQuiz()">Submit / 提交</button>
+    </div>
+  </section>
+</div>
+
+<script>
+// ============================================================
+// Quiz Data
+// ============================================================
+const QUIZ = [
+  {
+    id: 'q1',
+    zh: 'Active flux $\\psi_\\text{AF}$ 的定义是什么？',
+    en: 'What is the definition of active flux?',
+    options: [
+      '$L_d \\, i_D + \\psi_\\text{PM}$',
+      '$(L_d - L_q) \\, i_D + \\psi_\\text{PM}$',
+      '$L_q \\, i_Q + \\psi_\\text{PM}$',
+      '$\\psi_\\text{PM} - L_q \\, i_D$'
+    ],
+    answer: 1
+  },
+  {
+    id: 'q2',
+    zh: '对于表贴式永磁电机（SPM），$L_d = L_q$ 时 $\\psi_\\text{AF}$ 等于什么？',
+    en: 'For SPM where $L_d = L_q$, what does $\\psi_\\text{AF}$ simplify to?',
+    options: [
+      '$(L_d - L_q) \\, i_D$',
+      '$L_d \\, i_D$',
+      '$\\psi_\\text{PM}$ (constant)',
+      '$0$'
+    ],
+    answer: 2
+  },
+  {
+    id: 'q3',
+    zh: '在统一模型中，区分感应电机（IM）和永磁电机（PMSM）的关键参数是？',
+    en: 'Which parameter distinguishes IM from PMSM in the unified model?',
+    options: [
+      '$L_d$',
+      '$n_\\text{pp}$',
+      '$R_\\text{req}$',
+      '$J_s$'
+    ],
+    answer: 2
+  },
+  {
+    id: 'q4',
+    zh: '对于感应电机，$\\psi_\\text{PM}$（代码中 <code>KE</code>）的值是？',
+    en: 'For an induction machine, what is the value of $\\psi_\\text{PM}$ (code: <code>KE</code>)?',
+    options: [
+      'Depends on $i_D$ / 取决于 $i_D$',
+      '$> 0$',
+      '$0$',
+      'Depends on speed / 取决于转速'
+    ],
+    answer: 2
+  },
+  {
+    id: 'q5',
+    zh: '统一转矩方程 $T_\\text{em}$ 的表达式是？',
+    en: 'What is the unified torque equation?',
+    options: [
+      '$\\frac{3}{2} n_\\text{pp} \\, \\psi_\\text{AF} \\, i_D$',
+      '$\\frac{3}{2} n_\\text{pp} \\, \\psi_\\text{AF} \\, i_Q$',
+      '$n_\\text{pp} \\, \\psi_\\text{AF} \\, i_Q$',
+      '$\\frac{3}{2} n_\\text{pp} \\, L_d \\, i_D \\, i_Q$'
+    ],
+    answer: 1
+  },
+  {
+    id: 'q6',
+    zh: '对于同步磁阻电机（SynRM），$R_\\text{req}$ 和 $\\psi_\\text{PM}$ 分别等于？',
+    en: 'For SynRM, what are $R_\\text{req}$ and $\\psi_\\text{PM}$?',
+    options: [
+      '$R_\\text{req} > 0, \\; \\psi_\\text{PM} > 0$',
+      '$R_\\text{req} = 0, \\; \\psi_\\text{PM} > 0$',
+      '$R_\\text{req} > 0, \\; \\psi_\\text{PM} = 0$',
+      '$R_\\text{req} = 0, \\; \\psi_\\text{PM} = 0$'
+    ],
+    answer: 3
+  },
+  {
+    id: 'q7',
+    zh: '感应电机中 active flux 的动态方程 $d\\psi_\\text{AF}/dt$ 是？',
+    en: 'What is $d\\psi_\\text{AF}/dt$ for the induction machine?',
+    options: [
+      '$R_\\text{req} \\, i_Q - \\frac{R_\\text{req}}{L_d - L_q} \\psi_\\text{AF}$',
+      '$(L_d - L_q) \\frac{di_D}{dt}$',
+      '$R_\\text{req} \\, i_D - \\frac{R_\\text{req}}{L_d - L_q} \\psi_\\text{AF}$',
+      '$0$'
+    ],
+    answer: 2
+  },
+  {
+    id: 'q8',
+    zh: '对于 PMSM（$R_\\text{req} = 0$），$d\\psi_\\text{AF}/dt$ 等于？',
+    en: 'For PMSM ($R_\\text{req} = 0$), what is $d\\psi_\\text{AF}/dt$?',
+    options: [
+      '$0$ (always)',
+      '$(L_d - L_q) \\frac{di_D}{dt}$',
+      '$R_\\text{req} \\, i_D$',
+      '$L_d \\frac{di_D}{dt} + \\psi_\\text{PM}$'
+    ],
+    answer: 1
+  },
+  {
+    id: 'q9',
+    zh: '统一模型共有多少个状态变量？',
+    en: 'How many state variables does the unified model have?',
+    options: [
+      '3',
+      '4',
+      '5',
+      '6'
+    ],
+    answer: 2
+  },
+  {
+    id: 'q10',
+    zh: '感应电机的滑差角速度 $\\omega_\\text{slip}$ 等于？',
+    en: 'What is the slip angular velocity $\\omega_\\text{slip}$ for IM?',
+    options: [
+      '$R_\\text{req} \\cdot i_D / \\psi_\\text{AF}$',
+      '$R_\\text{req} \\cdot i_Q / \\psi_\\text{AF}$',
+      '$n_\\text{pp} \\cdot \\omega_\\text{mech}$',
+      '$0$'
+    ],
+    answer: 1
+  },
+  {
+    id: 'q11',
+    zh: '在 PMSM 模型中，解出 $di_D/dt$ 时分母中的电感是？',
+    en: 'In the PMSM model, the denominator inductance for $di_D/dt$ is?',
+    options: [
+      '$L_q$',
+      '$L_d$',
+      '$L_d - L_q$',
+      '$L_d + L_q$'
+    ],
+    answer: 1
+  },
+  {
+    id: 'q12',
+    zh: '如果 SynRM 的 $i_D = 0$，会发生什么？',
+    en: 'What happens if $i_D = 0$ in a SynRM?',
+    options: [
+      '$\\psi_\\text{AF}$ reaches maximum / 达到最大值',
+      'Torque is maximum / 转矩最大',
+      '$\\psi_\\text{AF} = 0$, no torque / 无法产生转矩',
+      'Speed increases / 转速增大'
+    ],
+    answer: 2
+  }
+];
+
+// ============================================================
+// Render Quiz
+// ============================================================
+const quizArea = document.getElementById('quizArea');
+const userAnswers = {};
+
+function renderQuiz() {
+  quizArea.innerHTML = '';
+  QUIZ.forEach((q, idx) => {
+    const div = document.createElement('div');
+    div.className = 'quiz-question';
+    div.dataset.id = q.id;
+
+    let optionsHTML = q.options.map((opt, oi) =>
+      `<button class="choice-btn" data-qid="${q.id}" data-idx="${oi}"
+        onclick="selectQuizOption('${q.id}', ${oi}, this)">${opt}</button>`
+    ).join('');
+
+    div.innerHTML = `
+      <div class="quiz-question__num">Q${idx + 1} / 第${idx + 1}题</div>
+      <div class="quiz-question__text">${q.zh}</div>
+      <div class="quiz-question__text-en">${q.en}</div>
+      <div class="choices">${optionsHTML}</div>
+    `;
+    quizArea.appendChild(div);
+  });
+
+  // Re-render math in quiz
+  if (window.renderMathInElement) {
+    renderMathInElement(quizArea, {
+      delimiters: [
+        {left: '$$', right: '$$', display: true},
+        {left: '$', right: '$', display: false}
+      ]
+    });
+  }
+}
+
+function selectQuizOption(qid, idx, btn) {
+  // Deselect siblings
+  btn.parentElement.querySelectorAll('.choice-btn').forEach(b => {
+    b.classList.remove('selected', 'correct', 'wrong');
+  });
+  btn.classList.add('selected');
+  userAnswers[qid] = idx;
+}
+
+// ============================================================
+// Submit
+// ============================================================
+async function submitQuiz() {
+  const name = document.getElementById('quizName').value.trim();
+  if (!name) {
+    showResult('error', '请先填写姓名 / Please enter your name.');
+    return;
+  }
+
+  // Check all answered
+  const unanswered = QUIZ.filter(q => userAnswers[q.id] === undefined);
+  if (unanswered.length > 0) {
+    showResult('error', `还有 ${unanswered.length} 题未作答 / ${unanswered.length} question(s) unanswered.`);
+    return;
+  }
+
+  // Grade
+  let correct = 0;
+  QUIZ.forEach(q => {
+    const chosen = userAnswers[q.id];
+    const btns = document.querySelectorAll(`[data-qid="${q.id}"]`);
+    btns.forEach(b => b.classList.remove('selected'));
+    if (chosen === q.answer) {
+      correct++;
+      btns[chosen].classList.add('correct');
+    } else {
+      btns[chosen].classList.add('wrong');
+      btns[q.answer].classList.add('correct');
+    }
+    // Disable further clicks
+    btns.forEach(b => { b.style.pointerEvents = 'none'; });
+  });
+
+  // Show score
+  const scoreDisplay = document.getElementById('scoreDisplay');
+  document.getElementById('scoreNumber').textContent = `${correct} / ${QUIZ.length}`;
+  document.getElementById('scoreLabel').textContent =
+    correct === QUIZ.length ? '满分！Perfect score!' :
+    correct >= QUIZ.length * 0.8 ? '优秀！Excellent!' :
+    correct >= QUIZ.length * 0.6 ? '良好 / Good' : '继续加油 / Keep studying!';
+  scoreDisplay.classList.add('visible');
+
+  // Disable submit
+  document.getElementById('submitQuizBtn').disabled = true;
+
+  // Submit to server
+  const payload = {
+    name: name,
+    lecture: 'lecture2',
+    timestamp: new Date().toISOString(),
+    score: correct,
+    total: QUIZ.length,
+    answers: {}
+  };
+  QUIZ.forEach(q => {
+    payload.answers[q.id] = {
+      chosen: userAnswers[q.id],
+      correct: q.answer,
+      is_correct: userAnswers[q.id] === q.answer
+    };
+  });
+
+  try {
+    const resp = await fetch('/submit-quiz', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (resp.ok) {
+      showResult('success', `已提交！Score: ${correct}/${QUIZ.length}. Submitted successfully.`);
+    } else {
+      showResult('error', '提交失败，但成绩已显示 / Submission failed, but score is shown.');
+    }
+  } catch(e) {
+    showResult('error', '无法连接服务器 / Cannot reach server. Score shown locally.');
+  }
+}
+
+function showResult(type, msg) {
+  const banner = document.getElementById('resultBanner');
+  banner.className = `result-banner visible ${type}`;
+  banner.textContent = msg;
+}
+
+// ============================================================
+// Scroll reveal
+// ============================================================
+function revealSections() {
+  document.querySelectorAll('.content-section').forEach(sec => {
+    const rect = sec.getBoundingClientRect();
+    if (rect.top < window.innerHeight - 60) {
+      sec.classList.add('visible');
+    }
+  });
+}
+
+window.addEventListener('scroll', revealSections);
+window.addEventListener('load', () => {
+  revealSections();
+  renderQuiz();
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "name": "崔义超",
+  "timestamp": "2026-03-06T03:21:39.904Z",
+  "answers": {
+    "q00_name": "崔义超",
+    "q01_experience": "课程学过 / Studied in class",
+    "q02_languages": [
+      "MATLAB"
+    ],
+    "q04_im_vs_pmsm": "交流感应电机靠磁感应产生转子磁场，转速小于同步转速，永磁同步电机自带磁场，转速等于同步转速；不知道",
+    "q05_torque": "定子产生旋转磁场带动转子旋转",
+    "q06_clarke_park": "把三相坐标转换为两相坐标",
+    "q08_svpwm_spwm": "不知道",
+    "q09_pid": "不知道",
+    "q10_bode": "",
+    "q11_margins": "",
+    "q12_expectations": "电机控制",
+    "q07_foc_id_zero": [
+      "最大转矩电流比 / Max torque-per-ampere"
+    ],
+    "q03_math": [
+      "微分方程 / ODEs"
+    ],
+    "q13_learning_style": [
+      "动手实验 / Hands-on experiments"
+    ]
+  }
+}

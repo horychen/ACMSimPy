@@ -1,0 +1,26 @@
+{
+  "name": "罗一夫",
+  "timestamp": "2026-03-06T01:17:15.132Z",
+  "answers": {
+    "q00_name": "罗一夫",
+    "q01_experience": "从未 / Never",
+    "q02_languages": [
+      "MATLAB"
+    ],
+    "q03_math": [],
+    "q04_im_vs_pmsm": "还不了解",
+    "q05_torque": "还不了解",
+    "q06_clarke_park": "还不了解",
+    "q07_foc_id_zero": [
+      "不确定 / Not sure"
+    ],
+    "q08_svpwm_spwm": "还不了解",
+    "q09_pid": "p：震荡，i：消除误差，d：抑制震荡",
+    "q10_bode": "幅频特性和相频特性",
+    "q11_margins": "相位裕度：增益为0db时相位离-180还差多少。重要：系统稳定性",
+    "q12_expectations": "控制理论，电机",
+    "q13_learning_style": [
+      "阅读理论 / Reading theory"
+    ]
+  }
+}

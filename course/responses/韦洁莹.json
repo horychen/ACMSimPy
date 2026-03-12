@@ -1,0 +1,33 @@
+{
+  "name": "韦洁莹",
+  "timestamp": "2026-03-06T01:22:37.463Z",
+  "answers": {
+    "q00_name": "韦洁莹",
+    "q01_experience": "课程学过 / Studied in class",
+    "q02_languages": [
+      "MATLAB"
+    ],
+    "q03_math": [
+      "拉普拉斯变换 / Laplace Transform",
+      "复数与相量 / Complex Phasors"
+    ],
+    "q04_im_vs_pmsm": "还不了解",
+    "q05_torque": "还不了解",
+    "q06_clarke_park": "降维简化控制",
+    "q07_foc_id_zero": [
+      "最大转矩电流比 / Max torque-per-ampere",
+      "简化控制 / Simplify control"
+    ],
+    "q08_svpwm_spwm": "spwm输出的是正弦波",
+    "q11_margins": "还不了解",
+    "q10_bode": "显示系统频率响应",
+    "q09_pid": "比例控制 积分控制 微分控制",
+    "q13_learning_style": [
+      "阅读理论 / Reading theory",
+      "运行仿真 / Running simulations",
+      "动手实验 / Hands-on experiments",
+      "讨论与协作 / Discussion & collaboration"
+    ],
+    "q12_expectations": "掌握电机的控制方法"
+  }
+}

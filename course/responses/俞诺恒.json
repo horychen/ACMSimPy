@@ -1,0 +1,30 @@
+{
+  "name": "俞诺恒",
+  "timestamp": "2026-03-06T01:19:22.839Z",
+  "answers": {
+    "q00_name": "俞诺恒",
+    "q01_experience": "从未 / Never",
+    "q02_languages": [
+      "Python",
+      "MATLAB"
+    ],
+    "q03_math": [
+      "线性代数 / Linear Algebra",
+      "拉普拉斯变换 / Laplace Transform",
+      "复数与相量 / Complex Phasors",
+      "状态空间 / State-Space"
+    ],
+    "q04_im_vs_pmsm": "不知道ovo。汽车用的应该是永磁电机？",
+    "q05_torque": "还没上过课我怎么知道（）",
+    "q06_clarke_park": "没听说过！",
+    "q08_svpwm_spwm": "也没听说过ouo",
+    "q09_pid": "P消除当前误差，I消除累积的稳态误差，D预测误差变化趋势",
+    "q10_bode": "在不同频率下增益的大小和相位",
+    "q11_margins": "忘记了，全还给汪阳了（）",
+    "q07_foc_id_zero": "还不了解",
+    "q13_learning_style": [
+      "阅读理论 / Reading theory"
+    ],
+    "q12_expectations": "o.O？"
+  }
+}

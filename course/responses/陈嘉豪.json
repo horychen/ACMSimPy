@@ -1,31 +1,33 @@
 {
   "name": "陈嘉豪",
-  "timestamp": "2026-03-05T16:08:44.306Z",
+  "timestamp": "2026-03-06T01:15:49.446Z",
   "answers": {
     "q00_name": "陈嘉豪",
-    "q01_experience": "工作经验 / Industry experience",
+    "q01_experience": "课程学过 / Studied in class",
     "q02_languages": [
-      "Python"
+      "Python",
+      "MATLAB",
+      "C/C++"
     ],
     "q03_math": [
       "微分方程 / ODEs",
       "线性代数 / Linear Algebra",
-      "拉普拉斯变换 / Laplace Transform",
       "复数与相量 / Complex Phasors",
       "状态空间 / State-Space"
     ],
-    "q04_im_vs_pmsm": "还不了解",
-    "q05_torque": "还不了解",
-    "q06_clarke_park": "还不了解",
+    "q04_im_vs_pmsm": "主要是永磁电机，感应电机没有永磁体",
+    "q05_torque": "线圈的电感和转子角度有关系",
+    "q06_clarke_park": "线性化模型",
     "q07_foc_id_zero": [
       "简化控制 / Simplify control"
     ],
-    "q08_svpwm_spwm": "多个v",
-    "q09_pid": "还不了解",
-    "q10_bode": "还不了解",
-    "q11_margins": "还不了解",
-    "q12_expectations": "知识",
+    "q08_svpwm_spwm": "svpwm注入了零序电压提高了电压利用率",
+    "q09_pid": "P调节极点，D调节极点，共两个自由度，I用于扩增系统状态估计外部扰动后稳态补偿",
+    "q10_bode": "输入输出的频率响应关系，增益和相移",
+    "q11_margins": "",
+    "q12_expectations": "电控底层代码",
     "q13_learning_style": [
+      "阅读理论 / Reading theory",
       "运行仿真 / Running simulations",
       "动手实验 / Hands-on experiments",
       "讨论与协作 / Discussion & collaboration"

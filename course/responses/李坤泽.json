@@ -1,0 +1,36 @@
+{
+  "name": "李坤泽",
+  "timestamp": "2026-03-06T01:17:38.989Z",
+  "answers": {
+    "q00_name": "李坤泽",
+    "q01_experience": "从未 / Never",
+    "q02_languages": [
+      "Python",
+      "C/C++"
+    ],
+    "q03_math": [
+      "微分方程 / ODEs",
+      "线性代数 / Linear Algebra",
+      "拉普拉斯变换 / Laplace Transform",
+      "复数与相量 / Complex Phasors"
+    ],
+    "q05_torque": "还不了解",
+    "q04_im_vs_pmsm": "还不了解",
+    "q06_clarke_park": "还不了解",
+    "q08_svpwm_spwm": "还不了解",
+    "q09_pid": "常数级控制、积分控制、微分控制",
+    "q10_bode": "曾经学过。",
+    "q11_margins": "增益参数和相位参数的余量，决定了系统的稳定性。",
+    "q07_foc_id_zero": [
+      "最大转矩电流比 / Max torque-per-ampere",
+      "简化控制 / Simplify control"
+    ],
+    "q12_expectations": "更进阶的控制基础",
+    "q13_learning_style": [
+      "阅读理论 / Reading theory",
+      "运行仿真 / Running simulations",
+      "动手实验 / Hands-on experiments",
+      "讨论与协作 / Discussion & collaboration"
+    ]
+  }
+}

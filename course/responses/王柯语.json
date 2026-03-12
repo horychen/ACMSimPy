@@ -1,0 +1,37 @@
+{
+  "name": "王柯语",
+  "timestamp": "2026-03-06T01:19:55.711Z",
+  "answers": {
+    "q00_name": "王柯语",
+    "q01_experience": "做过项目 / Hands-on project",
+    "q02_languages": [
+      "Python",
+      "MATLAB",
+      "C/C++"
+    ],
+    "q03_math": [
+      "微分方程 / ODEs",
+      "线性代数 / Linear Algebra",
+      "拉普拉斯变换 / Laplace Transform",
+      "复数与相量 / Complex Phasors",
+      "状态空间 / State-Space"
+    ],
+    "q04_im_vs_pmsm": "交流感应电机应该是定转子都是线圈？永磁同步电机有稀土永磁体？\n汽车一般用的永磁同步电机",
+    "q05_torque": "电磁感应",
+    "q06_clarke_park": "变换观测的状态空间？",
+    "q08_svpwm_spwm": "SVPWM包括矢量控制？",
+    "q09_pid": "P表达误差与输出的比例关系\nI将误差在时域积分提高系统型次减少稳态误差\nD反应了误差变化的速度，减少系统超调",
+    "q10_bode": "频域上系统的输入输出之比的对数关系，告诉我们系统的穿越频率，表达了系统对哪些频段敏感，还可以得到系统的稳定性和稳定裕度（幅值裕度和相位裕度）",
+    "q11_margins": "表达了系统的稳定性",
+    "q07_foc_id_zero": [
+      "不确定 / Not sure"
+    ],
+    "q12_expectations": "电机的运动与控制",
+    "q13_learning_style": [
+      "阅读理论 / Reading theory",
+      "运行仿真 / Running simulations",
+      "动手实验 / Hands-on experiments",
+      "讨论与协作 / Discussion & collaboration"
+    ]
+  }
+}

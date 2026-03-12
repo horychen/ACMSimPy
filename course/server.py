@@ -17,6 +17,7 @@ from datetime import datetime
 PORT = 8000
 RESPONSES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "responses")
 LIVE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "live_responses")
+QUIZ_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quiz_responses")
 
 # --- In-memory live Q&A state ---
 live_state = {
@@ -26,6 +27,11 @@ live_state = {
     "history": [],           # list of { question, answers } for past questions
 }
 live_lock = threading.Lock()
+
+# --- Online presence tracking ---
+online_users = {}  # { name: last_heartbeat_timestamp }
+online_lock = threading.Lock()
+ONLINE_TIMEOUT = 15  # seconds
 
 
 class SurveyHandler(http.server.SimpleHTTPRequestHandler):
@@ -58,6 +64,8 @@ class SurveyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_get_responses()
         elif self.path == "/api/history":
             self._handle_get_history()
+        elif self.path == "/api/online":
+            self._handle_get_online()
         else:
             super().do_GET()
 
@@ -72,6 +80,10 @@ class SurveyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_clear_question()
         elif self.path == "/api/save-history":
             self._handle_save_history()
+        elif self.path == "/submit-quiz":
+            self._handle_quiz_submit()
+        elif self.path == "/api/heartbeat":
+            self._handle_heartbeat()
         else:
             self._send_json(404, {"status": "error", "message": "Not found"})
 
@@ -104,6 +116,33 @@ class SurveyHandler(http.server.SimpleHTTPRequestHandler):
 
         now = datetime.now().strftime("%H:%M:%S")
         print(f"  [{now}] Survey from: {name}")
+        self._send_json(200, {"status": "ok"})
+
+    # ---- quiz submit ----
+    def _handle_quiz_submit(self):
+        try:
+            data = self._read_body()
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            self._send_json(400, {"status": "error", "message": "Invalid JSON"})
+            return
+
+        name = data.get("name", "").strip()
+        if not name:
+            self._send_json(400, {"status": "error", "message": "Name is required"})
+            return
+
+        lecture = data.get("lecture", "unknown")
+        safe_name = name.replace("/", "_").replace("\\", "_").replace("..", "_")
+        os.makedirs(QUIZ_DIR, exist_ok=True)
+        filepath = os.path.join(QUIZ_DIR, f"{lecture}_{safe_name}.json")
+
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+        now = datetime.now().strftime("%H:%M:%S")
+        score = data.get("score", "?")
+        total = data.get("total", "?")
+        print(f"  [{now}] Quiz {lecture} from: {name} ({score}/{total})")
         self._send_json(200, {"status": "ok"})
 
     # ---- live Q&A: teacher pushes a question ----
@@ -218,21 +257,72 @@ class SurveyHandler(http.server.SimpleHTTPRequestHandler):
         print(f"  Live session saved to: {filepath}")
         self._send_json(200, {"status": "ok", "file": filepath})
 
+    # ---- heartbeat: student pings presence ----
+    def _handle_heartbeat(self):
+        try:
+            data = self._read_body()
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            self._send_json(400, {"status": "error"})
+            return
+        name = data.get("name", "").strip()
+        if name:
+            with online_lock:
+                online_users[name] = time.time()
+        self._send_json(200, {"status": "ok"})
+
+    # ---- online: get active user count and names ----
+    def _handle_get_online(self):
+        now = time.time()
+        with online_lock:
+            active = {n: t for n, t in online_users.items() if now - t < ONLINE_TIMEOUT}
+            # Clean up stale entries
+            online_users.clear()
+            online_users.update(active)
+        self._send_json(200, {
+            "count": len(active),
+            "users": sorted(active.keys()),
+        })
+
     def log_message(self, format, *args):
-        # Suppress noisy GET logs
-        if args and "POST" in str(args[0]):
+        # Suppress noisy GET logs and heartbeats
+        if args and "POST" in str(args[0]) and "heartbeat" not in str(args[0]):
             super().log_message(format, *args)
 
 
 def get_local_ip():
+    """Get the machine's real LAN IP, skipping VPN/VMware/virtual adapters."""
+    import subprocess
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
+        # Parse ipconfig to find the WLAN adapter's IPv4 address
+        out = subprocess.check_output("ipconfig", encoding="gbk", errors="replace")
+        lines = out.splitlines()
+        in_wlan = False
+        for i, line in enumerate(lines):
+            # Match adapter header lines (no leading spaces)
+            if not line.startswith(" ") and ("WLAN" in line or "Wi-Fi" in line):
+                in_wlan = True
+            elif not line.startswith(" ") and line.strip() and in_wlan:
+                in_wlan = False  # hit next adapter header
+            elif in_wlan and "IPv4" in line:
+                ip = line.split(":")[-1].strip()
+                if ip and not ip.startswith("127."):
+                    return ip
     except Exception:
-        return "127.0.0.1"
+        pass
+    # Fallback: list all IPs, prefer 10.x or 192.168.x, skip 198.18 (VPN)
+    try:
+        addrs = socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)
+        candidates = sorted(set(a[4][0] for a in addrs))
+        for ip in candidates:
+            if ip.startswith("10.") or ip.startswith("172.") or ip.startswith("192.168."):
+                if not ip.endswith(".1"):  # skip VMware gateway-style .1 addresses
+                    return ip
+        for ip in candidates:
+            if ip.startswith("10.") or ip.startswith("192.168."):
+                return ip
+    except Exception:
+        pass
+    return "127.0.0.1"
 
 
 if __name__ == "__main__":
@@ -265,7 +355,7 @@ if __name__ == "__main__":
     print("  Press Ctrl+C to stop.")
     print()
 
-    server = http.server.HTTPServer(("0.0.0.0", PORT), SurveyHandler)
+    server = http.server.ThreadingHTTPServer(("0.0.0.0", PORT), SurveyHandler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

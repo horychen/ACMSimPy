@@ -1,0 +1,30 @@
+{
+  "name": "李天泽",
+  "timestamp": "2026-03-06T01:20:50.609Z",
+  "answers": {
+    "q00_name": "李天泽",
+    "q01_experience": "课程学过 / Studied in class",
+    "q02_languages": [
+      "C/C++"
+    ],
+    "q03_math": [
+      "线性代数 / Linear Algebra"
+    ],
+    "q04_im_vs_pmsm": "交流感应电机是异步电机。汽车动力总成主要使用永磁同步电机",
+    "q05_torque": "电流与磁场的相互作用",
+    "q06_clarke_park": "简化交流电机的分析与控制",
+    "q07_foc_id_zero": [
+      "减少铜损 / Reduce copper loss",
+      "最大转矩电流比 / Max torque-per-ampere",
+      "简化控制 / Simplify control"
+    ],
+    "q08_svpwm_spwm": "SVPWM是空间矢量脉宽调制，生成圆形磁场。SPWM是正弦脉宽调制，生成正弦的相电压波形。",
+    "q09_pid": "比例（P）作用：快速响应。积分（I）作用：消除静差。微分（D）作用：抑制振荡。",
+    "q10_bode": "伯德图可以看到系统的幅频特性和相频特性。可以观测出系统的稳定性，动态响应性能，系统的稳定性等等。",
+    "q11_margins": "评估闭环系统稳定程度",
+    "q13_learning_style": [
+      "讨论与协作 / Discussion & collaboration"
+    ],
+    "q12_expectations": ""
+  }
+}

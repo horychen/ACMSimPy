@@ -1,0 +1,35 @@
+{
+  "name": "姬晨阳",
+  "timestamp": "2026-03-06T01:20:03.171Z",
+  "answers": {
+    "q00_name": "姬晨阳",
+    "q01_experience": "从未 / Never",
+    "q02_languages": [
+      "Python",
+      "MATLAB",
+      "C/C++"
+    ],
+    "q03_math": [
+      "微分方程 / ODEs",
+      "线性代数 / Linear Algebra",
+      "拉普拉斯变换 / Laplace Transform",
+      "复数与相量 / Complex Phasors",
+      "状态空间 / State-Space"
+    ],
+    "q06_clarke_park": "还不了解",
+    "q05_torque": "还不了解",
+    "q04_im_vs_pmsm": "还不了解",
+    "q07_foc_id_zero": [
+      "不确定 / Not sure"
+    ],
+    "q08_svpwm_spwm": "还不了解",
+    "q09_pid": "调节收敛速度，调节稳态性能，调节过阻尼欠阻尼",
+    "q10_bode": "描述传递函数的频率增益和相位响应。告诉我们通过这个传递函数的信号在不同频率上的幅值变化和相位变化",
+    "q11_margins": "增益裕度是相位为180度时，对应的幅值与0db的差值；增益裕度是指幅值为0db时，对应的相位与180度的差值",
+    "q13_learning_style": [
+      "运行仿真 / Running simulations",
+      "动手实验 / Hands-on experiments"
+    ],
+    "q12_expectations": "学习到电机的建模，以及电机的控制"
+  }
+}

@@ -201,15 +201,22 @@
     color: var(--text);
     overflow: hidden;
     cursor: pointer;
+    display: block;
     transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
                 box-shadow 0.5s ease,
-                border-color 0.4s ease;
-    /* For scroll reveal */
+                border-color 0.4s ease,
+                opacity 0.8s ease;
+    /* Start visible so links always work; animate via .card-animate */
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .card.card-animate {
     opacity: 0;
     transform: translateY(60px);
   }
 
-  .card.revealed {
+  .card.card-animate.revealed {
     opacity: 1;
     transform: translateY(0);
     transition: opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1),
@@ -364,11 +371,16 @@
   .tour__step {
     position: relative;
     margin-bottom: 4rem;
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .tour__step.step-animate {
     opacity: 0;
     transform: translateX(-20px);
   }
 
-  .tour__step.revealed {
+  .tour__step.step-animate.revealed {
     opacity: 1;
     transform: translateX(0);
     transition: all 0.8s cubic-bezier(0.22, 1, 0.36, 1);
@@ -745,6 +757,12 @@
 })();
 
 // ============ SCROLL REVEAL ============
+// Add animation classes via JS so cards are visible even if JS/observer fails
+const cards = document.querySelectorAll('.card');
+const steps = document.querySelectorAll('.tour__step');
+cards.forEach(el => el.classList.add('card-animate'));
+steps.forEach(el => el.classList.add('step-animate'));
+
 const observer = new IntersectionObserver((entries) => {
   entries.forEach(entry => {
     if (entry.isIntersecting) {
@@ -753,9 +771,16 @@ const observer = new IntersectionObserver((entries) => {
       observer.unobserve(entry.target);
     }
   });
-}, { threshold: 0.15, rootMargin: '0px 0px -50px 0px' });
+}, { threshold: 0.1, rootMargin: '0px 0px -30px 0px' });
 
-document.querySelectorAll('.card, .tour__step').forEach(el => observer.observe(el));
+cards.forEach(el => observer.observe(el));
+steps.forEach(el => observer.observe(el));
+
+// Fallback: force-reveal all cards after 3s in case observer doesn't fire (e.g. mobile quirks)
+setTimeout(() => {
+  cards.forEach(el => el.classList.add('revealed'));
+  steps.forEach(el => el.classList.add('revealed'));
+}, 3000);
 
 // ============ CARD SHINE (mouse tracking) ============
 document.querySelectorAll('.card').forEach(card => {

@@ -13,12 +13,15 @@
     --bg-input: #1a1a1e;
     --amber: #d4a043;
     --amber-soft: #d4a04322;
+    --amber-glow: #d4a04344;
     --text: #e8e4dc;
     --text2: #8a8680;
     --text3: #5a5650;
     --border: #2a2a2e;
     --green: #4a9;
     --red: #c55;
+    --cyan: #43b4d4;
+    --violet: #9b6dd4;
   }
 
   body {
@@ -29,7 +32,7 @@
   }
 
   .app {
-    max-width: 900px;
+    max-width: 960px;
     margin: 0 auto;
     padding: 2rem 1.5rem;
   }
@@ -43,12 +46,121 @@
 
   h1 em { color: var(--amber); font-style: italic; }
 
-  .subtitle {
+  /* Top bar: status + online */
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+  }
+
+  .topbar__left {
     font-size: 0.8rem;
     color: var(--text3);
-    margin-bottom: 2rem;
     font-family: 'Courier New', monospace;
     letter-spacing: 0.05em;
+  }
+
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.75rem;
+    color: var(--text3);
+  }
+
+  .status__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  .status__dot.inactive { background: var(--text3); animation: none; }
+
+  /* Online badge */
+  .online-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.45rem 0.8rem;
+    cursor: pointer;
+    position: relative;
+    transition: border-color 0.2s;
+  }
+
+  .online-badge:hover { border-color: var(--green); }
+
+  .online-badge__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px rgba(68,170,153,0.5);
+    animation: pulse 2s infinite;
+  }
+
+  .online-badge__count {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .online-badge__label {
+    font-size: 0.7rem;
+    color: var(--text3);
+  }
+
+  /* Online users tooltip */
+  .online-tooltip {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.8rem 1rem;
+    min-width: 160px;
+    z-index: 10;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+  }
+
+  .online-badge.expanded .online-tooltip { display: block; }
+
+  .online-tooltip__title {
+    font-size: 0.6rem;
+    color: var(--amber);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-family: 'Courier New', monospace;
+    margin-bottom: 0.5rem;
+  }
+
+  .online-tooltip__list {
+    list-style: none;
+    font-size: 0.8rem;
+    color: var(--text2);
+  }
+
+  .online-tooltip__list li {
+    padding: 0.2rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .online-tooltip__list li::before {
+    content: '';
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--green);
+    flex-shrink: 0;
   }
 
   /* Compose area */
@@ -129,31 +241,10 @@
 
   .btn:active { transform: scale(0.97); }
 
-  .btn--push {
-    background: var(--amber);
-    color: var(--bg);
-  }
-
-  .btn--push:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
-
-  .btn--clear {
-    background: transparent;
-    color: var(--text3);
-    border: 1px solid var(--border);
-  }
-
-  .btn--danger {
-    background: var(--red);
-    color: white;
-  }
-
-  .btn--save {
-    background: var(--green);
-    color: white;
-  }
+  .btn--push { background: var(--amber); color: var(--bg); }
+  .btn--push:disabled { opacity: 0.3; cursor: not-allowed; }
+  .btn--clear { background: transparent; color: var(--text3); border: 1px solid var(--border); }
+  .btn--save { background: var(--green); color: white; }
 
   /* Quick templates */
   .templates {
@@ -221,12 +312,159 @@
     margin-top: 0.2rem;
   }
 
+  .current-q__type {
+    font-size: 0.6rem;
+    color: var(--text3);
+    font-family: 'Courier New', monospace;
+    margin-top: 0.3rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
   .no-question {
     color: var(--text3);
     font-size: 0.85rem;
     font-style: italic;
     text-align: center;
     padding: 2rem 0;
+  }
+
+  /* Tabs: Stats vs List */
+  .view-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    width: fit-content;
+  }
+
+  .view-tab {
+    padding: 0.45rem 1rem;
+    font-size: 0.75rem;
+    font-family: inherit;
+    color: var(--text3);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .view-tab.active {
+    background: var(--amber-soft);
+    color: var(--amber);
+  }
+
+  /* ========== STATISTICS ========== */
+  .stats-panel {
+    margin-bottom: 1rem;
+  }
+
+  .stats-summary {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.2rem;
+    flex-wrap: wrap;
+  }
+
+  .stat-card {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.7rem 1rem;
+    min-width: 100px;
+    flex: 1;
+  }
+
+  .stat-card__value {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 0.1rem;
+  }
+
+  .stat-card__label {
+    font-size: 0.6rem;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-family: 'Courier New', monospace;
+  }
+
+  /* Bar chart for choice questions */
+  .bar-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+  }
+
+  .bar-row__label {
+    font-size: 0.8rem;
+    color: var(--text2);
+    min-width: 120px;
+    flex-shrink: 0;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .bar-row__track {
+    flex: 1;
+    height: 28px;
+    background: var(--bg-input);
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .bar-row__fill {
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    display: flex;
+    align-items: center;
+    padding-left: 0.6rem;
+    min-width: 0;
+  }
+
+  .bar-row__fill--amber { background: linear-gradient(90deg, var(--amber-glow), var(--amber-soft)); }
+  .bar-row__fill--cyan { background: linear-gradient(90deg, rgba(67,180,212,0.25), rgba(67,180,212,0.12)); }
+  .bar-row__fill--violet { background: linear-gradient(90deg, rgba(155,109,212,0.25), rgba(155,109,212,0.12)); }
+  .bar-row__fill--green { background: linear-gradient(90deg, rgba(68,170,153,0.25), rgba(68,170,153,0.12)); }
+
+  .bar-row__count {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  .bar-row__pct {
+    font-size: 0.7rem;
+    color: var(--text3);
+    margin-left: 0.5rem;
+    min-width: 40px;
+    text-align: right;
+  }
+
+  /* Text responses stats */
+  .text-stats {
+    font-size: 0.8rem;
+    color: var(--text2);
+    margin-bottom: 0.8rem;
+  }
+
+  .text-stats__avg {
+    color: var(--text3);
+    font-size: 0.75rem;
   }
 
   /* Answer list */
@@ -257,9 +495,7 @@
   }
 
   /* History */
-  .history-section {
-    margin-top: 1.5rem;
-  }
+  .history-section { margin-top: 1.5rem; }
 
   .history-item {
     background: var(--bg-card);
@@ -282,24 +518,11 @@
     color: var(--text3);
   }
 
-  /* Status dot */
-  .status {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.75rem;
-    color: var(--text3);
+  .toolbar {
+    display: flex;
+    gap: 0.6rem;
+    margin-top: 1rem;
   }
-
-  .status__dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--green);
-    animation: pulse 2s infinite;
-  }
-
-  .status__dot.inactive { background: var(--text3); animation: none; }
 
   @keyframes pulse {
     0%, 100% { opacity: 1; }
@@ -311,10 +534,10 @@
     to { opacity: 1; transform: translateX(0); }
   }
 
-  .toolbar {
-    display: flex;
-    gap: 0.6rem;
-    margin-top: 1rem;
+  @media (max-width: 600px) {
+    .row { flex-direction: column; }
+    .bar-row__label { min-width: 80px; font-size: 0.7rem; }
+    .stats-summary { gap: 0.5rem; }
   }
 </style>
 </head>
@@ -322,11 +545,25 @@
 
 <div class="app">
   <h1><em>Teacher</em> Panel</h1>
-  <div class="subtitle">
-    <span class="status">
-      <span class="status__dot" id="statusDot"></span>
-      <span id="statusText">Polling...</span>
-    </span>
+
+  <div class="topbar">
+    <div class="topbar__left">
+      <span class="status">
+        <span class="status__dot" id="statusDot"></span>
+        <span id="statusText">Polling...</span>
+      </span>
+    </div>
+    <div class="online-badge" id="onlineBadge" onclick="this.classList.toggle('expanded')">
+      <span class="online-badge__dot"></span>
+      <span class="online-badge__count" id="onlineCount">0</span>
+      <span class="online-badge__label">online</span>
+      <div class="online-tooltip">
+        <div class="online-tooltip__title">Connected Students</div>
+        <ul class="online-tooltip__list" id="onlineList">
+          <li style="color:var(--text3)">No one yet</li>
+        </ul>
+      </div>
+    </div>
   </div>
 
   <!-- Compose -->
@@ -381,6 +618,14 @@
       <div class="responses-panel__count" id="answerCount">0 answers</div>
     </div>
     <div id="currentQuestion"></div>
+
+    <!-- View toggle -->
+    <div class="view-tabs" id="viewTabs" style="display:none">
+      <button class="view-tab active" data-view="stats" onclick="switchView('stats')">Statistics</button>
+      <button class="view-tab" data-view="list" onclick="switchView('list')">All Answers</button>
+    </div>
+
+    <div id="statsView"></div>
     <ul class="answer-list" id="answerList"></ul>
   </div>
 
@@ -399,6 +644,11 @@
 <script>
 let pollTimer = null;
 let lastAnswerCount = 0;
+let currentView = 'stats';
+let cachedQuestion = null;
+let cachedAnswers = {};
+
+const BAR_COLORS = ['amber', 'cyan', 'violet', 'green', 'amber', 'cyan', 'violet', 'green'];
 
 // --- Templates ---
 function useTemplate(tpl) {
@@ -451,19 +701,27 @@ async function pushQuestion() {
       body: JSON.stringify({ text_zh: textZh, text_en: textEn, type: qType, options })
     });
     if (!resp.ok) throw new Error('Server error');
-    // Clear inputs
     document.getElementById('textZh').value = '';
     document.getElementById('textEn').value = '';
     document.getElementById('qOptions').value = '';
+    lastAnswerCount = 0;
   } catch(e) {
     alert('Failed to push question: ' + e.message);
   }
   btn.disabled = false;
 }
 
-// --- Clear question ---
 async function clearQuestion() {
   await fetch('/api/clear', { method: 'POST' });
+  lastAnswerCount = 0;
+}
+
+// --- View toggle ---
+function switchView(view) {
+  currentView = view;
+  document.querySelectorAll('.view-tab').forEach(t =>
+    t.classList.toggle('active', t.dataset.view === view));
+  renderAnswerView();
 }
 
 // --- Poll responses ---
@@ -479,42 +737,256 @@ async function pollResponses() {
       dot.classList.remove('inactive');
       statusText.textContent = `Q#${data.question.id} active`;
 
+      cachedQuestion = data.question;
+      cachedAnswers = data.answers || {};
+
       document.getElementById('currentQuestion').innerHTML = `
         <div class="current-q">
           ${esc(data.question.text_zh)}
           ${data.question.text_en ? `<div class="current-q__en">${esc(data.question.text_en)}</div>` : ''}
+          <div class="current-q__type">${esc(data.question.type)}</div>
         </div>
       `;
 
-      const answers = data.answers || {};
-      const names = Object.keys(answers);
+      const names = Object.keys(cachedAnswers);
       document.getElementById('answerCount').textContent = `${names.length} answers`;
+      document.getElementById('viewTabs').style.display = '';
 
-      const list = document.getElementById('answerList');
-      // Only re-render if count changed
       if (names.length !== lastAnswerCount) {
         lastAnswerCount = names.length;
-        list.innerHTML = names.map(name => {
-          const val = answers[name];
-          const display = Array.isArray(val) ? val.join(', ') : val;
-          return `<li class="answer-item">
-            <span class="answer-item__name">${esc(name)}</span>
-            <span class="answer-item__text">${esc(display)}</span>
-          </li>`;
-        }).join('');
+        renderAnswerView();
       }
     } else {
       dot.classList.add('inactive');
       statusText.textContent = 'No active question';
-      document.getElementById('currentQuestion').innerHTML = '<div class="no-question">No question pushed yet. Compose one above.</div>';
+      document.getElementById('currentQuestion').innerHTML =
+        '<div class="no-question">No question pushed yet. Compose one above.</div>';
       document.getElementById('answerList').innerHTML = '';
+      document.getElementById('statsView').innerHTML = '';
       document.getElementById('answerCount').textContent = '0 answers';
+      document.getElementById('viewTabs').style.display = 'none';
+      cachedQuestion = null;
+      cachedAnswers = {};
       lastAnswerCount = 0;
     }
   } catch(e) {
     document.getElementById('statusText').textContent = 'Connection error';
     document.getElementById('statusDot').classList.add('inactive');
   }
+}
+
+function renderAnswerView() {
+  if (currentView === 'stats') {
+    document.getElementById('answerList').style.display = 'none';
+    document.getElementById('statsView').style.display = '';
+    renderStats();
+  } else {
+    document.getElementById('statsView').style.display = 'none';
+    document.getElementById('answerList').style.display = '';
+    renderList();
+  }
+}
+
+// ========== STATISTICS ==========
+function renderStats() {
+  const container = document.getElementById('statsView');
+  if (!cachedQuestion || Object.keys(cachedAnswers).length === 0) {
+    container.innerHTML = '<div class="no-question">Waiting for answers...</div>';
+    return;
+  }
+
+  const answers = cachedAnswers;
+  const names = Object.keys(answers);
+  const total = names.length;
+  const qType = cachedQuestion.type;
+
+  let statsHTML = '';
+
+  if (qType === 'single-choice' || qType === 'multi-choice') {
+    // Count votes per option
+    const voteCounts = {};
+    const options = cachedQuestion.options || [];
+    options.forEach(o => voteCounts[o] = 0);
+
+    names.forEach(name => {
+      const val = answers[name];
+      if (Array.isArray(val)) {
+        val.forEach(v => { voteCounts[v] = (voteCounts[v] || 0) + 1; });
+      } else {
+        voteCounts[val] = (voteCounts[val] || 0) + 1;
+      }
+    });
+
+    // Total votes (for multi-choice, can exceed total students)
+    const totalVotes = Object.values(voteCounts).reduce((a, b) => a + b, 0);
+    const maxVotes = Math.max(...Object.values(voteCounts), 1);
+
+    // Summary cards
+    statsHTML += `<div class="stats-summary">
+      <div class="stat-card">
+        <div class="stat-card__value">${total}</div>
+        <div class="stat-card__label">Respondents</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card__value">${totalVotes}</div>
+        <div class="stat-card__label">Total Votes</div>
+      </div>
+      ${qType === 'single-choice' ? `<div class="stat-card">
+        <div class="stat-card__value">${esc(getMostPopular(voteCounts))}</div>
+        <div class="stat-card__label">Most Selected</div>
+      </div>` : ''}
+    </div>`;
+
+    // Bar chart
+    statsHTML += '<div class="bar-chart">';
+    options.forEach((opt, i) => {
+      const count = voteCounts[opt] || 0;
+      const pct = total > 0 ? Math.round(count / total * 100) : 0;
+      const width = maxVotes > 0 ? Math.round(count / maxVotes * 100) : 0;
+      const color = BAR_COLORS[i % BAR_COLORS.length];
+      statsHTML += `
+        <div class="bar-row">
+          <div class="bar-row__label" title="${esc(opt)}">${esc(opt)}</div>
+          <div class="bar-row__track">
+            <div class="bar-row__fill bar-row__fill--${color}" style="width: ${width}%">
+              ${count > 0 ? `<span class="bar-row__count">${count}</span>` : ''}
+            </div>
+          </div>
+          <div class="bar-row__pct">${pct}%</div>
+        </div>`;
+    });
+
+    // Check for "other" answers not in options
+    const others = {};
+    names.forEach(name => {
+      const val = answers[name];
+      const vals = Array.isArray(val) ? val : [val];
+      vals.forEach(v => {
+        if (!options.includes(v)) others[v] = (others[v] || 0) + 1;
+      });
+    });
+    Object.entries(others).forEach(([val, count]) => {
+      const pct = total > 0 ? Math.round(count / total * 100) : 0;
+      const width = maxVotes > 0 ? Math.round(count / maxVotes * 100) : 0;
+      statsHTML += `
+        <div class="bar-row">
+          <div class="bar-row__label" title="${esc(val)}" style="color:var(--text3);font-style:italic">${esc(val)}</div>
+          <div class="bar-row__track">
+            <div class="bar-row__fill bar-row__fill--amber" style="width: ${width}%">
+              ${count > 0 ? `<span class="bar-row__count">${count}</span>` : ''}
+            </div>
+          </div>
+          <div class="bar-row__pct">${pct}%</div>
+        </div>`;
+    });
+
+    statsHTML += '</div>';
+
+  } else {
+    // Text / textarea responses
+    const lengths = names.map(n => (answers[n] || '').length);
+    const avgLen = lengths.length > 0 ? Math.round(lengths.reduce((a, b) => a + b, 0) / lengths.length) : 0;
+    const answered = names.filter(n => (answers[n] || '').trim().length > 0).length;
+
+    statsHTML += `<div class="stats-summary">
+      <div class="stat-card">
+        <div class="stat-card__value">${total}</div>
+        <div class="stat-card__label">Responses</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card__value">${avgLen}</div>
+        <div class="stat-card__label">Avg. Length (chars)</div>
+      </div>
+    </div>`;
+
+    // Word/phrase frequency (split by common delimiters, count top terms)
+    const wordMap = {};
+    names.forEach(n => {
+      const text = (answers[n] || '').trim();
+      // Split by Chinese/English word boundaries
+      const words = text.split(/[\s,，。、；;：:！!？?（）()\[\]{}]+/).filter(w => w.length >= 2);
+      words.forEach(w => {
+        const key = w.toLowerCase();
+        wordMap[key] = (wordMap[key] || 0) + 1;
+      });
+    });
+
+    const topWords = Object.entries(wordMap)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8);
+
+    if (topWords.length > 0) {
+      const maxW = topWords[0][1];
+      statsHTML += '<div style="margin-top:0.8rem"><div style="font-size:0.6rem;color:var(--amber);text-transform:uppercase;letter-spacing:0.15em;font-family:monospace;margin-bottom:0.5rem">Frequent Terms</div>';
+      statsHTML += '<div class="bar-chart">';
+      topWords.forEach(([word, count], i) => {
+        const width = Math.round(count / maxW * 100);
+        const color = BAR_COLORS[i % BAR_COLORS.length];
+        statsHTML += `
+          <div class="bar-row">
+            <div class="bar-row__label">${esc(word)}</div>
+            <div class="bar-row__track">
+              <div class="bar-row__fill bar-row__fill--${color}" style="width:${width}%">
+                <span class="bar-row__count">${count}</span>
+              </div>
+            </div>
+            <div class="bar-row__pct"></div>
+          </div>`;
+      });
+      statsHTML += '</div></div>';
+    }
+  }
+
+  container.innerHTML = `<div class="stats-panel">${statsHTML}</div>`;
+}
+
+function getMostPopular(counts) {
+  let max = 0, label = '-';
+  for (const [k, v] of Object.entries(counts)) {
+    if (v > max) { max = v; label = k; }
+  }
+  return label;
+}
+
+// ========== LIST VIEW ==========
+function renderList() {
+  const list = document.getElementById('answerList');
+  const names = Object.keys(cachedAnswers);
+  list.innerHTML = names.map(name => {
+    const val = cachedAnswers[name];
+    const display = Array.isArray(val) ? val.join(', ') : val;
+    return `<li class="answer-item">
+      <span class="answer-item__name">${esc(name)}</span>
+      <span class="answer-item__text">${esc(display)}</span>
+    </li>`;
+  }).join('');
+}
+
+// ========== ONLINE USERS ==========
+async function pollOnline() {
+  try {
+    const resp = await fetch('/api/online');
+    const data = await resp.json();
+
+    document.getElementById('onlineCount').textContent = data.count;
+
+    const list = document.getElementById('onlineList');
+    if (data.users && data.users.length > 0) {
+      list.innerHTML = data.users.map(u => `<li>${esc(u)}</li>`).join('');
+    } else {
+      list.innerHTML = '<li style="color:var(--text3)">No one yet</li>';
+    }
+
+    // Animate the badge dot
+    const dot = document.querySelector('.online-badge__dot');
+    if (data.count > 0) {
+      dot.style.background = 'var(--green)';
+      dot.style.boxShadow = '0 0 6px rgba(68,170,153,0.5)';
+    } else {
+      dot.style.background = 'var(--text3)';
+      dot.style.boxShadow = 'none';
+    }
+  } catch(e) {}
 }
 
 // --- Save session ---
@@ -562,7 +1034,9 @@ function esc(s) {
 
 // Start polling
 pollResponses();
+pollOnline();
 pollTimer = setInterval(pollResponses, 2000);
+setInterval(pollOnline, 5000);
 </script>
 
 </body>

@@ -1,0 +1,36 @@
+{
+  "name": "黄洪章",
+  "timestamp": "2026-03-06T01:13:07.243Z",
+  "answers": {
+    "q00_name": "黄洪章",
+    "q01_experience": "从未 / Never",
+    "q02_languages": [
+      "Python",
+      "MATLAB",
+      "C/C++"
+    ],
+    "q03_math": [
+      "微分方程 / ODEs",
+      "线性代数 / Linear Algebra",
+      "拉普拉斯变换 / Laplace Transform",
+      "复数与相量 / Complex Phasors",
+      "状态空间 / State-Space"
+    ],
+    "q04_im_vs_pmsm": "不知道",
+    "q05_torque": "磁场下通电，安倍力产生力矩",
+    "q06_clarke_park": "不知道",
+    "q07_foc_id_zero": [
+      "不确定 / Not sure"
+    ],
+    "q08_svpwm_spwm": "不知道",
+    "q09_pid": "不知道",
+    "q10_bode": "不知道",
+    "q11_margins": "不知道",
+    "q13_learning_style": [
+      "阅读理论 / Reading theory",
+      "运行仿真 / Running simulations",
+      "动手实验 / Hands-on experiments"
+    ],
+    "q12_expectations": "电机与运动控制"
+  }
+}
