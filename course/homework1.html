@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Homework 1 — From Coordinates to the Unified Machine ODE</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"
+  onerror="this.onerror=null;this.href='vendor/katex/katex.min.css';">
+<script>
+// KaTeX loader: CDN with 3s timeout, fallback to local vendor/
+(function(){
+  var CDN = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/";
+  var LOCAL = "vendor/katex/";
+  var files = ["katex.min.js", "contrib/auto-render.min.js"];
+  var idx = 0;
+  var TIMEOUT = 3000;
+
+  function renderMath() {
+    if (window.renderMathInElement) {
+      renderMathInElement(document.body, {
+        delimiters: [{left:"$$",right:"$$",display:true},{left:"$",right:"$",display:false}]
+      });
+    }
+  }
+
+  function loadScript(src, onSuccess, onFail) {
+    var s = document.createElement("script");
+    var done = false;
+    var timer = setTimeout(function() {
+      if (!done) { done = true; s.onload = s.onerror = null; onFail(); }
+    }, TIMEOUT);
+    s.src = src;
+    s.onload = function() { if (!done) { done = true; clearTimeout(timer); onSuccess(); } };
+    s.onerror = function() { if (!done) { done = true; clearTimeout(timer); onFail(); } };
+    document.head.appendChild(s);
+  }
+
+  function loadChain(base, fallback) {
+    if (idx >= files.length) { renderMath(); return; }
+    loadScript(base + files[idx],
+      function() { idx++; loadChain(base, fallback); },
+      function() { if (fallback) { idx = 0; loadChain(fallback, null); } }
+    );
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){ loadChain(CDN, LOCAL); });
+  } else {
+    loadChain(CDN, LOCAL);
+  }
+})();
+</script>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-deep: #0a0a0b;
+    --bg-card: #131315;
+    --bg-input: #1a1a1e;
+    --bg-hover: #222228;
+    --amber: #d4a043;
+    --amber-soft: #d4a04322;
+    --amber-glow: #d4a04344;
+    --text-primary: #e8e4dc;
+    --text-secondary: #8a8680;
+    --text-muted: #5a5650;
+    --border: #2a2a2e;
+    --border-focus: #d4a04366;
+    --green: #4a9;
+    --red: #c55;
+    --font-display: Georgia, 'Noto Serif SC', serif;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+    --font-mono: 'Courier New', monospace;
+  }
+
+  html { font-size: 16px; scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0; opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    pointer-events: none;
+  }
+
+  body::after {
+    content: '';
+    position: fixed; top: -40%; right: -20%;
+    width: 70vw; height: 70vw;
+    background: radial-gradient(circle, var(--amber-soft) 0%, transparent 70%);
+    pointer-events: none; z-index: 0;
+  }
+
+  .app {
+    position: relative; z-index: 1;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 2rem 1.2rem 4rem;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+    opacity: 0; animation: fadeUp 0.8s ease forwards;
+  }
+  .header__label {
+    font-family: var(--font-mono);
+    font-size: 0.65rem; font-weight: 300;
+    letter-spacing: 0.3em; text-transform: uppercase;
+    color: var(--amber); margin-bottom: 0.8rem;
+  }
+  .header__title {
+    font-family: var(--font-display);
+    font-size: 1.7rem; font-weight: 400;
+    line-height: 1.3; color: var(--text-primary);
+    margin-bottom: 0.5rem;
+  }
+  .header__title em { font-style: italic; color: var(--amber); }
+  .header__sub {
+    font-size: 0.85rem; font-weight: 300;
+    color: var(--text-secondary); line-height: 1.6;
+  }
+
+  /* Meta info */
+  .meta-bar {
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+    opacity: 0; animation: fadeUp 0.8s ease 0.15s forwards;
+  }
+
+  /* Content sections */
+  .content-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.8rem 1.4rem;
+    margin-bottom: 1.5rem;
+    opacity: 0; transform: translateY(24px);
+    transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .content-section.visible { opacity: 1; transform: translateY(0); }
+
+  .content-section__tag {
+    font-family: var(--font-mono);
+    font-size: 0.6rem; font-weight: 300;
+    letter-spacing: 0.2em;
+    color: var(--amber); text-transform: uppercase;
+    margin-bottom: 1rem;
+  }
+
+  h2 {
+    font-family: var(--font-display);
+    font-size: 1.25rem; font-weight: 400;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+  }
+
+  h3 {
+    font-size: 1rem; font-weight: 500;
+    color: var(--amber);
+    margin: 1.4rem 0 0.6rem;
+  }
+
+  p, li {
+    font-size: 0.9rem;
+    line-height: 1.75;
+    color: var(--text-secondary);
+    margin-bottom: 0.6rem;
+  }
+
+  ul, ol { padding-left: 1.4rem; margin-bottom: 0.8rem; }
+  ol > li { margin-bottom: 0.5rem; }
+
+  .eq-block {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    margin: 1rem 0;
+    overflow-x: auto;
+    text-align: center;
+  }
+
+  .eq-label {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-align: right;
+    margin-top: 0.3rem;
+  }
+
+  /* Highlight / hint box */
+  .highlight-box {
+    background: var(--amber-soft);
+    border-left: 3px solid var(--amber);
+    border-radius: 0 10px 10px 0;
+    padding: 1rem 1.2rem;
+    margin: 1rem 0;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    line-height: 1.7;
+  }
+
+  /* Task box */
+  .task-box {
+    background: #1a2a1a;
+    border: 1px solid #2a4a2a;
+    border-left: 3px solid var(--green);
+    border-radius: 0 10px 10px 0;
+    padding: 1rem 1.2rem;
+    margin: 1rem 0;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    line-height: 1.7;
+  }
+  .task-box strong { color: var(--green); }
+
+  /* Sub-question numbering */
+  .sub-q {
+    counter-increment: subq;
+    padding-left: 0.2rem;
+    margin-bottom: 1rem;
+  }
+  .sub-q::before {
+    content: "(" counter(subq, lower-alpha) ") ";
+    color: var(--amber);
+    font-weight: 500;
+  }
+
+  /* Submit section */
+  .name-row {
+    display: flex; gap: 0.8rem; align-items: center;
+    margin-bottom: 1rem;
+  }
+  .name-row label {
+    font-size: 0.9rem; color: var(--text-primary); white-space: nowrap;
+  }
+  .text-input, .file-input {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.7rem 1rem;
+    font-family: var(--font-body);
+    font-size: 16px;
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+  .text-input:focus, .file-input:focus {
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 3px var(--amber-soft);
+  }
+  .text-input::placeholder { color: var(--text-muted); }
+
+  .btn {
+    font-family: var(--font-body);
+    font-size: 0.85rem; font-weight: 500;
+    padding: 0.8rem 1.8rem;
+    border-radius: 10px; border: none;
+    cursor: pointer; transition: all 0.2s ease;
+    min-height: 48px;
+  }
+  .btn--primary {
+    background: var(--amber); color: var(--bg-deep);
+  }
+  .btn--primary:active { filter: brightness(0.9); transform: scale(0.97); }
+  .btn--primary:disabled { opacity: 0.3; cursor: not-allowed; }
+  .actions { display: flex; justify-content: flex-end; margin-top: 1.5rem; }
+
+  .result-banner {
+    border-radius: 10px; padding: 1rem; margin-top: 1rem;
+    text-align: center; font-size: 0.9rem; display: none;
+  }
+  .result-banner.visible { display: block; }
+  .result-banner.success { background: #4a922; border: 1px solid var(--green); color: var(--green); }
+  .result-banner.error { background: #c5522; border: 1px solid var(--red); color: #e88; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .katex { color: var(--text-primary); }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <header class="header">
+    <div class="header__label">Homework 1 / 第一次作业</div>
+    <h1 class="header__title">From Coordinates to the <em>Unified Machine ODE</em></h1>
+    <p class="header__sub">从坐标系到统一电机微分方程——手工推导代码中的五条 ODE</p>
+  </header>
+
+  <div class="meta-bar">
+    <span>Related: Lecture 2 — Active Flux</span>
+    <span>Due: TBD</span>
+  </div>
+
+  <!-- ===== 引言 ===== -->
+  <section class="content-section" id="intro">
+    <div class="content-section__tag">Overview / 总述</div>
+    <h2>作业目标 / Objective</h2>
+
+    <p>在我们的仿真代码中，电机模型由 5 条常微分方程（ODE）描述：</p>
+    <div class="eq-block">
+      $$\dot{x}[0],\;\dot{x}[1],\;\dot{x}[2],\;\dot{x}[3],\;\dot{x}[4]$$
+    </div>
+    <p>它们分别对应 $\theta_\text{mech}$、$\omega_\text{mech}$、$\psi_\text{AF}$（<code>KA</code>）、$i_D$、$i_Q$ 的时间导数。通过选择不同参数（$R_\text{req}$、$\psi_\text{PM}$、$L_d$、$L_q$），同一组方程描述 SPM、IPMSM、SynRM 和 IM。</p>
+
+    <p><strong>本次作业要求你从零开始（"from nothing"），一步步推导出这五条方程。</strong></p>
+
+    <div class="highlight-box">
+      <strong>为什么要写微分方程？</strong><br>
+      如果把麦克风放在桌上，你能直接看到它的位置。但电机内部的电流、磁链等状态变量是<em>看不到</em>的。我们写微分方程的目的，就是用数学去<strong>预测</strong>这些看不到的状态，进而才能<strong>控制</strong>它们——这是整门课的核心思想。
+    </div>
+  </section>
+
+  <!-- ===== Part 1: 坐标系与旋转 ===== -->
+  <section class="content-section" id="part1">
+    <div class="content-section__tag">Part 1 / 第一部分 (30 分)</div>
+    <h2>坐标系、旋转与物理矢量 / Coordinate Frames, Rotation, and Physical Vectors</h2>
+
+    <h3>1.1 圆周运动的坐标表示 / Coordinates of Circular Motion</h3>
+
+    <p>设质点 $P$ 在半径为 $r$ 的圆上做匀速圆周运动，角速度为 $\omega$。</p>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 1.1</strong>
+      <div class="sub-q">在静止笛卡尔坐标系 $(\alpha, \beta)$ 下，写出 $P$ 的坐标 $(p_\alpha(t),\; p_\beta(t))$。</div>
+      <div class="sub-q">将 $P$ 的位置投影到圆的一条直径上（取 $\alpha$ 轴），写出该投影的表达式。指出这是一个什么样的运动（正弦/余弦振动）。</div>
+      <div class="sub-q">现在建立一个<strong>与 $P$ 同步旋转</strong>的坐标系 $(d, q)$，其 $d$ 轴始终指向 $P$。在该旋转坐标系下，$P$ 的坐标是什么？与 (a) 对比，哪个更简单？</div>
+    </div>
+
+    <h3>1.2 物理矢量与坐标无关性 / Physical Vectors are Frame-Independent</h3>
+
+    <p>一个物理矢量 $\hat{\vec{p}}$（上标 hat 表示不指定坐标系）在不同坐标系下有不同的坐标分量，但它代表的物理实体不变。例如：</p>
+    <ul>
+      <li>在静止 $\alpha\beta$ 系下：$\vec{p}^s = \begin{bmatrix} p_\alpha \\ p_\beta \end{bmatrix}$</li>
+      <li>在旋转 $dq$ 系下：$\vec{p}^r = \begin{bmatrix} p_d \\ p_q \end{bmatrix}$</li>
+    </ul>
+    <p>两者通过旋转矩阵 $\mathbf{R}(\theta)$ 相连：$\vec{p}^r = \mathbf{R}(-\theta)\,\vec{p}^s$。</p>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 1.2</strong>
+      <div class="sub-q">写出 $2\times2$ 旋转矩阵 $\mathbf{R}(\theta)$，并验证 $\mathbf{R}(-\theta) = \mathbf{R}^T(\theta)$。</div>
+      <div class="sub-q">用 Task 1.1(a) 的结果验证：将 $\alpha\beta$ 坐标通过 $\mathbf{R}(-\omega t)$ 变换到 $dq$ 系后，是否得到 Task 1.1(c) 的结果。</div>
+    </div>
+
+    <h3>1.3 旋转坐标系中的求导算子 / Derivative Operator in a Rotating Frame</h3>
+
+    <p>物理定律（如牛顿定律、法拉第定律）写成矢量形式时，应在任何坐标系下都成立。但如果我们在旋转坐标系中对坐标分量直接求时间导数 $\frac{d}{dt}$，会丢掉坐标系本身的旋转贡献。</p>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 1.3 — 惯性力的例子 / Inertial Force Example</strong><br>
+      <p style="margin: 0.5rem 0;">设一个麦克风放在桌上。桌子相对于墙是静止的。定义：</p>
+      <ul>
+        <li>墙为参考原点，麦克风到桌子边缘的距离为 $Y$，桌子到墙的距离为 $X$</li>
+        <li>麦克风相对墙的绝对位置 = $X + Y$</li>
+      </ul>
+      <div class="sub-q">若桌子（"旋转坐标系"的类比）以速度 $v$ 移动，在桌子的参考系中麦克风静止（$\dot{Y}=0$）。写出麦克风在墙参考系中的加速度。指出"桌子在动"带来的额外项对应什么力（惯性力 / inertial force）。</div>
+      <div class="sub-q">推广到旋转坐标系：一个矢量 $\hat{\vec{p}}$ 在角速度 $\omega$ 的旋转系下，其坐标分量的"绝对导数"（在惯性系中的导数）与"相对导数"（直接对旋转系坐标求导）之间的关系是什么？写出修正后的求导算子。</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>结论预告 / Key Result:</strong> 在角速度 $\omega$ 的旋转坐标系中，对物理矢量用复数表示时，求导算子需修正为：
+      $$\frac{d}{dt}\bigg|_{\text{inertial}} = \frac{d}{dt}\bigg|_{\text{rotating}} + j\omega$$
+      即 Laplace 算子 $s \to s + j\omega$。这保证了牛顿定律与法拉第定律在旋转系下仍然成立。
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 1.4 — 反电动势的例子 / Back-EMF Example</strong><br>
+      <p style="margin: 0.5rem 0;">法拉第电磁感应定律：$e = -\frac{d\psi}{dt}$（感应电压 = 磁链的时间导数取负）。</p>
+      <div class="sub-q">在<strong>经典力学</strong>中，力 $F = m\ddot{x}$ 是位置的二阶导数。对应到<strong>电机电路</strong>中，反电动势（back-EMF）$e = -\frac{d\psi}{dt}$ 是磁链的一阶导数。解释为什么"力 ↔ 反电动势"是一对类比。</div>
+      <div class="sub-q">如果磁链矢量 $\hat{\vec{\psi}}$ 在旋转系下的分量为 $(\psi_d,\, \psi_q)$，利用 Task 1.3 的修正算子，写出反电动势在旋转系下的表达式。指出多出来的 $j\omega\vec{\psi}$ 项的物理含义（速度电动势 / speed EMF）。</div>
+    </div>
+  </section>
+
+  <!-- ===== Part 2: 磁通、磁链与法拉第定律 ===== -->
+  <section class="content-section" id="part2">
+    <div class="content-section__tag">Part 2 / 第二部分 (20 分)</div>
+    <h2>从磁场到电路：磁通与磁链 / From Field to Circuit: Flux and Flux Linkage</h2>
+
+    <h3>2.1 磁通量是场的量 / Magnetic Flux is a Field Quantity</h3>
+
+    <p>磁通量（magnetic flux）$\Phi$ 是磁感应强度 $\vec{B}$ 在某个截面 $S$ 上的<strong>面积分</strong>：</p>
+    <div class="eq-block">
+      $$\Phi = \iint_S \vec{B} \cdot d\vec{A}$$
+    </div>
+    <p>这是一个"场"的概念——它依赖于空间分布。但在电路分析中，我们不想处理空间积分，而希望所有量都是<strong>时间的函数</strong>。</p>
+
+    <h3>2.2 磁链的定义 / Definition of Flux Linkage</h3>
+
+    <p>对于一个 $N$ 匝线圈，<strong>磁链</strong>（flux linkage）定义为：</p>
+    <div class="eq-block">
+      $$\psi = N \Phi = L \, i$$
+    </div>
+    <p>其中 $L$ 是电感，$i$ 是电流。磁链 $\psi$ 是一个纯粹的<strong>电路量</strong>，单位 Wb（韦伯），它把场的信息"浓缩"成了一个与时间相关的标量。</p>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 2.1</strong>
+      <div class="sub-q">解释为什么在电路分析中我们更偏好磁链 $\psi$ 而不是磁通密度 $\vec{B}$。（提示：微分方程需要的是时间域的量。）</div>
+      <div class="sub-q">法拉第定律用磁链表示：$u = \frac{d\psi}{dt}$（忽略负号约定）。如果 $\psi = L\,i$，且 $L$ 为常数，写出 $u$ 关于 $i$ 的表达式。</div>
+      <div class="sub-q">如果电感 $L$ 不是常数（比如随转子位置变化），$u = \frac{d(Li)}{dt}$ 展开后有几项？哪一项对应反电动势？</div>
+    </div>
+  </section>
+
+  <!-- ===== Part 3: 电路模型 ===== -->
+  <section class="content-section" id="part3">
+    <div class="content-section__tag">Part 3 / 第三部分 (30 分)</div>
+    <h2>电机等效电路与 KVL/KCL / Equivalent Circuit and Kirchhoff's Laws</h2>
+
+    <h3>3.1 单相等效电路 / Single-Phase Equivalent Circuit</h3>
+
+    <p>考虑电机定子的一相绕组，其等效电路包含：</p>
+    <ul>
+      <li><strong>电压源</strong> $u$：逆变器施加的端电压</li>
+      <li><strong>电阻</strong> $R_s$：绕组铜阻</li>
+      <li><strong>漏感</strong> $L_\sigma$：不与转子交链的漏磁路对应的电感</li>
+      <li><strong>励磁电感</strong> $L_m$：与转子（永磁体或感应笼）交链的主磁路对应的电感</li>
+    </ul>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 3.1</strong>
+      <div class="sub-q"><strong>画出</strong>该单相等效电路图。标注 $u$、$R_s$、$L_\sigma$、$L_m$，以及各支路电流和磁链。</div>
+      <div class="sub-q">对该电路写出 <strong>KVL</strong>（基尔霍夫电压定律）方程。指出每一项的物理含义（电阻压降、漏磁链的感应电压、主磁链的感应电压/反电动势）。</div>
+      <div class="sub-q">解释 $L_\sigma$ 和 $L_m$ 在物理上的区别：哪个对应"不与转子交链"的磁通路径？哪个对应"与永磁体/转子感应绕组交链"的磁通路径？</div>
+    </div>
+
+    <h3>3.2 从三相到矢量：KCL 的约束 / From Three Phases to a Vector: The KCL Constraint</h3>
+
+    <p>电机有三个定子绕组（A、B、C 相），每相的电流分别为 $i_A$、$i_B$、$i_C$。</p>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 3.2</strong>
+      <div class="sub-q">如果三相绕组的中性点相连（星形接法），写出 KCL 约束：$i_A + i_B + i_C = \;?$</div>
+      <div class="sub-q">这个约束说明三个电流分量不是独立的——它们被约束在一个<strong>二维平面</strong>内（三维空间中的一个平面）。解释为什么我们可以用一个<strong>二维矢量</strong> $\vec{i}^s = \begin{bmatrix} i_\alpha \\ i_\beta \end{bmatrix}$ 来等价表示三相电流。</div>
+      <div class="sub-q">这个 $\alpha\beta \to dq$ 的坐标变换，和 Part 1 中圆周运动的例子有什么联系？为什么选择旋转坐标系能简化电机的微分方程？</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>提示 / Hint:</strong> 回忆 Part 1 中圆周运动的点在 $\alpha\beta$ 系下的坐标是正弦函数，而在同步旋转 $dq$ 系下变成了常数。电机的三相电流在稳态时也是正弦波——如果不做坐标变换，电压方程中会出现正弦函数的乘积（调制/modulation），使模型高度非线性。选择合适的旋转坐标系，正弦变常数，方程大幅简化。
+    </div>
+  </section>
+
+  <!-- ===== Part 4: 推导统一 ODE ===== -->
+  <section class="content-section" id="part4">
+    <div class="content-section__tag">Part 4 / 第四部分 (20 分)</div>
+    <h2>综合推导：写出五条 ODE / Putting It All Together: Derive the 5 ODEs</h2>
+
+    <p>现在你已经掌握了所有工具：旋转坐标系、修正求导算子 $\frac{d}{dt} + j\omega$、磁链、KVL。</p>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 4.1 — 电压方程推导</strong>
+      <div class="sub-q">从 Part 3 的 KVL 出发，将电压方程写成磁链形式：$u = R_s\,i + \frac{d\psi}{dt}$。</div>
+      <div class="sub-q">将上式变换到以角速度 $\omega_\text{syn}$ 旋转的 $dq$ 坐标系，利用修正求导算子，写出 $dq$ 系下的电压方程（分 $d$ 轴和 $q$ 轴两条）。</div>
+      <div class="sub-q">引入 active flux 定义 $\psi_\text{AF} = \psi_d - L_q\,i_D$，将 (b) 的结果重写为以 $(\psi_\text{AF},\, i_D,\, i_Q)$ 为状态变量的形式。解出 $\frac{di_D}{dt}$ 和 $\frac{di_Q}{dt}$——这就是代码中的 $\dot{x}[3]$ 和 $\dot{x}[4]$。</div>
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 4.2 — Active flux 动力学</strong>
+      <div class="sub-q">对于 PMSM（$R_\text{req} = 0$），从 $\psi_\text{AF} = (L_d - L_q)\,i_D + \psi_\text{PM}$ 直接求导，写出 $\frac{d\psi_\text{AF}}{dt}$——这是代码中 $\dot{x}[2]$ 的 PMSM 分支。</div>
+      <div class="sub-q">对于 IM（$R_\text{req} > 0$），说明为什么 $\psi_\text{AF}$ 变成了独立动态变量，并写出 $\frac{d\psi_\text{AF}}{dt} = R_\text{req}\,i_D - \frac{R_\text{req}}{L_d - L_q}\psi_\text{AF}$——这是 $\dot{x}[2]$ 的 IM 分支。</div>
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 4.3 — 机械方程</strong>
+      <div class="sub-q">写出转矩方程 $T_\text{em} = \frac{3}{2}\,n_\text{pp}\,\psi_\text{AF}\,i_Q$。</div>
+      <div class="sub-q">写出牛顿第二定律的旋转形式：$J_s \frac{d\omega_\text{mech}}{dt} = T_\text{em} - T_\text{load}$——这是 $\dot{x}[1]$。</div>
+      <div class="sub-q">写出 $\frac{d\theta_\text{mech}}{dt} = \omega_\text{mech} + \frac{\omega_\text{slip}}{n_\text{pp}}$——这是 $\dot{x}[0]$。解释 IM 的滑差项 $\omega_\text{slip} = \frac{R_\text{req}\,i_Q}{\psi_\text{AF}}$ 为什么对 PMSM 为零。</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>恭喜！/ Congratulations!</strong> 完成 Task 4.1–4.3 后，你已经从零推导出了代码中 <code>DYNAMICS_MACHINE</code> 函数的全部 5 条 ODE：$\dot{x}[0] \sim \dot{x}[4]$。这就是统一 AC 电机模型的完整数学基础。
+    </div>
+  </section>
+
+  <!-- ===== 提交 ===== -->
+  <section class="content-section" id="submit-section">
+    <div class="content-section__tag">Submission / 提交</div>
+    <h2>作业提交 / Submit Your Work</h2>
+
+    <p>请将你的推导过程（手写拍照或电子文档）整理好后提交。要求书写清晰，公式推导完整，图表标注规范。</p>
+
+    <div class="name-row">
+      <label>姓名 / Name:</label>
+      <input type="text" class="text-input" id="hwName" placeholder="请输入姓名..." style="max-width: 240px;">
+    </div>
+
+    <div style="margin-bottom: 1rem;">
+      <label style="font-size: 0.9rem; color: var(--text-primary); display: block; margin-bottom: 0.5rem;">
+        上传文件 / Upload (PDF or images):
+      </label>
+      <input type="file" id="hwFile" accept=".pdf,.png,.jpg,.jpeg" multiple
+        style="font-size: 0.85rem; color: var(--text-secondary);">
+    </div>
+
+    <div id="resultBanner" class="result-banner"></div>
+
+    <div class="actions">
+      <button class="btn btn--primary" id="submitHwBtn" onclick="submitHomework()">Submit / 提交</button>
+    </div>
+  </section>
+
+</div>
+
+<script>
+// Scroll reveal via IntersectionObserver
+(function() {
+  var io = new IntersectionObserver(function(entries) {
+    entries.forEach(function(e) {
+      if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.05, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.content-section').forEach(function(s) { io.observe(s); });
+})();
+
+// Submit homework
+async function submitHomework() {
+  const name = document.getElementById('hwName').value.trim();
+  if (!name) {
+    showResult('error', '请填写姓名 / Please enter your name.');
+    return;
+  }
+
+  const fileInput = document.getElementById('hwFile');
+  if (!fileInput.files.length) {
+    showResult('error', '请选择文件 / Please select a file to upload.');
+    return;
+  }
+
+  const btn = document.getElementById('submitHwBtn');
+  btn.disabled = true;
+  btn.textContent = 'Uploading...';
+
+  const formData = new FormData();
+  formData.append('name', name);
+  formData.append('homework', 'homework1');
+  formData.append('timestamp', new Date().toISOString());
+  for (const f of fileInput.files) {
+    formData.append('files', f);
+  }
+
+  try {
+    const resp = await fetch('/submit-homework', {
+      method: 'POST',
+      body: formData
+    });
+    if (resp.ok) {
+      showResult('success', '提交成功！Submission received.');
+      btn.textContent = 'Submitted';
+    } else {
+      throw new Error(`Server error: ${resp.status}`);
+    }
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = 'Submit / 提交';
+    showResult('error', `提交失败 / Failed: ${e.message}`);
+  }
+}
+
+function showResult(type, msg) {
+  const banner = document.getElementById('resultBanner');
+  banner.className = `result-banner visible ${type}`;
+  banner.textContent = msg;
+}
+</script>
+
+</body>
+</html>

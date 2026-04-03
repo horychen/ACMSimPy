@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Coding Project 1 — What Is Frequency Sweep Actually Measuring?</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"
+  onerror="this.onerror=null;this.href='vendor/katex/katex.min.css';">
+<script>
+(function(){
+  var CDN = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/";
+  var LOCAL = "vendor/katex/";
+  var files = ["katex.min.js", "contrib/auto-render.min.js"];
+  var idx = 0, TIMEOUT = 3000;
+  function renderMath() {
+    if (window.renderMathInElement) {
+      renderMathInElement(document.body, {
+        delimiters: [
+          {left:"$$", right:"$$", display:true},
+          {left:"$", right:"$", display:false}
+        ]
+      });
+    }
+  }
+  function loadScript(src, ok, fail) {
+    var s = document.createElement("script");
+    var done = false;
+    var timer = setTimeout(function(){ if(!done){ done = true; s.onload = s.onerror = null; fail(); } }, TIMEOUT);
+    s.src = src;
+    s.onload = function(){ if(!done){ done = true; clearTimeout(timer); ok(); } };
+    s.onerror = function(){ if(!done){ done = true; clearTimeout(timer); fail(); } };
+    document.head.appendChild(s);
+  }
+  function loadChain(base, fallback) {
+    if (idx >= files.length) { renderMath(); return; }
+    loadScript(base + files[idx], function(){ idx++; loadChain(base, fallback); }, function(){ if (fallback) { idx = 0; loadChain(fallback, null); } });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){ loadChain(CDN, LOCAL); });
+  } else {
+    loadChain(CDN, LOCAL);
+  }
+})();
+</script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0d14;
+    --panel: rgba(16, 21, 33, 0.88);
+    --line: rgba(255,255,255,0.10);
+    --text: #edf2ff;
+    --soft: #b6bfd7;
+    --muted: #7f8aa2;
+    --gold: #f1c76e;
+    --teal: #7de1d2;
+    --blue: #82a9ff;
+    --green: #9ce28f;
+    --shadow: 0 24px 80px rgba(0,0,0,0.35);
+    --font-display: Georgia, "Times New Roman", serif;
+    --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
+    --font-mono: "Cascadia Code", Consolas, monospace;
+  }
+  html { font-size: 16px; scroll-behavior: smooth; }
+  body {
+    min-height: 100vh;
+    font-family: var(--font-body);
+    color: var(--text);
+    background:
+      radial-gradient(circle at 15% 18%, rgba(130,169,255,0.18), transparent 30%),
+      radial-gradient(circle at 84% 10%, rgba(125,225,210,0.12), transparent 24%),
+      radial-gradient(circle at 50% 120%, rgba(241,199,110,0.12), transparent 34%),
+      linear-gradient(180deg, #070910 0%, #0b0f18 55%, #070910 100%);
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  body[data-lang="en"] .lang-zh { display: none !important; }
+  body[data-lang="zh"] .lang-en { display: none !important; }
+  .app { width: min(1120px, calc(100vw - 20px)); margin: 0 auto; padding: 14px 0 48px; }
+  .topbar { position: sticky; top: 8px; z-index: 30; display: flex; justify-content: flex-end; margin-bottom: 12px; }
+  .lang-switch { display: inline-flex; gap: 6px; padding: 6px; border: 1px solid var(--line); border-radius: 999px; background: rgba(12,16,26,0.84); backdrop-filter: blur(12px); box-shadow: var(--shadow); }
+  .lang-switch button { border: none; border-radius: 999px; min-width: 76px; padding: 9px 14px; font-size: 0.88rem; font-weight: 700; cursor: pointer; background: transparent; color: var(--soft); transition: 0.2s ease; }
+  .lang-switch button.active { background: linear-gradient(135deg, var(--gold), #ffe4a8); color: #1b1508; }
+  .lang-switch button:not(.active):hover { background: rgba(255,255,255,0.06); color: var(--text); }
+  .hero, .sidebar, .section { border: 1px solid var(--line); border-radius: 24px; background: var(--panel); backdrop-filter: blur(14px); box-shadow: var(--shadow); }
+  .hero { padding: 28px; margin-bottom: 14px; }
+  .eyebrow, .section-tag, .side-title, .pill { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.16em; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 10px; color: var(--gold); font-size: 0.72rem; margin-bottom: 14px; }
+  .eyebrow::before, .section-tag::before { content: ""; width: 32px; height: 1px; background: linear-gradient(90deg, currentColor, transparent); }
+  .hero h1 { font-family: var(--font-display); font-size: clamp(2rem, 4vw, 3.5rem); line-height: 1.08; font-weight: 500; letter-spacing: -0.03em; margin-bottom: 14px; }
+  .hero h1 em { font-style: normal; color: var(--teal); }
+  .lead { max-width: 900px; color: var(--soft); line-height: 1.85; font-size: 1rem; }
+  .meta-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 20px; }
+  .meta-card { border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,0.03); padding: 12px 14px; }
+  .meta-label { display: block; color: var(--muted); font-size: 0.68rem; margin-bottom: 6px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.16em; }
+  .meta-value { line-height: 1.55; font-size: 0.94rem; }
+  .layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 14px; align-items: start; }
+  .sidebar { position: sticky; top: 72px; padding: 18px; }
+  .side-title { color: var(--gold); font-size: 0.75rem; margin-bottom: 10px; }
+  .nav-list { list-style: none; display: grid; gap: 8px; margin-bottom: 14px; }
+  .nav-list a { display: block; padding: 10px 12px; border-radius: 12px; color: var(--soft); text-decoration: none; border: 1px solid transparent; transition: 0.2s ease; }
+  .nav-list a:hover { color: var(--text); background: rgba(255,255,255,0.04); border-color: var(--line); transform: translateX(3px); }
+  .side-note { border-top: 1px solid var(--line); padding-top: 12px; color: var(--muted); font-size: 0.86rem; line-height: 1.75; }
+  .main { display: grid; gap: 14px; }
+  .section { padding: 24px; opacity: 0; transform: translateY(18px); transition: opacity 0.55s ease, transform 0.55s ease; }
+  .section.visible { opacity: 1; transform: translateY(0); }
+  .section-tag { display: inline-flex; align-items: center; gap: 10px; color: var(--teal); font-size: 0.7rem; margin-bottom: 12px; }
+  h2 { font-family: var(--font-display); font-size: 1.65rem; font-weight: 500; margin-bottom: 12px; }
+  h3 { font-size: 1.04rem; color: var(--gold); margin: 18px 0 10px; }
+  h4 { font-size: 1rem; margin-bottom: 8px; color: var(--text); }
+  p, li { color: var(--soft); line-height: 1.82; font-size: 0.97rem; }
+  strong { color: var(--text); }
+  em { color: var(--teal); }
+  ul, ol { padding-left: 1.2rem; margin: 10px 0 14px; }
+  li + li { margin-top: 6px; }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .grid-2, .grid-3, .q-grid { display: grid; gap: 14px; margin-top: 16px; }
+  .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .q-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .card, .q-card, .callout, .eq-block, pre, .check, .mini-list li { border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,0.03); }
+  .card, .q-card { padding: 18px; }
+  .callout, .eq-block, pre { padding: 16px 18px; margin: 16px 0; }
+  .callout--warn { background: rgba(241,199,110,0.08); border-color: rgba(241,199,110,0.24); }
+  .callout--ok { background: rgba(125,225,210,0.07); border-color: rgba(125,225,210,0.22); }
+  .callout--task { background: rgba(156,226,143,0.07); border-color: rgba(156,226,143,0.22); }
+  .callout-title { display: block; color: var(--text); margin-bottom: 6px; font-weight: 700; }
+  .eq-block, pre { background: #111722; overflow-x: auto; }
+  pre, code { font-family: var(--font-mono); font-size: 0.9rem; }
+  code { color: var(--teal); background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); padding: 0.1rem 0.35rem; border-radius: 8px; }
+  pre code { background: none; border: none; padding: 0; color: #d9e6ff; }
+  .pill { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; color: var(--soft); font-size: 0.72rem; padding: 4px 9px; margin-right: 6px; margin-bottom: 6px; }
+  .q-index { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: rgba(130,169,255,0.14); color: var(--blue); font-family: var(--font-mono); font-size: 0.82rem; margin-bottom: 10px; }
+  .mini-list { list-style: none; padding-left: 0; display: grid; gap: 10px; margin-top: 12px; }
+  .mini-list li, .check { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; }
+  .mini-list li::before, .check::before { flex: none; font-weight: 700; }
+  .mini-list li::before { content: "\2192"; color: var(--gold); }
+  .checklist { display: grid; gap: 10px; margin-top: 12px; }
+  .check::before { content: "\2713"; color: var(--green); margin-top: 1px; }
+  .task-table { width: 100%; border-collapse: collapse; margin-top: 14px; border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
+  .task-table th, .task-table td { padding: 14px 16px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  .task-table th { background: rgba(255,255,255,0.05); color: var(--text); font-size: 0.9rem; }
+  .task-table td { color: var(--soft); line-height: 1.75; font-size: 0.94rem; }
+  .task-table tr:last-child td { border-bottom: none; }
+  .disabled-box { margin-top: 16px; padding: 16px 18px; border-radius: 18px; border: 1px dashed rgba(255,255,255,0.24); background: rgba(255,255,255,0.025); }
+  .footer-note { margin-top: 16px; color: var(--muted); font-size: 0.88rem; }
+  .katex { color: var(--text); }
+  @media (max-width: 980px) { .meta-grid, .layout, .grid-3, .grid-2, .q-grid { grid-template-columns: 1fr; } .sidebar, .topbar { position: static; } }
+  @media (max-width: 640px) { .app { width: min(100vw - 14px, 1120px); padding-top: 10px; } .hero, .sidebar, .section { padding: 20px; border-radius: 20px; } .lang-switch { width: 100%; } .lang-switch button { flex: 1; min-width: 0; } h2 { font-size: 1.42rem; } .lead, p, li { font-size: 0.95rem; } .task-table { display: block; overflow-x: auto; } }
+</style>
+</head>
+<body data-lang="en">
+<div class="app">
+  <div class="topbar">
+    <div class="lang-switch" aria-label="Language switch">
+      <button id="btn-en" class="active" type="button" onclick="setLang('en')">English</button>
+      <button id="btn-zh" type="button" onclick="setLang('zh')">中文</button>
+    </div>
+  </div>
+
+  <header class="hero">
+    <div class="eyebrow">Coding Project 1 / FOC Frequency Sweep</div>
+    <h1>
+      <span class="lang-en">What is frequency sweep <em>actually measuring</em> in motor control?</span>
+      <span class="lang-zh">电机控制中的“扫频”，<em>到底在测什么？</em></span>
+    </h1>
+    <p class="lead">
+      <span class="lang-en">This project asks you to go beyond simply “running a script.” You should use simulation, plotting, tuning, and explanation to determine what speed-loop sweep, current-loop sweep, and load-torque sweep really mean in a multi-loop motor-control system.</span>
+      <span class="lang-zh">这次作业不是让你只会“跑脚本”。你需要通过仿真、作图、调参和解释，真正弄清楚在多闭环电机控制中，速度环扫频、电流环扫频和负载转矩扫频到底测到了什么。</span>
+    </p>
+    <div class="meta-grid">
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Core scripts</span><span class="lang-zh">核心脚本</span></span>
+        <div class="meta-value"><code>simulation/tuner.py</code><br><code>simulation/tutorials_ep6_svpwm.py</code></div>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Keywords</span><span class="lang-zh">关键词</span></span>
+        <div class="meta-value">speed loop / current loop / disturbance / bandwidth</div>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Expected output</span><span class="lang-zh">建议产出</span></span>
+        <div class="meta-value"><span class="lang-en">figures + analysis + tuning notes</span><span class="lang-zh">图 + 分析解释 + 调参说明</span></div>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Report format</span><span class="lang-zh">报告形式</span></span>
+        <div class="meta-value">PDF</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="side-title"><span class="lang-en">Contents</span><span class="lang-zh">目录</span></div>
+      <ul class="nav-list">
+        <li><a href="#overview"><span class="lang-en">Objective</span><span class="lang-zh">项目目标</span></a></li>
+        <li><a href="#resources"><span class="lang-en">Code & setup</span><span class="lang-zh">代码与环境</span></a></li>
+        <li><a href="#questions"><span class="lang-en">Core questions</span><span class="lang-zh">核心问题</span></a></li>
+        <li><a href="#workflow"><span class="lang-en">Workflow</span><span class="lang-zh">实验流程</span></a></li>
+        <li><a href="#hints"><span class="lang-en">Hints</span><span class="lang-zh">提示</span></a></li>
+        <li><a href="#deliverables"><span class="lang-en">Deliverables</span><span class="lang-zh">提交要求</span></a></li>
+      </ul>
+      <div class="side-note">
+        <span class="lang-en">Read the whole page before editing code. The page gives hints, but it does not replace your own reasoning.</span>
+        <span class="lang-zh">建议先通读整页再改代码。本页会给出提示，但不会代替你自己的推理。</span>
+      </div>
+    </aside>
+
+    <main class="main">
+      <section class="section" id="overview">
+        <div class="section-tag">Overview / Objective</div>
+        <h2><span class="lang-en">The key question is not “how to sweep,” but “what the sweep result means.”</span><span class="lang-zh">真正的问题不是“怎么扫频”，而是“扫出来的结果代表什么”。</span></h2>
+        <p><span class="lang-en">A frequency sweep injects a sinusoidal signal near an operating point and observes how the output changes with frequency. So the result is a frequency-domain view of a specific input-output path.</span><span class="lang-zh">扫频本质上是在某个工作点附近注入正弦信号，并观察输出如何随频率变化。因此你测到的是某条输入—输出通道的频域特性。</span></p>
+        <div class="eq-block">$$G(j\omega)=\frac{Y(j\omega)}{U(j\omega)}$$</div>
+        <p><span class="lang-en">In motor control, the result depends on where you inject the signal, which variable you observe, whether the mechanical subsystem is allowed to move, and how fast the inner current loop is.</span><span class="lang-zh">在电机控制里，结果取决于你把信号注入在哪一层、观测哪一个量、机械系统是否允许运动，以及电流内环是否足够快。</span></p>
+        <div class="callout callout--warn">
+          <span class="callout-title"><span class="lang-en">Minimum standard</span><span class="lang-zh">最低要求</span></span>
+          <span class="lang-en">Do not submit only screenshots. You must explicitly state the input, the output, the injection point, the observed variable, and which dynamics are intentionally included or avoided.</span>
+          <span class="lang-zh">不要只提交截图。你必须明确说明输入、输出、注入点、观测量，以及哪些动态是你故意包含或故意避免的。</span>
+        </div>
+        <div class="grid-3">
+          <div class="card">
+            <h4><span class="lang-en">Layer 1: observe</span><span class="lang-zh">层次 1：观察</span></h4>
+            <p><span class="lang-en">Run the simulation and inspect speed, <code>i_q</code>, <code>i_d</code>, and load torque.</span><span class="lang-zh">先跑通仿真，观察速度、<code>i_q</code>、<code>i_d</code> 和负载转矩。</span></p>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">Layer 2: interpret</span><span class="lang-zh">层次 2：解释</span></h4>
+            <p><span class="lang-en">Explain whether you are measuring tracking, disturbance rejection, or a coupled electro-mechanical response.</span><span class="lang-zh">解释你测到的是跟踪、抗扰，还是电气与机械耦合后的响应。</span></p>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">Layer 3: tune</span><span class="lang-zh">层次 3：调参</span></h4>
+            <p><span class="lang-en">Change controller bandwidth and show how the sweep results change.</span><span class="lang-zh">改变控制器带宽，并说明扫频结果如何变化。</span></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="resources">
+        <div class="section-tag">Resources / Setup</div>
+        <h2><span class="lang-en">Code entry points and setup references</span><span class="lang-zh">代码入口与环境参考</span></h2>
+        <div class="callout callout--ok">
+          <span class="callout-title"><span class="lang-en">Recommended repository</span><span class="lang-zh">推荐参考仓库</span></span>
+          <div>
+            <span class="lang-en">Repo:</span><span class="lang-zh">仓库：</span>
+            <a href="https://github.com/horychen/ee275" target="_blank" rel="noopener noreferrer">https://github.com/horychen/ee275</a><br>
+            <span class="lang-en">Clone:</span><span class="lang-zh">Clone：</span>
+            <a href="https://github.com/horychen/ee275.git" target="_blank" rel="noopener noreferrer">https://github.com/horychen/ee275.git</a><br>
+            <span class="lang-en">README:</span><span class="lang-zh">README：</span>
+            <a href="https://github.com/horychen/ee275/blob/master/README.md" target="_blank" rel="noopener noreferrer">README / environment setup</a>
+          </div>
+        </div>
+        <pre><code>git clone https://github.com/horychen/ee275.git</code></pre>
+        <div class="grid-2">
+          <div class="card">
+            <h4><code>simulation/tutorials_ep6_svpwm.py</code></h4>
+            <ul>
+              <li><span class="lang-en">Search for <code>bool_apply_sweeping_frequency_excitation</code>.</span><span class="lang-zh">先搜索 <code>bool_apply_sweeping_frequency_excitation</code>。</span></li>
+              <li><span class="lang-en">Find <code>CMD_SPEED_SINE_RPM</code>, <code>CMD_CURRENT_SINE_AMPERE</code>.</span><span class="lang-zh">找到 <code>CMD_SPEED_SINE_RPM</code>、<code>CMD_CURRENT_SINE_AMPERE</code>。</span></li>
+              <li><span class="lang-en">Find <code>cmd_rpm</code>, <code>cmd_idq[1]</code>, and <code>ACM.TLoad</code>.</span><span class="lang-zh">找到 <code>cmd_rpm</code>、<code>cmd_idq[1]</code> 和 <code>ACM.TLoad</code>。</span></li>
+              <li><span class="lang-en">Locate where speed and current PI controllers are initialized.</span><span class="lang-zh">定位速度环和电流环 PI 初始化的位置。</span></li>
+            </ul>
+          </div>
+          <div class="card">
+            <h4><code>simulation/tuner.py</code></h4>
+            <ul>
+              <li><span class="lang-en">Read <code>get_coeffs_dc_motor_current_regulator()</code>.</span><span class="lang-zh">看 <code>get_coeffs_dc_motor_current_regulator()</code>。</span></li>
+              <li><span class="lang-en">Read <code>get_coeffs_dc_motor_SPEED_regulator()</code>.</span><span class="lang-zh">看 <code>get_coeffs_dc_motor_SPEED_regulator()</code>。</span></li>
+              <li><span class="lang-en">Read <code>iterate_for_desired_bandwidth()</code>.</span><span class="lang-zh">看 <code>iterate_for_desired_bandwidth()</code>。</span></li>
+              <li><span class="lang-en">Understand <code>FOC_delta</code> and <code>FOC_desired_VLBW_HZ</code>.</span><span class="lang-zh">理解 <code>FOC_delta</code> 和 <code>FOC_desired_VLBW_HZ</code> 的作用。</span></li>
+            </ul>
+          </div>
+        </div>
+        <h3><span class="lang-en">Variables you should know</span><span class="lang-zh">至少要熟悉这些变量</span></h3>
+        <div>
+          <span class="pill">CTRL.bool_apply_speed_closed_loop_control</span>
+          <span class="pill">CTRL.bool_apply_sweeping_frequency_excitation</span>
+          <span class="pill">CTRL.bool_overwrite_speed_commands</span>
+          <span class="pill">CMD_SPEED_SINE_HZ</span>
+          <span class="pill">CMD_SPEED_SINE_STEP_SIZE</span>
+          <span class="pill">CMD_SPEED_SINE_HZ_CEILING</span>
+          <span class="pill">CMD_CURRENT_SINE_AMPERE</span>
+          <span class="pill">CL_SERIES_KP / KI</span>
+          <span class="pill">VL_SERIES_KP / KI</span>
+          <span class="pill">FOC_delta</span>
+          <span class="pill">FOC_desired_VLBW_HZ</span>
+        </div>
+      </section>
+
+      <section class="section" id="questions">
+        <div class="section-tag">Core Questions</div>
+        <h2><span class="lang-en">Your report must answer Q1–Q7</span><span class="lang-zh">你的报告必须围绕 Q1–Q7 展开</span></h2>
+        <div class="q-grid">
+          <div class="q-card"><div class="q-index">Q1</div><h4><span class="lang-en">What does a sweep actually measure?</span><span class="lang-zh">扫频到底在测什么？</span></h4><p><span class="lang-en">State the input, output, injection point, and observation point.</span><span class="lang-zh">明确输入、输出、注入点和观测点。</span></p></div>
+          <div class="q-card"><div class="q-index">Q2</div><h4><span class="lang-en">What do speed-loop sweep and current-loop sweep measure, respectively?</span><span class="lang-zh">扫速度环和扫电流环分别在测什么？</span></h4><p><span class="lang-en">Distinguish speed-reference-to-speed, current-reference-to-current, and disturbance-to-speed.</span><span class="lang-zh">区分速度参考到速度、电流参考到电流、扰动到速度这几条通道。</span></p></div>
+          <div class="q-card"><div class="q-index">Q3</div><h4><span class="lang-en">When sweeping the current loop, should rotor speed change or stay fixed?</span><span class="lang-zh">扫电流环时，转速应变化还是保持不变？</span></h4><p><span class="lang-en">Discuss <code>d</code>-axis and <code>q</code>-axis separately, including back-EMF and torque production.</span><span class="lang-zh">请分开讨论 <code>d</code> 轴和 <code>q</code> 轴，并说明反电势与转矩耦合的影响。</span></p></div>
+          <div class="q-card"><div class="q-index">Q4</div><h4><span class="lang-en">Why does <code>i_q</code> amplitude often grow as speed-sweep frequency increases?</span><span class="lang-zh">为什么速度指令扫频时，<code>i_q</code> 幅值通常会随频率升高而变大？</span></h4><p><span class="lang-en">Answer from the mechanical equation, not only from control intuition.</span><span class="lang-zh">请从机械方程出发解释，而不是只说“控制器更努力了”。</span></p></div>
+          <div class="q-card"><div class="q-index">Q5</div><h4><span class="lang-en">How is load-torque sweep at constant speed related to, and different from, speed-reference sweep?</span><span class="lang-zh">恒速时对负载转矩扫频，与对速度参考扫频，有什么联系与区别？</span></h4><p><span class="lang-en">Explain using transfer-path or block-diagram language.</span><span class="lang-zh">请用传递路径或框图语言解释。</span></p></div>
+          <div class="q-card"><div class="q-index">Q6</div><h4><span class="lang-en">How does the current loop affect load-torque sweep results?</span><span class="lang-zh">电流环会怎样影响负载转矩扫频结果？</span></h4><p><span class="lang-en">Explain why a slower inner loop worsens disturbance rejection and adds phase lag.</span><span class="lang-zh">说明为什么更慢的内环会降低抗扰并更早带来相位滞后。</span></p></div>
+          <div class="q-card"><div class="q-index">Q7</div><h4><span class="lang-en">How do you change bandwidth? Which parameters matter, and why?</span><span class="lang-zh">如何改变带宽？涉及哪些参数？原理是什么？</span></h4><p><span class="lang-en">Connect the formulas in <code>tuner.py</code> with your experimental results.</span><span class="lang-zh">请把 <code>tuner.py</code> 中的公式和你的实验结果对应起来。</span></p></div>
+        </div>
+      </section>
+      <section class="section" id="workflow">
+        <div class="section-tag">Workflow / Suggested Experiments</div>
+        <h2><span class="lang-en">Suggested workflow</span><span class="lang-zh">建议实验流程</span></h2>
+        <table class="task-table">
+          <thead>
+            <tr>
+              <th><span class="lang-en">Stage</span><span class="lang-zh">阶段</span></th>
+              <th><span class="lang-en">What to do</span><span class="lang-zh">要做什么</span></th>
+              <th><span class="lang-en">What to answer</span><span class="lang-zh">要回答什么</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Task A</strong></td>
+              <td><span class="lang-en">Run <code>tutorials_ep6_svpwm.py</code> with a valid configuration and inspect the default waveforms.</span><span class="lang-zh">先跑通 <code>tutorials_ep6_svpwm.py</code>，确认默认波形能正常显示。</span></td>
+              <td><span class="lang-en">Identify commands, feedback signals, states, and disturbances.</span><span class="lang-zh">先分清哪些是命令量、反馈量、状态量和扰动量。</span></td>
+            </tr>
+            <tr>
+              <td><strong>Task B</strong></td>
+              <td><span class="lang-en">Sweep the speed reference while keeping the speed loop closed.</span><span class="lang-zh">保持速度环闭环，对速度参考进行扫频。</span></td>
+              <td><span class="lang-en">Describe the tracking path and how speed and <code>i_q</code> vary with frequency.</span><span class="lang-zh">分析闭环跟踪通道，并说明速度和 <code>i_q</code> 随频率如何变化。</span></td>
+            </tr>
+            <tr>
+              <td><strong>Task C</strong></td>
+              <td><span class="lang-en">Sweep <code>d</code>-axis and <code>q</code>-axis current separately.</span><span class="lang-zh">分别对 <code>d</code> 轴和 <code>q</code> 轴电流做扫频。</span></td>
+              <td><span class="lang-en">Explain whether you are measuring a pure current loop or a current-mechanics coupled response.</span><span class="lang-zh">说明你测到的是纯电流环，还是与机械环耦合后的响应。</span></td>
+            </tr>
+            <tr>
+              <td><strong>Task D</strong></td>
+              <td><span class="lang-en">Keep the speed command constant and inject a sinusoidal disturbance into <code>ACM.TLoad</code>.</span><span class="lang-zh">保持速度给定恒定，对 <code>ACM.TLoad</code> 注入正弦扰动。</span></td>
+              <td><span class="lang-en">Explain the disturbance-rejection path and compare it with speed-reference sweep.</span><span class="lang-zh">分析抗扰通道，并与速度参考扫频进行比较。</span></td>
+            </tr>
+            <tr>
+              <td><strong>Task E</strong></td>
+              <td><span class="lang-en">Use <code>tuner.py</code> to generate at least two different bandwidth settings and repeat the experiments.</span><span class="lang-zh">用 <code>tuner.py</code> 生成至少两组不同带宽参数，并重复实验。</span></td>
+              <td><span class="lang-en">Show how bandwidth changes the results and explain why.</span><span class="lang-zh">说明带宽变化后结果如何变化，以及原因。</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="callout callout--task">
+          <span class="callout-title"><span class="lang-en">Programming minimum</span><span class="lang-zh">编程最低要求</span></span>
+          <span class="lang-en">Add at least one small function or script that extracts useful summary values from each sweep segment, such as frequency, amplitude, peak-to-peak value, or a simple phase estimate.</span>
+          <span class="lang-zh">至少补一个自动整理结果的小功能，例如提取每段扫频的频率、响应幅值、峰峰值或简单相位估计。</span>
+        </div>
+      </section>
+
+      <section class="section" id="hints">
+        <div class="section-tag">Hints / Physics + Code</div>
+        <h2><span class="lang-en">Hints that should push you in the right direction</span><span class="lang-zh">足以把你推向正确方向的提示</span></h2>
+        <h3><span class="lang-en">Hint 1: A sweep measures the frequency response of a path</span><span class="lang-zh">提示 1：扫频测的是某条通道的频率响应</span></h3>
+        <p><span class="lang-en">Speed-reference sweep is mainly about tracking. Load-torque sweep is mainly about disturbance rejection. Current-reference sweep targets the current loop only if mechanical effects are intentionally suppressed.</span><span class="lang-zh">速度参考扫频主要对应跟踪；负载转矩扫频主要对应抗扰；电流参考扫频只有在机械影响被刻意压制时，才更接近纯电流环测量。</span></p>
+        <h3><span class="lang-en">Hint 2: Think carefully about <code>d</code>-axis vs <code>q</code>-axis sweep</span><span class="lang-zh">提示 2：认真区分 <code>d</code> 轴和 <code>q</code> 轴扫频</span></h3>
+        <div class="grid-2">
+          <div class="card">
+            <h4><span class="lang-en"><code>d</code>-axis sweep</span><span class="lang-zh"><code>d</code> 轴扫频</span></h4>
+            <p><span class="lang-en">Sweeping <code>d</code>-axis current typically does not create average torque in the basic PMSM setting, so it is often cleaner for observing electrical dynamics.</span><span class="lang-zh">在基本 PMSM 场景下，扫 <code>d</code> 轴电流通常不会直接产生平均电磁转矩，因此更适合较干净地观察电气动态。</span></p>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en"><code>q</code>-axis sweep</span><span class="lang-zh"><code>q</code> 轴扫频</span></h4>
+            <p><span class="lang-en">Sweeping <code>q</code>-axis current creates torque. If the rotor is free to accelerate, you are exciting both the current loop and the mechanical subsystem.</span><span class="lang-zh">扫 <code>q</code> 轴电流会产生转矩。如果转子可以自由加减速，你激发的就不只是电流环，还包括机械系统。</span></p>
+          </div>
+        </div>
+        <div class="callout callout--warn">
+          <span class="callout-title"><span class="lang-en">Key idea</span><span class="lang-zh">关键点</span></span>
+          <span class="lang-en">If your goal is to measure something close to the pure current loop, you usually want rotor speed to stay fixed, so that speed-dependent back-EMF and mechanical dynamics do not contaminate the result too much.</span>
+          <span class="lang-zh">如果你的目标是尽量测到“纯电流环”，通常更希望转速保持不变，这样速度相关的反电势和机械动态就不至于过多污染结果。</span>
+        </div>
+        <h3><span class="lang-en">Hint 3: Why does <code>i_q</code> grow with speed-sweep frequency?</span><span class="lang-zh">提示 3：为什么速度扫频时 <code>i_q</code> 往往随频率增大？</span></h3>
+        <div class="eq-block">$$J\frac{d\omega_m}{dt}=T_e-T_L,\qquad T_e=\frac{3}{2}n_{pp}K_A i_q$$</div>
+        <div class="eq-block">$$\omega_m^\ast(t)=A\sin(2\pi f t)\Rightarrow \frac{d\omega_m^\ast}{dt}=2\pi f A\cos(2\pi f t)$$</div>
+        <p><span class="lang-en">For fixed speed amplitude <code>A</code>, higher frequency means larger acceleration amplitude, which requires larger torque amplitude, which in turn requires larger <code>i_q</code>.</span><span class="lang-zh">在速度幅值 <code>A</code> 固定时，频率越高，加速度幅值越大；更大的加速度需要更大的转矩，而更大的转矩又需要更大的 <code>i_q</code>。</span></p>
+        <h3><span class="lang-en">Hint 4: Reference sweep and load-torque sweep are related but not identical</span><span class="lang-zh">提示 4：速度参考扫频和负载转矩扫频既相关又不同</span></h3>
+        <p><span class="lang-en">They pass through the same closed-loop system and may share a similar closed-loop denominator, but they are injected at different points, so they do not represent the same transfer function.</span><span class="lang-zh">它们都经过同一个闭环系统，因此可能共享相近的闭环分母；但注入点不同，所以不是同一条传递函数。</span></p>
+        <div class="eq-block">$$\frac{\omega_m}{\omega_m^\ast}\sim \frac{C_vG_iG_m}{1+C_vG_iG_m},\qquad \frac{\omega_m}{T_L}\sim -\frac{G_d}{1+C_vG_iG_m}$$</div>
+        <h3><span class="lang-en">Hint 5: The current loop is the torque actuator seen by the speed loop</span><span class="lang-zh">提示 5：从速度环角度看，电流环就是“转矩执行器”</span></h3>
+        <p><span class="lang-en">The speed loop outputs <code>i_q^*</code>, but only the current loop can turn it into actual <code>i_q</code>. So a slower current loop makes the speed loop more sluggish and weaker against disturbances.</span><span class="lang-zh">速度环输出的是 <code>i_q^*</code>，真正把它变成实际 <code>i_q</code> 的是电流环。因此更慢的电流环会让速度环更迟钝、抗扰更差。</span></p>
+        <h3><span class="lang-en">Hint 6: Bandwidth design is explicitly coded in <code>tuner.py</code></span><span class="lang-zh">提示 6：带宽设计在 <code>tuner.py</code> 里写得很明确</span></h3>
+        <div class="eq-block">$$K_{p,i}=2\pi L\,\mathrm{BW}_c,\qquad K_{i,i}=\frac{R}{L}$$</div>
+        <div class="eq-block">$$K_{i,\omega}=\frac{\omega_{ci}}{\delta^2},\qquad K_{p,\omega}=\frac{J_s/n_{pp}}{1.5\,n_{pp}K_A}\,\delta K_{i,\omega}$$</div>
+        <p><span class="lang-en">Connect these formulas with code variables and with your own sweep results.</span><span class="lang-zh">请把这些公式、代码变量和你自己的扫频结果对应起来。</span></p>
+        <pre><code>bool_apply_sweeping_frequency_excitation
+CMD_SPEED_SINE_RPM
+CMD_CURRENT_SINE_AMPERE
+cmd_rpm
+cmd_idq[1]
+ACM.TLoad
+get_coeffs_dc_motor_current_regulator
+get_coeffs_dc_motor_SPEED_regulator
+iterate_for_desired_bandwidth</code></pre>
+      </section>
+      <section class="section" id="deliverables">
+        <div class="section-tag">Deliverables / Report</div>
+        <h2><span class="lang-en">Required content of the final PDF report</span><span class="lang-zh">最终 PDF 报告要求</span></h2>
+        <div class="callout callout--warn">
+          <span class="callout-title"><span class="lang-en">The final PDF must contain these 4 core figures</span><span class="lang-zh">最终 PDF 必须包含这 4 张核心图</span></span>
+          <ol>
+            <li><span class="lang-en"><strong><code>d</code>-axis current-loop sweep</strong> — sweep the <code>d</code>-axis current loop alone.</span><span class="lang-zh"><strong><code>d</code> 轴电流环扫频图</strong>——单独对 <code>d</code> 轴进行扫频。</span></li>
+            <li><span class="lang-en"><strong><code>q</code>-axis current-loop sweep</strong> — sweep the <code>q</code>-axis current loop alone.</span><span class="lang-zh"><strong><code>q</code> 轴电流环扫频图</strong>——单独对 <code>q</code> 轴进行扫频。</span></li>
+            <li><span class="lang-en"><strong>Speed-loop sweep</strong> — sweep the speed reference.</span><span class="lang-zh"><strong>速度环扫频图</strong>——对速度参考进行扫频。</span></li>
+            <li><span class="lang-en"><strong>Load-torque sweep at constant speed</strong> — keep the speed command constant and sweep <code>TLoad</code>.</span><span class="lang-zh"><strong>恒速下的负载转矩扫频图</strong>——保持速度参考恒定，对 <code>TLoad</code> 进行扫频。</span></li>
+          </ol>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <h4><span class="lang-en">Mandatory</span><span class="lang-zh">必须包含</span></h4>
+            <div class="checklist">
+              <div class="check"><span class="lang-en">A clear description of what code you changed and why.</span><span class="lang-zh">明确说明你改了哪些代码，以及为什么。</span></div>
+              <div class="check"><span class="lang-en">All 4 required figures in the final PDF.</span><span class="lang-zh">最终 PDF 中必须出现上述 4 张图。</span></div>
+              <div class="check"><span class="lang-en">At least 2 different bandwidth settings for comparison.</span><span class="lang-zh">至少比较 2 组不同带宽参数。</span></div>
+              <div class="check"><span class="lang-en">Direct answers to Q1–Q7, not figures without explanation.</span><span class="lang-zh">逐条回答 Q1–Q7，不能只放图不解释。</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">Suggested report structure</span><span class="lang-zh">建议结构</span></h4>
+            <ol>
+              <li><span class="lang-en">Objective and measured path</span><span class="lang-zh">实验目的与测量通道</span></li>
+              <li><span class="lang-en">Code entry points and modifications</span><span class="lang-zh">代码入口与修改点</span></li>
+              <li><span class="lang-en">Experimental settings</span><span class="lang-zh">实验设置</span></li>
+              <li><span class="lang-en">The 4 core figures first</span><span class="lang-zh">先放 4 张核心图</span></li>
+              <li><span class="lang-en">Q1–Q7 analysis</span><span class="lang-zh">Q1–Q7 分析</span></li>
+              <li><span class="lang-en">Conclusion</span><span class="lang-zh">结论</span></li>
+            </ol>
+          </div>
+        </div>
+        <div class="disabled-box">
+          <p>
+            <strong><span class="lang-en">Online submission is currently disabled.</span><span class="lang-zh">当前暂不支持在线提交。</span></strong>
+            <span class="lang-en"> Please prepare your report as a PDF. The upload form is intentionally hidden for now.</span>
+            <span class="lang-zh"> 请先准备 PDF 报告。上传区域目前已隐藏。</span>
+          </p>
+        </div>
+        <p class="footer-note"><span class="lang-en">Suggested filename: <code>codingProject1_name.pdf</code></span><span class="lang-zh">建议文件名：<code>codingProject1_姓名.pdf</code></span></p>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script>
+(function(){
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.section').forEach(function(s){ io.observe(s); });
+})();
+
+function setLang(lang) {
+  document.body.setAttribute('data-lang', lang);
+  document.documentElement.setAttribute('lang', lang === 'zh' ? 'zh-CN' : 'en');
+  document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+  document.getElementById('btn-zh').classList.toggle('active', lang === 'zh');
+  try { localStorage.setItem('codingProject1-lang', lang); } catch(e) {}
+}
+
+(function(){
+  var lang = 'en';
+  try {
+    var saved = localStorage.getItem('codingProject1-lang');
+    if (saved === 'en' || saved === 'zh') lang = saved;
+  } catch(e) {}
+  setLang(lang);
+})();
+</script>
+</body>
+</html>

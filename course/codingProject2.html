@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Coding Project 2 — Bandwidth, Decoupling &amp; Robustness</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"
+  onerror="this.onerror=null;this.href='vendor/katex/katex.min.css';">
+<script>
+(function(){
+  var CDN = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/";
+  var LOCAL = "vendor/katex/";
+  var files = ["katex.min.js", "contrib/auto-render.min.js"];
+  var idx = 0, TIMEOUT = 3000;
+  function renderMath() {
+    if (window.renderMathInElement) {
+      renderMathInElement(document.body, {
+        delimiters: [
+          {left:"$$", right:"$$", display:true},
+          {left:"$", right:"$", display:false}
+        ]
+      });
+    }
+  }
+  function loadScript(src, ok, fail) {
+    var s = document.createElement("script");
+    var done = false;
+    var timer = setTimeout(function(){ if(!done){ done = true; s.onload = s.onerror = null; fail(); } }, TIMEOUT);
+    s.src = src;
+    s.onload = function(){ if(!done){ done = true; clearTimeout(timer); ok(); } };
+    s.onerror = function(){ if(!done){ done = true; clearTimeout(timer); fail(); } };
+    document.head.appendChild(s);
+  }
+  function loadChain(base, fallback) {
+    if (idx >= files.length) { renderMath(); return; }
+    loadScript(base + files[idx], function(){ idx++; loadChain(base, fallback); }, function(){ if (fallback) { idx = 0; loadChain(fallback, null); } });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){ loadChain(CDN, LOCAL); });
+  } else {
+    loadChain(CDN, LOCAL);
+  }
+})();
+</script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0d14;
+    --panel: rgba(16, 21, 33, 0.88);
+    --line: rgba(255,255,255,0.10);
+    --text: #edf2ff;
+    --soft: #b6bfd7;
+    --muted: #7f8aa2;
+    --gold: #f1c76e;
+    --teal: #7de1d2;
+    --blue: #82a9ff;
+    --green: #9ce28f;
+    --shadow: 0 24px 80px rgba(0,0,0,0.35);
+    --font-display: Georgia, "Times New Roman", serif;
+    --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
+    --font-mono: "Cascadia Code", Consolas, monospace;
+  }
+  html { font-size: 16px; scroll-behavior: smooth; }
+  body {
+    min-height: 100vh;
+    font-family: var(--font-body);
+    color: var(--text);
+    background:
+      radial-gradient(circle at 15% 18%, rgba(130,169,255,0.18), transparent 30%),
+      radial-gradient(circle at 84% 10%, rgba(125,225,210,0.12), transparent 24%),
+      radial-gradient(circle at 50% 120%, rgba(241,199,110,0.12), transparent 34%),
+      linear-gradient(180deg, #070910 0%, #0b0f18 55%, #070910 100%);
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  body[data-lang="en"] .lang-zh { display: none !important; }
+  body[data-lang="zh"] .lang-en { display: none !important; }
+  .app { width: min(1120px, calc(100vw - 20px)); margin: 0 auto; padding: 14px 0 48px; }
+  .topbar { position: sticky; top: 8px; z-index: 30; display: flex; justify-content: flex-end; margin-bottom: 12px; }
+  .lang-switch { display: inline-flex; gap: 6px; padding: 6px; border: 1px solid var(--line); border-radius: 999px; background: rgba(12,16,26,0.84); backdrop-filter: blur(12px); box-shadow: var(--shadow); }
+  .lang-switch button { border: none; border-radius: 999px; min-width: 76px; padding: 9px 14px; font-size: 0.88rem; font-weight: 700; cursor: pointer; background: transparent; color: var(--soft); transition: 0.2s ease; }
+  .lang-switch button.active { background: linear-gradient(135deg, var(--gold), #ffe4a8); color: #1b1508; }
+  .lang-switch button:not(.active):hover { background: rgba(255,255,255,0.06); color: var(--text); }
+  .hero, .sidebar, .section { border: 1px solid var(--line); border-radius: 24px; background: var(--panel); backdrop-filter: blur(14px); box-shadow: var(--shadow); }
+  .hero { padding: 28px; margin-bottom: 14px; }
+  .eyebrow, .section-tag, .side-title, .pill { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.16em; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 10px; color: var(--gold); font-size: 0.72rem; margin-bottom: 14px; }
+  .eyebrow::before, .section-tag::before { content: ""; width: 32px; height: 1px; background: linear-gradient(90deg, currentColor, transparent); }
+  .hero h1 { font-family: var(--font-display); font-size: clamp(2rem, 4vw, 3.5rem); line-height: 1.08; font-weight: 500; letter-spacing: -0.03em; margin-bottom: 14px; }
+  .hero h1 em { font-style: normal; color: var(--teal); }
+  .lead { max-width: 900px; color: var(--soft); line-height: 1.85; font-size: 1rem; }
+  .meta-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 20px; }
+  .meta-card { border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,0.03); padding: 12px 14px; }
+  .meta-label { display: block; color: var(--muted); font-size: 0.68rem; margin-bottom: 6px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.16em; }
+  .meta-value { line-height: 1.55; font-size: 0.94rem; }
+  .layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 14px; align-items: start; }
+  .sidebar { position: sticky; top: 72px; padding: 18px; }
+  .side-title { color: var(--gold); font-size: 0.75rem; margin-bottom: 10px; }
+  .nav-list { list-style: none; display: grid; gap: 8px; margin-bottom: 14px; }
+  .nav-list a { display: block; padding: 10px 12px; border-radius: 12px; color: var(--soft); text-decoration: none; border: 1px solid transparent; transition: 0.2s ease; }
+  .nav-list a:hover { color: var(--text); background: rgba(255,255,255,0.04); border-color: var(--line); transform: translateX(3px); }
+  .side-note { border-top: 1px solid var(--line); padding-top: 12px; color: var(--muted); font-size: 0.86rem; line-height: 1.75; }
+  .main { display: grid; gap: 14px; }
+  .section { padding: 24px; opacity: 0; transform: translateY(18px); transition: opacity 0.55s ease, transform 0.55s ease; }
+  .section.visible { opacity: 1; transform: translateY(0); }
+  .section-tag { display: inline-flex; align-items: center; gap: 10px; color: var(--teal); font-size: 0.7rem; margin-bottom: 12px; }
+  h2 { font-family: var(--font-display); font-size: 1.65rem; font-weight: 500; margin-bottom: 12px; }
+  h3 { font-size: 1.04rem; color: var(--gold); margin: 18px 0 10px; }
+  h4 { font-size: 1rem; margin-bottom: 8px; color: var(--text); }
+  p, li { color: var(--soft); line-height: 1.82; font-size: 0.97rem; }
+  strong { color: var(--text); }
+  em { color: var(--teal); }
+  ul, ol { padding-left: 1.2rem; margin: 10px 0 14px; }
+  li + li { margin-top: 6px; }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .grid-2, .grid-3, .q-grid { display: grid; gap: 14px; margin-top: 16px; }
+  .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .q-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .card, .q-card, .callout, .eq-block, pre, .check, .mini-list li { border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,0.03); }
+  .card, .q-card { padding: 18px; }
+  .callout, .eq-block, pre { padding: 16px 18px; margin: 16px 0; }
+  .callout--warn { background: rgba(241,199,110,0.08); border-color: rgba(241,199,110,0.24); }
+  .callout--ok { background: rgba(125,225,210,0.07); border-color: rgba(125,225,210,0.22); }
+  .callout--task { background: rgba(156,226,143,0.07); border-color: rgba(156,226,143,0.22); }
+  .callout-title { display: block; color: var(--text); margin-bottom: 6px; font-weight: 700; }
+  .eq-block, pre { background: #111722; overflow-x: auto; }
+  pre, code { font-family: var(--font-mono); font-size: 0.9rem; }
+  code { color: var(--teal); background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); padding: 0.1rem 0.35rem; border-radius: 8px; }
+  pre code { background: none; border: none; padding: 0; color: #d9e6ff; }
+  .pill { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; color: var(--soft); font-size: 0.72rem; padding: 4px 9px; margin-right: 6px; margin-bottom: 6px; }
+  .q-index { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: rgba(130,169,255,0.14); color: var(--blue); font-family: var(--font-mono); font-size: 0.82rem; margin-bottom: 10px; }
+  .mini-list { list-style: none; padding-left: 0; display: grid; gap: 10px; margin-top: 12px; }
+  .mini-list li, .check { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; }
+  .mini-list li::before, .check::before { flex: none; font-weight: 700; }
+  .mini-list li::before { content: "\2192"; color: var(--gold); }
+  .checklist { display: grid; gap: 10px; margin-top: 12px; }
+  .check::before { content: "\2713"; color: var(--green); margin-top: 1px; }
+  .task-table { width: 100%; border-collapse: collapse; margin-top: 14px; border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
+  .task-table th, .task-table td { padding: 14px 16px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  .task-table th { background: rgba(255,255,255,0.05); color: var(--text); font-size: 0.9rem; }
+  .task-table td { color: var(--soft); line-height: 1.75; font-size: 0.94rem; }
+  .task-table tr:last-child td { border-bottom: none; }
+  .disabled-box { margin-top: 16px; padding: 16px 18px; border-radius: 18px; border: 1px dashed rgba(255,255,255,0.24); background: rgba(255,255,255,0.025); }
+  .footer-note { margin-top: 16px; color: var(--muted); font-size: 0.88rem; }
+  .katex { color: var(--text); }
+  @media (max-width: 980px) { .meta-grid, .layout, .grid-3, .grid-2, .q-grid { grid-template-columns: 1fr; } .sidebar, .topbar { position: static; } }
+  @media (max-width: 640px) { .app { width: min(100vw - 14px, 1120px); padding-top: 10px; } .hero, .sidebar, .section { padding: 20px; border-radius: 20px; } .lang-switch { width: 100%; } .lang-switch button { flex: 1; min-width: 0; } h2 { font-size: 1.42rem; } .lead, p, li { font-size: 0.95rem; } .task-table { display: block; overflow-x: auto; } }
+</style>
+</head>
+<body data-lang="en">
+<div class="app">
+  <div class="topbar">
+    <div class="lang-switch" aria-label="Language switch">
+      <button id="btn-en" class="active" type="button" onclick="setLang('en')">English</button>
+      <button id="btn-zh" type="button" onclick="setLang('zh')">中文</button>
+    </div>
+  </div>
+
+  <header class="hero">
+    <div class="eyebrow">Coding Project 2 / PI Tuning &amp; Robustness</div>
+    <h1>
+      <span class="lang-en">How does bandwidth interact with <em>decoupling</em> and parameter mismatch?</span>
+      <span class="lang-zh">带宽设计如何与<em>前馈解耦</em>和参数失配相互作用？</span>
+    </h1>
+    <p class="lead">
+      <span class="lang-en">In Project 1 you explored frequency-domain sweeps. Now you shift to <strong>time-domain step response</strong> metrics — rise time, overshoot, steady-state error — and investigate how feedforward decoupling and model accuracy affect performance. You will sweep bandwidths, toggle decoupling, introduce parameter mismatch, and optionally enable a load torque observer.</span>
+      <span class="lang-zh">在 Project 1 中你分析了频域扫频。现在转向<strong>时域阶跃响应</strong>指标——上升时间、超调量、稳态误差——并研究前馈解耦和模型精度如何影响控制性能。你需要扫描带宽、切换解耦、引入参数失配，还可以选做负载转矩观测器。</span>
+    </p>
+    <div class="meta-grid">
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Core scripts</span><span class="lang-zh">核心脚本</span></span>
+        <div class="meta-value"><code>simulation/tuner.py</code><br><code>simulation/tutorials_ep6_svpwm.py</code></div>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Keywords</span><span class="lang-zh">关键词</span></span>
+        <div class="meta-value">bandwidth / rise time / overshoot / decoupling / mismatch</div>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Expected output</span><span class="lang-zh">建议产出</span></span>
+        <div class="meta-value"><span class="lang-en">figures + analysis + code</span><span class="lang-zh">图 + 分析 + 代码</span></div>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Report format</span><span class="lang-zh">报告形式</span></span>
+        <div class="meta-value">PDF</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="side-title"><span class="lang-en">Contents</span><span class="lang-zh">目录</span></div>
+      <ul class="nav-list">
+        <li><a href="#overview"><span class="lang-en">Objective</span><span class="lang-zh">项目目标</span></a></li>
+        <li><a href="#resources"><span class="lang-en">Code &amp; setup</span><span class="lang-zh">代码与环境</span></a></li>
+        <li><a href="#part1"><span class="lang-en">Part 1: Bandwidth</span><span class="lang-zh">Part 1：带宽</span></a></li>
+        <li><a href="#part2"><span class="lang-en">Part 2: Decoupling</span><span class="lang-zh">Part 2：解耦</span></a></li>
+        <li><a href="#part3"><span class="lang-en">Part 3: Mismatch</span><span class="lang-zh">Part 3：参数失配</span></a></li>
+        <li><a href="#part4"><span class="lang-en">Part 4: Observer</span><span class="lang-zh">Part 4：观测器</span></a></li>
+        <li><a href="#deliverables"><span class="lang-en">Deliverables</span><span class="lang-zh">提交要求</span></a></li>
+      </ul>
+      <div class="side-note">
+        <span class="lang-en">Read the whole page before writing code. The hints guide you, but the reasoning must be yours.</span>
+        <span class="lang-zh">动手写代码前，请先通读全文。提示只是方向，推理过程必须是你自己的。</span>
+      </div>
+    </aside>
+
+    <main class="main">
+
+      <!-- ===== Overview ===== -->
+      <section class="section" id="overview">
+        <div class="section-tag">Overview / Objective</div>
+        <h2>
+          <span class="lang-en">From frequency domain to time domain: bandwidth, decoupling, and robustness</span>
+          <span class="lang-zh">从频域到时域：带宽、解耦与鲁棒性</span>
+        </h2>
+        <p>
+          <span class="lang-en">A well-tuned controller is not just "fast." It must balance speed, stability, and robustness to model uncertainty. This project asks you to quantify these tradeoffs through simulation.</span>
+          <span class="lang-zh">一个调好的控制器不只是"快"。它必须在速度、稳定性和对模型不确定性的鲁棒性之间取得平衡。本项目要求你通过仿真量化这些权衡。</span>
+        </p>
+        <div class="grid-3">
+          <div class="card">
+            <h4><span class="lang-en">Part 1: Sweep bandwidth</span><span class="lang-zh">Part 1：扫描带宽</span></h4>
+            <p><span class="lang-en">Vary <code>FOC_desired_VLBW_HZ</code>, measure rise time, overshoot, and steady-state error from the speed step response.</span><span class="lang-zh">改变 <code>FOC_desired_VLBW_HZ</code>，从速度阶跃响应中提取上升时间、超调量和稳态误差。</span></p>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">Part 2: Toggle decoupling</span><span class="lang-zh">Part 2：开关前馈解耦</span></h4>
+            <p><span class="lang-en">Enable / disable feedforward decoupling and compare control performance. Answer: what are the side effects?</span><span class="lang-zh">开启/关闭前馈解耦，比较控制性能。回答：前馈解耦有什么副作用？</span></p>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">Part 3: Parameter mismatch</span><span class="lang-zh">Part 3：参数失配</span></h4>
+            <p><span class="lang-en">Make the controller's motor parameters differ from the plant. Observe how decoupling degrades under mismatch.</span><span class="lang-zh">让控制器的电机参数与实际不同，观察解耦在参数失配下如何退化。</span></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Resources ===== -->
+      <section class="section" id="resources">
+        <div class="section-tag">Resources / Setup</div>
+        <h2><span class="lang-en">Code entry points and setup references</span><span class="lang-zh">代码入口与环境参考</span></h2>
+        <div class="callout callout--ok">
+          <span class="callout-title"><span class="lang-en">Recommended repository</span><span class="lang-zh">推荐参考仓库</span></span>
+          <div>
+            <span class="lang-en">Repo:</span><span class="lang-zh">仓库：</span>
+            <a href="https://github.com/horychen/ee275" target="_blank" rel="noopener noreferrer">https://github.com/horychen/ee275</a><br>
+            <span class="lang-en">Clone:</span><span class="lang-zh">Clone：</span>
+            <a href="https://github.com/horychen/ee275.git" target="_blank" rel="noopener noreferrer">https://github.com/horychen/ee275.git</a><br>
+            <span class="lang-en">README:</span><span class="lang-zh">README：</span>
+            <a href="https://github.com/horychen/ee275/blob/master/README.md" target="_blank" rel="noopener noreferrer">README / environment setup</a>
+          </div>
+        </div>
+        <pre><code>git clone https://github.com/horychen/ee275.git
+cd ee275/simulation
+python tutorials_ep6_svpwm.py</code></pre>
+        <div class="grid-2">
+          <div class="card">
+            <h4><code>simulation/tutorials_ep6_svpwm.py</code></h4>
+            <ul>
+              <li><span class="lang-en">Feedforward decoupling: search for <code>bool_apply_decoupling_voltages_to_current_regulation</code> (around line 695).</span><span class="lang-zh">前馈解耦：搜索 <code>bool_apply_decoupling_voltages_to_current_regulation</code>（约第 695 行）。</span></li>
+              <li><span class="lang-en">Speed/disturbance observer: search for <code>DYNAMICS_SpeedObserver</code> (around line 417).</span><span class="lang-zh">速度/扰动观测器：搜索 <code>DYNAMICS_SpeedObserver</code>（约第 417 行）。</span></li>
+              <li><span class="lang-en"><code>Simulation_Benchmark</code> class: around line 1307. This is your main entry point.</span><span class="lang-zh"><code>Simulation_Benchmark</code> 类：约第 1307 行。这是你的主要入口。</span></li>
+              <li><span class="lang-en">Example <code>d_user_input</code> dictionary: around line 1475.</span><span class="lang-zh">示例 <code>d_user_input</code> 字典：约第 1475 行。</span></li>
+            </ul>
+          </div>
+          <div class="card">
+            <h4><code>simulation/tuner.py</code></h4>
+            <ul>
+              <li><span class="lang-en"><code>tunner_wrapper(d)</code> — auto-tunes PI gains when <code>CL_SERIES_KP</code> is <code>None</code>.</span><span class="lang-zh"><code>tunner_wrapper(d)</code>——当 <code>CL_SERIES_KP</code> 为 <code>None</code> 时自动整定 PI 参数。</span></li>
+              <li><span class="lang-en"><code>iterate_for_desired_bandwidth()</code> — iterates current-loop BW to achieve desired speed-loop BW.</span><span class="lang-zh"><code>iterate_for_desired_bandwidth()</code>——迭代电流环带宽以达到期望的速度环带宽。</span></li>
+              <li><span class="lang-en"><code>FOC_delta</code> controls the damping ratio of the speed loop.</span><span class="lang-zh"><code>FOC_delta</code> 控制速度环的阻尼比。</span></li>
+              <li><span class="lang-en"><code>FOC_desired_VLBW_HZ</code> is the target speed-loop bandwidth in Hz.</span><span class="lang-zh"><code>FOC_desired_VLBW_HZ</code> 是目标速度环带宽（Hz）。</span></li>
+            </ul>
+          </div>
+        </div>
+        <h3><span class="lang-en">Variables you should know</span><span class="lang-zh">至少要熟悉这些变量</span></h3>
+        <div>
+          <span class="pill">FOC_delta</span>
+          <span class="pill">FOC_desired_VLBW_HZ</span>
+          <span class="pill">CL_SERIES_KP / KI</span>
+          <span class="pill">VL_SERIES_KP / KI</span>
+          <span class="pill">CTRL.bool_apply_decoupling_voltages_to_current_regulation</span>
+          <span class="pill">index_separate_speed_estimation</span>
+          <span class="pill">use_disturbance_feedforward_rejection</span>
+          <span class="pill">init_R / init_Ld / init_Lq / init_Js</span>
+        </div>
+
+        <h3><span class="lang-en">Base configuration dictionary</span><span class="lang-zh">基础配置字典</span></h3>
+        <p><span class="lang-en">Use this as your starting point. The key fields you will modify are highlighted in comments.</span><span class="lang-zh">以此为出发点。你需要修改的关键字段在注释中标出。</span></p>
+        <pre><code>d = {
+    'CL_TS': 1e-4,
+    'VL_EXE_PER_CL_EXE': 5,
+    'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 1,
+    'TIME_SLICE': 0.2,
+    'NUMBER_OF_SLICES': 6,
+    'init_npp': 22,
+    'init_IN': 1.3*6/1.414,
+    'init_R': 0.035,                # &lt;-- Part 3: change this for mismatch
+    'init_Ld': 0.036e-3,            # &lt;-- Part 3: change this for mismatch
+    'init_Lq': 0.036e-3,            # &lt;-- Part 3: change this for mismatch
+    'init_KE': 0.0125,
+    'init_Rreq': 0.0,
+    'init_Js': 0.44e-4,             # &lt;-- Part 3: change this for mismatch
+    'DC_BUS_VOLTAGE': 5,
+    'user_system_input_code':
+        "if ii < 1: CTRL.cmd_idq[0] = 0.0; CTRL.cmd_rpm = 50\n"
+        "elif ii < 5: ACM.TLoad = 0.2\n"
+        "elif ii < 100: CTRL.cmd_rpm = -50",
+    'CTRL.bool_apply_speed_closed_loop_control': True,
+    'CTRL.bool_apply_decoupling_voltages_to_current_regulation': False,  # &lt;-- Part 2
+    'CTRL.bool_apply_sweeping_frequency_excitation': False,
+    'CTRL.bool_overwrite_speed_commands': True,
+    'CTRL.bool_zero_id_control': True,
+    'FOC_delta': 15,                 # &lt;-- Part 1: damping factor
+    'FOC_desired_VLBW_HZ': 120,     # &lt;-- Part 1: sweep this
+    'FOC_CL_KI_factor_when__bool_apply_decoupling_voltages_to_current_regulation__is_False': 10,
+    'CL_SERIES_KP': None,           # None = auto-tune
+    'CL_SERIES_KI': None,
+    'VL_SERIES_KP': None,
+    'VL_SERIES_KI': None,
+    'VL_LIMIT_OVERLOAD_FACTOR': 3.0,
+    'disp.Kp': 0, 'disp.Ki': 0, 'disp.Kd': 0,
+    'disp.tau': 0, 'disp.OutLimit': 0, 'disp.IntLimit': 0,
+}</code></pre>
+      </section>
+
+      <!-- ===== Part 1: Bandwidth Sweep ===== -->
+      <section class="section" id="part1">
+        <div class="section-tag">Part 1 / Bandwidth Sweep (30 pts)</div>
+        <h2>
+          <span class="lang-en">How does bandwidth affect time-domain performance?</span>
+          <span class="lang-zh">带宽如何影响时域性能？</span>
+        </h2>
+
+        <h3><span class="lang-en">Background: PI auto-tuning</span><span class="lang-zh">背景：PI 自动整定</span></h3>
+        <p>
+          <span class="lang-en">When <code>CL_SERIES_KP</code> is <code>None</code>, the <code>Simulation_Benchmark</code> class calls <code>tuner.tunner_wrapper(d)</code>, which iterates to find current-loop and speed-loop PI gains that achieve the desired bandwidths. The key formulas are:</span>
+          <span class="lang-zh">当 <code>CL_SERIES_KP</code> 为 <code>None</code> 时，<code>Simulation_Benchmark</code> 类会调用 <code>tuner.tunner_wrapper(d)</code>，通过迭代找到满足期望带宽的电流环和速度环 PI 参数。核心公式：</span>
+        </p>
+        <div class="eq-block">$$K_{p,i}=2\pi L\,\text{BW}_c,\qquad K_{i,i}=\frac{R}{L}$$</div>
+        <div class="eq-block">$$K_{i,\omega}=\frac{\omega_{ci}}{\delta^2},\qquad K_{p,\omega}=\frac{J_s/n_{pp}}{1.5\,n_{pp}K_A}\,\delta\, K_{i,\omega}$$</div>
+        <p>
+          <span class="lang-en">where $\delta$ is <code>FOC_delta</code> (a damping-like factor) and $\omega_{ci}$ is the current-loop bandwidth in rad/s.</span>
+          <span class="lang-zh">其中 $\delta$ 即 <code>FOC_delta</code>（类似阻尼比的参数），$\omega_{ci}$ 为电流环带宽（rad/s）。</span>
+        </p>
+
+        <h3><span class="lang-en">Step response metrics</span><span class="lang-zh">阶跃响应指标</span></h3>
+        <div class="eq-block">$$t_r = t_{90\%} - t_{10\%} \quad\text{(rise time)}$$</div>
+        <div class="eq-block">$$\text{Overshoot} = \frac{y_{\max} - y_{ss}}{y_{ss}} \times 100\%$$</div>
+        <div class="eq-block">$$e_{ss} = |y_{ss} - y_{\text{ref}}| \quad\text{(steady-state error)}$$</div>
+
+        <div class="callout callout--task">
+          <span class="callout-title"><span class="lang-en">Task 1: Bandwidth sweep</span><span class="lang-zh">任务 1：带宽扫描</span></span>
+          <span class="lang-en">Write a Python script that loops over multiple values of <code>FOC_desired_VLBW_HZ</code> (e.g., 20, 40, 60, 80, 100, 120 Hz). For each value, run the simulation, extract the speed step response, and compute rise time, overshoot, and steady-state error. Plot all three metrics vs. bandwidth on one figure (3 subplots).</span>
+          <span class="lang-zh">编写 Python 脚本，遍历多个 <code>FOC_desired_VLBW_HZ</code> 值（如 20, 40, 60, 80, 100, 120 Hz）。每次运行仿真，从速度阶跃响应中提取上升时间、超调量和稳态误差，然后将三个指标对带宽的关系画在一张图上（3 个子图）。</span>
+        </div>
+
+        <h3><span class="lang-en">Code skeleton</span><span class="lang-zh">代码骨架</span></h3>
+        <pre><code>import copy
+from tutorials_ep6_svpwm import Simulation_Benchmark
+
+bandwidths = [20, 40, 60, 80, 100, 120]
+results = {'rise_time': [], 'overshoot': [], 'ss_error': []}
+
+for bw in bandwidths:
+    d_run = copy.deepcopy(d)      # use a fresh copy each time
+    d_run['FOC_desired_VLBW_HZ'] = bw
+    d_run['CL_SERIES_KP'] = None  # force re-tune
+    d_run['CL_SERIES_KI'] = None
+    d_run['VL_SERIES_KP'] = None
+    d_run['VL_SERIES_KI'] = None
+
+    sim = Simulation_Benchmark(d_run)
+    speed = sim.gdd['CTRL.omega_r_mech']
+    time  = sim.global_machine_times
+
+    # TODO: extract rise time, overshoot, steady-state error
+    # Hint: find the step region, identify y_ss, then compute metrics
+    # results['rise_time'].append(tr)
+    # results['overshoot'].append(os_pct)
+    # results['ss_error'].append(ess)</code></pre>
+
+        <div class="callout callout--warn">
+          <span class="callout-title"><span class="lang-en">Think about this</span><span class="lang-zh">思考这些问题</span></span>
+          <span class="lang-en">Higher bandwidth generally means faster rise time but may increase overshoot. <code>FOC_delta</code> acts like a damping ratio — smaller delta means more aggressive (less damped) response. Try sweeping <code>FOC_delta</code> too and observe.</span>
+          <span class="lang-zh">更高的带宽通常意味着更快的上升时间，但可能增加超调。<code>FOC_delta</code> 类似阻尼比——更小的 delta 意味着更激进（欠阻尼）的响应。也可以尝试扫描 <code>FOC_delta</code>。</span>
+        </div>
+
+        <div class="q-grid">
+          <div class="q-card">
+            <div class="q-index">Q1</div>
+            <h4><span class="lang-en">When the system responds faster, what is the cost?</span><span class="lang-zh">当系统响应更快时，代价是什么？</span></h4>
+            <p><span class="lang-en">Think about overshoot, noise sensitivity, voltage saturation, and stability margin.</span><span class="lang-zh">考虑超调、噪声敏感性、电压饱和和稳定裕度。</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q2</div>
+            <h4><span class="lang-en">When the system is more stable (larger delta), what is lost?</span><span class="lang-zh">当系统更稳定时（更大的 delta），损失了什么？</span></h4>
+            <p><span class="lang-en">Think about tracking performance, disturbance rejection speed, and transient error.</span><span class="lang-zh">考虑跟踪性能、抗扰速度和暂态误差。</span></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Part 2: Feedforward Decoupling ===== -->
+      <section class="section" id="part2">
+        <div class="section-tag">Part 2 / Decoupling Analysis (30 pts)</div>
+        <h2>
+          <span class="lang-en">What does feedforward decoupling do, and what are its side effects?</span>
+          <span class="lang-zh">前馈解耦的作用与副作用</span>
+        </h2>
+
+        <h3><span class="lang-en">Physics: cross-coupling in the dq frame</span><span class="lang-zh">物理：dq 坐标系中的交叉耦合</span></h3>
+        <p>
+          <span class="lang-en">The dq-frame voltage equations of a PMSM are:</span>
+          <span class="lang-zh">PMSM 的 dq 坐标系电压方程为：</span>
+        </p>
+        <div class="eq-block">$$u_d = R\,i_d + L_d \frac{di_d}{dt} \underbrace{- \omega_e L_q\, i_q}_{\text{cross-coupling}}$$</div>
+        <div class="eq-block">$$u_q = R\,i_q + L_q \frac{di_q}{dt} + \underbrace{\omega_e (K_E + L_d\, i_d)}_{\text{cross-coupling + back-EMF}}$$</div>
+        <p>
+          <span class="lang-en">The underbraced terms act as disturbances to the PI current regulators. Feedforward decoupling adds compensation voltages to cancel them:</span>
+          <span class="lang-zh">下划线部分是对 PI 电流调节器的扰动。前馈解耦通过补偿电压来抵消它们：</span>
+        </p>
+        <div class="eq-block">$$u_{d,\text{ff}} = -\omega_e L_q\, i_q^*,\qquad u_{q,\text{ff}} = +\omega_e (K_A + L_q\, i_d^*)$$</div>
+        <p>
+          <span class="lang-en">This corresponds to lines 696–699 in <code>tutorials_ep6_svpwm.py</code>.</span>
+          <span class="lang-zh">这对应 <code>tutorials_ep6_svpwm.py</code> 的第 696–699 行。</span>
+        </p>
+
+        <div class="grid-2">
+          <div class="card">
+            <h4><span class="lang-en">Decoupling OFF</span><span class="lang-zh">解耦关闭</span></h4>
+            <p><span class="lang-en">The PI must reject the cross-coupling as a disturbance. The code compensates by multiplying the current-loop $K_i$ by <code>FOC_CL_KI_factor...</code> (default: 10), boosting integral action.</span><span class="lang-zh">PI 调节器必须将交叉耦合当作扰动来抑制。代码通过将电流环 $K_i$ 乘以 <code>FOC_CL_KI_factor...</code>（默认 10）来加强积分作用。</span></p>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">Decoupling ON</span><span class="lang-zh">解耦开启</span></h4>
+            <p><span class="lang-en">Cross-coupling is cancelled by feedforward. PI uses nominal $K_i$. But the feedforward relies on accurate knowledge of $L_d$, $L_q$, $K_E$ stored in <code>CTRL</code>.</span><span class="lang-zh">交叉耦合由前馈补偿抵消。PI 使用标称 $K_i$。但前馈依赖于 <code>CTRL</code> 中存储的 $L_d$、$L_q$、$K_E$ 的准确性。</span></p>
+          </div>
+        </div>
+
+        <div class="callout callout--task">
+          <span class="callout-title"><span class="lang-en">Task 2: Decoupling comparison</span><span class="lang-zh">任务 2：解耦对比</span></span>
+          <span class="lang-en">At the same bandwidth, run the simulation with decoupling ON and OFF. Compare speed tracking, $i_d$ / $i_q$ current waveforms, and $u_d$ / $u_q$ voltage waveforms. Show at least 2 figures (one per setting). Discuss which setting performs better and under what conditions.</span>
+          <span class="lang-zh">在相同带宽下，分别开启和关闭解耦运行仿真。对比速度跟踪、$i_d$ / $i_q$ 电流波形和 $u_d$ / $u_q$ 电压波形。至少展示 2 张图（每种设置一张）。讨论哪种设置更好，以及在什么条件下。</span>
+        </div>
+
+        <h3><span class="lang-en">Code: toggle decoupling</span><span class="lang-zh">代码：切换解耦</span></h3>
+        <pre><code># Experiment A: Decoupling OFF
+d_off = copy.deepcopy(d)
+d_off['CTRL.bool_apply_decoupling_voltages_to_current_regulation'] = False
+sim_off = Simulation_Benchmark(d_off)
+
+# Experiment B: Decoupling ON
+d_on = copy.deepcopy(d)
+d_on['CTRL.bool_apply_decoupling_voltages_to_current_regulation'] = True
+sim_on = Simulation_Benchmark(d_on)</code></pre>
+
+        <div class="q-grid">
+          <div class="q-card">
+            <div class="q-index">Q3</div>
+            <h4><span class="lang-en">Does feedforward decoupling have side effects?</span><span class="lang-zh">前馈解耦是否有副作用？</span></h4>
+            <p><span class="lang-en">What happens when the motor parameters used in the feedforward ($L_d$, $L_q$, $K_E$) are inaccurate? Does the feedforward then help or hurt?</span><span class="lang-zh">当前馈中使用的电机参数（$L_d$、$L_q$、$K_E$）不准确时会怎样？此时前馈是帮助还是损害？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q4</div>
+            <h4><span class="lang-en">Why does the code boost $K_i$ when decoupling is OFF?</span><span class="lang-zh">为什么解耦关闭时代码会增大 $K_i$？</span></h4>
+            <p><span class="lang-en">Find <code>FOC_CL_KI_factor_when__bool_apply_decoupling_voltages_to_current_regulation__is_False</code> in the code. Explain its purpose.</span><span class="lang-zh">在代码中找到 <code>FOC_CL_KI_factor_when__...</code>，解释其作用。</span></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Part 3: Parameter Mismatch ===== -->
+      <section class="section" id="part3">
+        <div class="section-tag">Part 3 / Parameter Mismatch (30 pts)</div>
+        <h2>
+          <span class="lang-en">What happens when the controller's model does not match reality?</span>
+          <span class="lang-zh">当控制器的模型与实际不匹配时会发生什么？</span>
+        </h2>
+
+        <h3><span class="lang-en">The idea</span><span class="lang-zh">思路</span></h3>
+        <p>
+          <span class="lang-en">In <code>Simulation_Benchmark</code>, both <code>CTRL</code> (controller) and <code>ACM</code> (plant) are initialized from the <strong>same</strong> <code>d</code> dictionary. The feedforward decoupling uses <code>CTRL.Lq</code> and <code>CTRL.KA</code> to compute the compensation voltages. If these values are wrong (i.e., they don't match the actual plant), the feedforward injects errors instead of cancelling disturbances.</span>
+          <span class="lang-zh">在 <code>Simulation_Benchmark</code> 中，<code>CTRL</code>（控制器）和 <code>ACM</code>（被控对象）都从<strong>同一个</strong> <code>d</code> 字典初始化。前馈解耦使用 <code>CTRL.Lq</code> 和 <code>CTRL.KA</code> 来计算补偿电压。如果这些值是错误的（即与实际被控对象不匹配），前馈就会注入误差而非抵消扰动。</span>
+        </p>
+
+        <div class="callout callout--warn">
+          <span class="callout-title"><span class="lang-en">Key insight: how to introduce mismatch</span><span class="lang-zh">关键点：如何引入参数失配</span></span>
+          <span class="lang-en"><strong>Step 1</strong>: Run the tuner with correct parameters to get PI gains.<br><strong>Step 2</strong>: Save the tuned gains and set them explicitly (not <code>None</code>).<br><strong>Step 3</strong>: Change <code>init_R</code>, <code>init_Ld</code>, <code>init_Lq</code>, <code>init_Js</code> in the <code>d</code> dictionary.<br><strong>Step 4</strong>: Run again — since gains are explicit, the tuner won't re-run, but <em>both CTRL and ACM</em> will be initialized with the new (mismatched) parameters.<br><br>This means the PI gains were designed for the original plant, but the controller's internal model (<code>CTRL.Lq</code>, <code>CTRL.KA</code>) and the plant (<code>ACM.Lq</code>, <code>ACM.KA</code>) now both have the new values. The mismatch is between the <strong>PI gains</strong> and the <strong>actual plant dynamics</strong>.</span>
+          <span class="lang-zh"><strong>第 1 步</strong>：用正确参数运行整定器得到 PI 参数。<br><strong>第 2 步</strong>：保存整定结果，显式设置（不用 <code>None</code>）。<br><strong>第 3 步</strong>：修改 <code>d</code> 字典中的 <code>init_R</code>、<code>init_Ld</code>、<code>init_Lq</code>、<code>init_Js</code>。<br><strong>第 4 步</strong>：重新运行——由于增益已显式指定，整定器不会重新运行，但 <em>CTRL 和 ACM</em> 都会用新的（失配的）参数初始化。<br><br>这意味着 PI 增益是为原始被控对象设计的，但控制器内部模型和被控对象现在都有了新值。失配发生在 <strong>PI 增益</strong>和<strong>实际被控对象动态</strong>之间。</span>
+        </div>
+
+        <h3><span class="lang-en">Code: parameter mismatch experiment</span><span class="lang-zh">代码：参数失配实验</span></h3>
+        <pre><code>import copy
+
+# Step 1: Tune with correct parameters
+d_baseline = copy.deepcopy(d)
+d_baseline['CL_SERIES_KP'] = None  # auto-tune
+sim_matched = Simulation_Benchmark(d_baseline)
+
+# Step 2: Save tuned gains
+saved_gains = {
+    'CL_SERIES_KP': d_baseline['CL_SERIES_KP'],
+    'CL_SERIES_KI': d_baseline['CL_SERIES_KI'],
+    'VL_SERIES_KP': d_baseline['VL_SERIES_KP'],
+    'VL_SERIES_KI': d_baseline['VL_SERIES_KI'],
+}
+
+# Step 3: Run with parameter mismatch
+d_mismatch = copy.deepcopy(d)
+d_mismatch.update(saved_gains)  # use pre-tuned gains, skip re-tuning
+d_mismatch['init_R']  = d['init_R']  * 1.5   # +50% resistance (thermal)
+d_mismatch['init_Ld'] = d['init_Ld'] * 0.7   # -30% inductance (saturation)
+d_mismatch['init_Lq'] = d['init_Lq'] * 0.7
+d_mismatch['init_Js'] = d['init_Js'] * 2.0   # +100% inertia (load)
+
+sim_mismatched = Simulation_Benchmark(d_mismatch)</code></pre>
+
+        <div class="callout callout--ok">
+          <span class="callout-title"><span class="lang-en">Hint: what to compare</span><span class="lang-zh">提示：比较什么</span></span>
+          <span class="lang-en">The most revealing comparison is between decoupling ON vs OFF under the <em>same</em> mismatch. If decoupling makes things worse under mismatch, that proves the feedforward is injecting errors based on wrong parameters.</span>
+          <span class="lang-zh">最有说明力的对比是在<em>相同</em>失配下，解耦开启 vs 关闭。如果失配时解耦反而更差，就证明了前馈基于错误参数在注入误差。</span>
+        </div>
+
+        <div class="callout callout--task">
+          <span class="callout-title"><span class="lang-en">Task 3: Three-scenario comparison</span><span class="lang-zh">任务 3：三场景对比</span></span>
+          <ol>
+            <li><span class="lang-en"><strong>Scenario A</strong>: Matched parameters + decoupling ON (baseline)</span><span class="lang-zh"><strong>场景 A</strong>：参数匹配 + 解耦开启（基准）</span></li>
+            <li><span class="lang-en"><strong>Scenario B</strong>: Mismatched parameters + decoupling ON</span><span class="lang-zh"><strong>场景 B</strong>：参数失配 + 解耦开启</span></li>
+            <li><span class="lang-en"><strong>Scenario C</strong>: Mismatched parameters + decoupling OFF</span><span class="lang-zh"><strong>场景 C</strong>：参数失配 + 解耦关闭</span></li>
+          </ol>
+          <span class="lang-en">Compare speed tracking and current waveforms across all three scenarios. Explain why Scenario B may perform <em>worse</em> than Scenario C.</span>
+          <span class="lang-zh">对比三种场景下的速度跟踪和电流波形。解释为什么场景 B 可能比场景 C <em>更差</em>。</span>
+        </div>
+
+        <div class="q-grid">
+          <div class="q-card">
+            <div class="q-index">Q5</div>
+            <h4><span class="lang-en">Why does parameter mismatch hurt decoupling more than no-decoupling?</span><span class="lang-zh">为什么参数失配对解耦的伤害大于无解耦？</span></h4>
+            <p><span class="lang-en">Without decoupling, the PI handles cross-coupling as a generic disturbance. With decoupling, wrong parameters mean you actively inject the wrong compensation.</span><span class="lang-zh">没有解耦时，PI 将交叉耦合当作一般扰动处理。有解耦时，错误的参数意味着你在主动注入错误的补偿。</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q6</div>
+            <h4><span class="lang-en">Which parameters are most sensitive?</span><span class="lang-zh">哪些参数最敏感？</span></h4>
+            <p><span class="lang-en">Try varying R, L, J separately. Which one causes the most degradation? Can you explain from the equations?</span><span class="lang-zh">尝试分别改变 R、L、J，哪一个引起的退化最严重？能否从方程解释？</span></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Part 4: Observer ===== -->
+      <section class="section" id="part4">
+        <div class="section-tag">Part 4 / Disturbance Observer (10 pts)</div>
+        <h2>
+          <span class="lang-en">Predict disturbances and actively compensate</span>
+          <span class="lang-zh">预测扰动并主动补偿</span>
+        </h2>
+
+        <p>
+          <span class="lang-en">The speed observer in the code (<code>DYNAMICS_SpeedObserver</code>, line 417) estimates not only rotor speed but also a disturbance state <code>xS[2]</code>, which represents the total disturbance — including load torque <em>and</em> modeling errors. When the disturbance feedforward is enabled, this estimate is actively fed forward to the speed controller, compensating for disturbances before the PI regulator has to react.</span>
+          <span class="lang-zh">代码中的速度观测器（<code>DYNAMICS_SpeedObserver</code>，第 417 行）不仅估计转子速度，还估计扰动状态 <code>xS[2]</code>，它代表总扰动——包括负载转矩<em>和</em>建模误差。启用扰动前馈时，该估计值会主动前馈给速度控制器，在 PI 调节器反应之前就补偿扰动。</span>
+        </p>
+
+        <h3><span class="lang-en">Observer dynamics</span><span class="lang-zh">观测器动态</span></h3>
+        <div class="eq-block">$$\dot{\hat{\theta}}_d = \ell_1 e_\theta + \hat{\omega}_r$$</div>
+        <div class="eq-block">$$\dot{\hat{\omega}}_r = \ell_2 e_\theta + \frac{T_{em} + \hat{T}_L}{J_s / n_{pp}}$$</div>
+        <div class="eq-block">$$\dot{\hat{T}}_L = \ell_3 e_\theta$$</div>
+        <p>
+          <span class="lang-en">where $e_\theta = \theta_d - \hat{\theta}_d$ is the position estimation error and $\ell_1, \ell_2, \ell_3$ are observer gains (configured via <code>omega_ob</code>).</span>
+          <span class="lang-zh">其中 $e_\theta = \theta_d - \hat{\theta}_d$ 是位置估计误差，$\ell_1, \ell_2, \ell_3$ 是观测器增益（通过 <code>omega_ob</code> 配置）。</span>
+        </p>
+
+        <h3><span class="lang-en">How to enable</span><span class="lang-zh">如何启用</span></h3>
+        <pre><code># After creating Simulation_Benchmark with bool_start_simulation=False,
+# modify CTRL before running:
+CTRL.index_separate_speed_estimation = 1      # use observer for speed
+CTRL.use_disturbance_feedforward_rejection = 1 # feed xS[2] forward
+# Mode 2: CTRL.use_disturbance_feedforward_rejection = 2
+#   adds correction: xS[2] + ell2 * output_error (faster but noisier)</code></pre>
+
+        <div class="callout callout--task">
+          <span class="callout-title"><span class="lang-en">Task 4: Observer-based disturbance compensation</span><span class="lang-zh">任务 4：基于观测器的扰动补偿</span></span>
+          <ol>
+            <li><span class="lang-en">Enable the observer and disturbance feedforward. Apply a step load torque and show that the observer estimates <code>xS[2]</code> converge to the true load. Compare speed recovery with and without feedforward.</span><span class="lang-zh">启用观测器和扰动前馈。施加阶跃负载转矩，展示观测器估计 <code>xS[2]</code> 收敛到真实负载。对比有无前馈时的速度恢复。</span></li>
+            <li><span class="lang-en">Under parameter mismatch + decoupling ON (Scenario B from Part 3), enable the observer. Does the disturbance estimate partially compensate for the decoupling error caused by wrong parameters? Show waveforms comparing observer ON vs OFF under mismatch.</span><span class="lang-zh">在参数失配 + 解耦开启（Part 3 的场景 B）下，启用观测器。扰动估计是否能部分补偿由错误参数引起的解耦误差？展示失配下观测器开启 vs 关闭的波形对比。</span></li>
+          </ol>
+        </div>
+
+        <div class="q-grid">
+          <div class="q-card">
+            <div class="q-index">Q7</div>
+            <h4><span class="lang-en">Why can an observer compensate for modeling errors?</span><span class="lang-zh">观测器为什么能补偿建模误差？</span></h4>
+            <p><span class="lang-en">The observer lumps all unmodeled dynamics (load torque, friction, parameter errors) into a single disturbance state. Explain why this works and what its limitations are.</span><span class="lang-zh">观测器将所有未建模动态（负载转矩、摩擦、参数误差）归入单一扰动状态。解释这为何有效，以及其局限性。</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q8</div>
+            <h4><span class="lang-en">Mode 1 vs Mode 2: which is better?</span><span class="lang-zh">模式 1 vs 模式 2：哪个更好？</span></h4>
+            <p><span class="lang-en"><code>use_disturbance_feedforward_rejection = 1</code> uses <code>xS[2]</code> directly; mode 2 adds <code>ell2 * output_error</code>. Compare both. When does the extra correction help, and when does it introduce noise?</span><span class="lang-zh"><code>use_disturbance_feedforward_rejection = 1</code> 直接用 <code>xS[2]</code>；模式 2 增加了 <code>ell2 * output_error</code>。对比两者，额外校正何时有益，何时引入噪声？</span></p>
+          </div>
+        </div>
+
+        <div class="callout callout--warn">
+          <span class="callout-title"><span class="lang-en">Implementation note</span><span class="lang-zh">实现说明</span></span>
+          <span class="lang-en">To set <code>index_separate_speed_estimation</code> and <code>use_disturbance_feedforward_rejection</code>, you need to modify the CTRL object after it is created. Use <code>bool_start_simulation=False</code> in <code>Simulation_Benchmark</code>, then call <code>get_global_objects()</code> to get CTRL, modify it, and run the simulation loop manually. Study lines 1403–1457 of <code>tutorials_ep6_svpwm.py</code> for reference.</span>
+          <span class="lang-zh">要设置 <code>index_separate_speed_estimation</code> 和 <code>use_disturbance_feedforward_rejection</code>，需要在 CTRL 对象创建后修改它。在 <code>Simulation_Benchmark</code> 中使用 <code>bool_start_simulation=False</code>，然后调用 <code>get_global_objects()</code> 获取 CTRL，修改后手动运行仿真循环。参考 <code>tutorials_ep6_svpwm.py</code> 的第 1403–1457 行。</span>
+        </div>
+      </section>
+
+      <!-- ===== Deliverables ===== -->
+      <section class="section" id="deliverables">
+        <div class="section-tag">Deliverables / Report</div>
+        <h2><span class="lang-en">Required content of the final PDF report</span><span class="lang-zh">最终 PDF 报告要求</span></h2>
+        <div class="callout callout--warn">
+          <span class="callout-title"><span class="lang-en">The final PDF must contain these 4 core figures</span><span class="lang-zh">最终 PDF 必须包含这 4 张核心图</span></span>
+          <ol>
+            <li><span class="lang-en"><strong>Bandwidth vs. performance metrics</strong> — rise time, overshoot, steady-state error as functions of <code>FOC_desired_VLBW_HZ</code>.</span><span class="lang-zh"><strong>带宽 vs. 性能指标</strong>——上升时间、超调量、稳态误差关于 <code>FOC_desired_VLBW_HZ</code> 的曲线。</span></li>
+            <li><span class="lang-en"><strong>Decoupling ON vs. OFF</strong> — waveform comparison at the same bandwidth.</span><span class="lang-zh"><strong>解耦开启 vs. 关闭</strong>——相同带宽下的波形对比。</span></li>
+            <li><span class="lang-en"><strong>Three-scenario comparison</strong> — matched+decouple, mismatched+decouple, mismatched+no-decouple.</span><span class="lang-zh"><strong>三场景对比</strong>——匹配+解耦、失配+解耦、失配+无解耦。</span></li>
+            <li><span class="lang-en"><strong>Observer disturbance compensation</strong> — <code>xS[2]</code> convergence under load step, and observer ON vs OFF under parameter mismatch.</span><span class="lang-zh"><strong>观测器扰动补偿</strong>——负载阶跃下 <code>xS[2]</code> 的收敛，以及参数失配下观测器开启 vs 关闭的对比。</span></li>
+          </ol>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <h4><span class="lang-en">Mandatory</span><span class="lang-zh">必须包含</span></h4>
+            <div class="checklist">
+              <div class="check"><span class="lang-en">Bandwidth sweep code and resulting plot (Part 1).</span><span class="lang-zh">带宽扫描代码和结果图（Part 1）。</span></div>
+              <div class="check"><span class="lang-en">Decoupling ON/OFF comparison with discussion (Part 2).</span><span class="lang-zh">解耦开启/关闭对比及讨论（Part 2）。</span></div>
+              <div class="check"><span class="lang-en">Parameter mismatch experiment with at least R and L varied (Part 3).</span><span class="lang-zh">参数失配实验，至少改变 R 和 L（Part 3）。</span></div>
+              <div class="check"><span class="lang-en">Observer disturbance compensation with load step and mismatch (Part 4).</span><span class="lang-zh">观测器扰动补偿，含负载阶跃和参数失配（Part 4）。</span></div>
+              <div class="check"><span class="lang-en">Direct answers to Q1–Q8, not figures without explanation.</span><span class="lang-zh">逐条回答 Q1–Q8，不能只放图不解释。</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">Suggested report structure</span><span class="lang-zh">建议结构</span></h4>
+            <ol>
+              <li><span class="lang-en">Introduction and objectives</span><span class="lang-zh">引言与目标</span></li>
+              <li><span class="lang-en">Part 1: Bandwidth sweep methodology and results</span><span class="lang-zh">Part 1：带宽扫描方法与结果</span></li>
+              <li><span class="lang-en">Part 2: Decoupling analysis</span><span class="lang-zh">Part 2：解耦分析</span></li>
+              <li><span class="lang-en">Part 3: Robustness under parameter mismatch</span><span class="lang-zh">Part 3：参数失配下的鲁棒性</span></li>
+              <li><span class="lang-en">Part 4: Observer-based disturbance compensation</span><span class="lang-zh">Part 4：基于观测器的扰动补偿</span></li>
+              <li><span class="lang-en">Conclusion</span><span class="lang-zh">结论</span></li>
+            </ol>
+          </div>
+        </div>
+        <div class="disabled-box">
+          <p>
+            <strong><span class="lang-en">Online submission is currently disabled.</span><span class="lang-zh">当前暂不支持在线提交。</span></strong>
+            <span class="lang-en"> Please prepare your report as a PDF. The upload form is intentionally hidden for now.</span>
+            <span class="lang-zh"> 请先准备 PDF 报告。上传区域目前已隐藏。</span>
+          </p>
+        </div>
+        <p class="footer-note"><span class="lang-en">Suggested filename: <code>codingProject2_name.pdf</code></span><span class="lang-zh">建议文件名：<code>codingProject2_姓名.pdf</code></span></p>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<script>
+(function(){
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.section').forEach(function(s){ io.observe(s); });
+})();
+
+function setLang(lang) {
+  document.body.setAttribute('data-lang', lang);
+  document.documentElement.setAttribute('lang', lang === 'zh' ? 'zh-CN' : 'en');
+  document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+  document.getElementById('btn-zh').classList.toggle('active', lang === 'zh');
+  try { localStorage.setItem('codingProject2-lang', lang); } catch(e) {}
+}
+
+(function(){
+  var lang = 'en';
+  try {
+    var saved = localStorage.getItem('codingProject2-lang');
+    if (saved === 'en' || saved === 'zh') lang = saved;
+  } catch(e) {}
+  setLang(lang);
+})();
+</script>
+</body>
+</html>

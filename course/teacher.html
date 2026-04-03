@@ -788,12 +788,22 @@ function renderAnswerView() {
 }
 
 // ========== STATISTICS ==========
+let _lastStatsHash = '';
 function renderStats() {
   const container = document.getElementById('statsView');
   if (!cachedQuestion || Object.keys(cachedAnswers).length === 0) {
-    container.innerHTML = '<div class="no-question">Waiting for answers...</div>';
+    if (_lastStatsHash !== 'empty') {
+      container.innerHTML = '<div class="no-question">Waiting for answers...</div>';
+      _lastStatsHash = 'empty';
+    }
     return;
   }
+
+  // Skip re-render if answers haven't changed
+  const hash = cachedQuestion.id + ':' + Object.keys(cachedAnswers).length + ':' +
+    Object.values(cachedAnswers).map(v => Array.isArray(v) ? v.join(',') : v).join('|');
+  if (hash === _lastStatsHash) return;
+  _lastStatsHash = hash;
 
   const answers = cachedAnswers;
   const names = Object.keys(answers);
@@ -949,9 +959,12 @@ function getMostPopular(counts) {
 }
 
 // ========== LIST VIEW ==========
+let _lastListCount = -1;
 function renderList() {
   const list = document.getElementById('answerList');
   const names = Object.keys(cachedAnswers);
+  if (names.length === _lastListCount) return;
+  _lastListCount = names.length;
   list.innerHTML = names.map(name => {
     const val = cachedAnswers[name];
     const display = Array.isArray(val) ? val.join(', ') : val;
@@ -1036,7 +1049,20 @@ function esc(s) {
 pollResponses();
 pollOnline();
 pollTimer = setInterval(pollResponses, 2000);
-setInterval(pollOnline, 5000);
+var onlineTimer = setInterval(pollOnline, 5000);
+
+// Pause polling when page is hidden
+document.addEventListener('visibilitychange', function() {
+  if (document.hidden) {
+    clearInterval(pollTimer);
+    clearInterval(onlineTimer);
+  } else {
+    pollResponses();
+    pollOnline();
+    pollTimer = setInterval(pollResponses, 2000);
+    onlineTimer = setInterval(pollOnline, 5000);
+  }
+});
 </script>
 
 </body>

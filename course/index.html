@@ -265,8 +265,11 @@
   .card:hover .card__accent { transform: scaleX(1); }
 
   .card--survey .card__accent { background: linear-gradient(90deg, var(--amber), var(--amber2)); }
+  .card--lecture .card__accent { background: linear-gradient(90deg, #43d4a0, #6dd4c8); }
+  .card--homework .card__accent { background: linear-gradient(90deg, #d4a043, var(--rose)); }
   .card--live .card__accent { background: linear-gradient(90deg, var(--cyan), #6dd4c8); }
   .card--teacher .card__accent { background: linear-gradient(90deg, var(--violet), #c46dd4); }
+  .card--project .card__accent { background: linear-gradient(90deg, #43d4a0, var(--cyan)); }
   .card--demo .card__accent { background: linear-gradient(90deg, var(--rose), #d49b6d); }
 
   .card__icon {
@@ -285,8 +288,11 @@
   .card:hover .card__icon { transform: scale(1.1) translateY(-2px); }
 
   .card--survey .card__icon { background: #d4a04315; color: var(--amber); }
+  .card--lecture .card__icon { background: #43d4a015; color: #43d4a0; }
+  .card--homework .card__icon { background: #d4a04315; color: #d49b6d; }
   .card--live .card__icon { background: #43b4d415; color: var(--cyan); }
   .card--teacher .card__icon { background: #9b6dd415; color: var(--violet); }
+  .card--project .card__icon { background: #43d4a015; color: var(--cyan); }
   .card--demo .card__icon { background: #d4436b15; color: var(--rose); }
 
   .card__title {
@@ -551,7 +557,59 @@
       <span class="card__arrow">&rarr;</span>
     </a>
 
-    <a class="card card--live" href="live.html" data-delay="100">
+    <a class="card card--lecture" href="lecture2.html" data-delay="100">
+      <div class="card__shine"></div>
+      <div class="card__accent"></div>
+      <div class="card__icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M8 7h8m-8 4h6"/></svg>
+      </div>
+      <div class="card__title">Lecture 2: Active Flux</div>
+      <div class="card__title-zh">第二讲：有效磁链统一建模</div>
+      <div class="card__desc">Unified dq-frame model for IM, PMSM, IPMSM, and SynRM via the active flux concept. Includes 12-question quiz.</div>
+      <span class="card__tag">Students</span>
+      <span class="card__arrow">&rarr;</span>
+    </a>
+
+    <a class="card card--homework" href="homework1.html" data-delay="200">
+      <div class="card__shine"></div>
+      <div class="card__accent"></div>
+      <div class="card__icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>
+      </div>
+      <div class="card__title">Homework 1</div>
+      <div class="card__title-zh">第一次作业：推导统一电机 ODE</div>
+      <div class="card__desc">Derive the 5 unified ODEs from scratch: coordinate frames, rotating derivative operator, flux linkage, KVL/KCL, and active flux.</div>
+      <span class="card__tag">Students</span>
+      <span class="card__arrow">&rarr;</span>
+    </a>
+
+    <a class="card card--project" href="codingProject1.html" data-delay="300">
+      <div class="card__shine"></div>
+      <div class="card__accent"></div>
+      <div class="card__icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/><line x1="14" y1="4" x2="10" y2="20"/></svg>
+      </div>
+      <div class="card__title">Coding Project 1</div>
+      <div class="card__title-zh">编程作业 1：扫频到底在测什么</div>
+      <div class="card__desc">Frequency sweep analysis — speed loop, current loop, and load torque sweep in a multi-loop FOC system.</div>
+      <span class="card__tag">Students</span>
+      <span class="card__arrow">&rarr;</span>
+    </a>
+
+    <a class="card card--project" href="codingProject2.html" data-delay="400">
+      <div class="card__shine"></div>
+      <div class="card__accent"></div>
+      <div class="card__icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/><line x1="14" y1="4" x2="10" y2="20"/></svg>
+      </div>
+      <div class="card__title">Coding Project 2</div>
+      <div class="card__title-zh">编程作业 2：带宽、解耦与鲁棒性</div>
+      <div class="card__desc">Bandwidth tuning, feedforward decoupling, parameter mismatch robustness, and load torque observer.</div>
+      <span class="card__tag">Students</span>
+      <span class="card__arrow">&rarr;</span>
+    </a>
+
+    <a class="card card--live" href="live.html" data-delay="500">
       <div class="card__shine"></div>
       <div class="card__accent"></div>
       <div class="card__icon">
@@ -564,7 +622,7 @@
       <span class="card__arrow">&rarr;</span>
     </a>
 
-    <a class="card card--teacher" href="teacher.html" data-delay="200">
+    <a class="card card--teacher" href="teacher.html" data-delay="600">
       <div class="card__shine"></div>
       <div class="card__accent"></div>
       <div class="card__icon">
@@ -577,7 +635,7 @@
       <span class="card__arrow">&rarr;</span>
     </a>
 
-    <a class="card card--demo" href="qa-demo.html" data-delay="300">
+    <a class="card card--demo" href="qa-demo.html" data-delay="700">
       <div class="card__shine"></div>
       <div class="card__accent"></div>
       <div class="card__icon">
@@ -674,9 +732,11 @@
   resize();
   window.addEventListener('resize', resize);
 
+  let mouseTick = false;
   document.addEventListener('mousemove', e => {
-    mouse.x = e.clientX;
-    mouse.y = e.clientY;
+    if (mouseTick) return;
+    mouseTick = true;
+    requestAnimationFrame(() => { mouse.x = e.clientX; mouse.y = e.clientY; mouseTick = false; });
   });
 
   class Particle {
@@ -723,30 +783,52 @@
     }
   }
 
-  // Create particles
-  const count = Math.min(80, Math.floor(W * H / 15000));
+  // Fewer particles on mobile (< 768px), cap at 40
+  const isMobile = W < 768;
+  const count = isMobile ? Math.min(30, Math.floor(W * H / 25000))
+                         : Math.min(60, Math.floor(W * H / 15000));
   for (let i = 0; i < count; i++) particles.push(new Particle());
 
+  // Batch line drawing into single path per alpha band
+  const LINE_DIST = 120;
+  const LINE_DIST_SQ = LINE_DIST * LINE_DIST;
   function drawLines() {
+    ctx.lineWidth = 0.5;
+    // Use 3 alpha bands instead of per-line strokeStyle
+    const bands = [[0.04, []], [0.03, []], [0.015, []]];
     for (let i = 0; i < particles.length; i++) {
       for (let j = i + 1; j < particles.length; j++) {
         const dx = particles[i].x - particles[j].x;
         const dy = particles[i].y - particles[j].y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 120) {
-          const alpha = (1 - dist / 120) * 0.06;
-          ctx.beginPath();
-          ctx.moveTo(particles[i].x, particles[i].y);
-          ctx.lineTo(particles[j].x, particles[j].y);
-          ctx.strokeStyle = `rgba(212, 160, 67, ${alpha})`;
-          ctx.lineWidth = 0.5;
-          ctx.stroke();
+        const distSq = dx * dx + dy * dy;
+        if (distSq < LINE_DIST_SQ) {
+          const ratio = 1 - Math.sqrt(distSq) / LINE_DIST;
+          const band = ratio > 0.6 ? 0 : ratio > 0.3 ? 1 : 2;
+          bands[band][1].push(particles[i].x, particles[i].y, particles[j].x, particles[j].y);
         }
       }
     }
+    for (const [alpha, coords] of bands) {
+      if (!coords.length) continue;
+      ctx.strokeStyle = `rgba(212, 160, 67, ${alpha})`;
+      ctx.beginPath();
+      for (let k = 0; k < coords.length; k += 4) {
+        ctx.moveTo(coords[k], coords[k+1]);
+        ctx.lineTo(coords[k+2], coords[k+3]);
+      }
+      ctx.stroke();
+    }
   }
 
+  // Pause animation when page hidden
+  let animating = true;
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) { animating = false; }
+    else { animating = true; requestAnimationFrame(animate); }
+  });
+
   function animate() {
+    if (!animating) return;
     ctx.clearRect(0, 0, W, H);
     particles.forEach(p => { p.update(); p.draw(); });
     drawLines();
@@ -782,14 +864,18 @@ setTimeout(() => {
   steps.forEach(el => el.classList.add('revealed'));
 }, 3000);
 
-// ============ CARD SHINE (mouse tracking) ============
+// ============ CARD SHINE (mouse tracking, throttled) ============
 document.querySelectorAll('.card').forEach(card => {
+  let ticking = false;
   card.addEventListener('mousemove', e => {
-    const rect = card.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    card.style.setProperty('--mx', x + '%');
-    card.style.setProperty('--my', y + '%');
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      const rect = card.getBoundingClientRect();
+      card.style.setProperty('--mx', ((e.clientX - rect.left) / rect.width * 100) + '%');
+      card.style.setProperty('--my', ((e.clientY - rect.top) / rect.height * 100) + '%');
+      ticking = false;
+    });
   });
 });
 </script>

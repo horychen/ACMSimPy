@@ -6,13 +6,23 @@ This project is initially intended to adopt the _PyOneDark Qt Modern GUI_ for vi
 > The file _main.py_ uses the PySide6 (or PyQt6), and the DearPyGui is simply a script _/simulation/dem_demo.py_.
 
 ## Installation
-- 1. Install _Anaconda 3_ and open command prompt cmd.exe on Windows
-- 2. `conda create -n main python=3.10`
-- 3. `conda activate main`
-- 4. `pip install PySide6 matplotlib pandas numba qtconsole control dearpygui rich`
-- 5. `cd /d D:\acmsimpy`
-- 6. `python main.py` for PySide6 GUI or `python ./simulation/dem_demo.py` for DearPyGui.
-Or, you can simply run any core script in ./simulation folder, e.g., `python ./simulation/tutorials_ep6_maglev_motor.py`, batch-generating publication-ready figures with matplotlib.
+
+### Quick Start (simulation scripts only)
+1. Install _Anaconda 3_ and open a terminal
+2. `conda create -n acmsimpy python=3.10`
+3. `conda activate acmsimpy`
+4. `pip install -r requirements.txt`
+5. `cd simulation`
+6. `python tutorials_ep6_maglev_motor.py`
+
+### Full Installation (GUI included)
+1. Install _Anaconda 3_ and open a terminal
+2. `conda create -n acmsimpy python=3.10`
+3. `conda activate acmsimpy`
+4. `pip install PySide6 matplotlib pandas numba qtconsole control dearpygui==1.11.1 rich`
+5. `python main.py` for PySide6 GUI or `python ./simulation/dem_demo.py` for DearPyGui.
+
+You can also run any core script in ./simulation folder, e.g., `python ./simulation/tutorials_ep6_maglev_motor.py`, to batch-generate publication-ready figures with matplotlib.
 
 > To avoid PyQt plugin issues (with Anaconda Python 3.8), please go with Anaconda Python 3.10 as exemplified above.
 

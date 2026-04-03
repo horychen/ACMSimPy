@@ -374,9 +374,21 @@ function showLive() {
   answered = false;
   pollQuestion();
   pollTimer = setInterval(pollQuestion, 2000);
-  // Start heartbeat
   sendHeartbeat();
   heartbeatTimer = setInterval(sendHeartbeat, 5000);
+
+  // Pause polling when page is hidden (saves battery & network)
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+      clearInterval(pollTimer);
+      clearInterval(heartbeatTimer);
+    } else {
+      pollQuestion();
+      pollTimer = setInterval(pollQuestion, 2000);
+      sendHeartbeat();
+      heartbeatTimer = setInterval(sendHeartbeat, 5000);
+    }
+  });
 }
 
 function changeName() {

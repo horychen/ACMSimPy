@@ -569,7 +569,16 @@ let answers = {};
 // --- localStorage save/restore ---
 const STORAGE_KEY = 'lecture1_survey';
 
+let _saveTimer = null;
 function saveProgress() {
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(function() {
+    const data = { section: currentSection, answers: answers };
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
+  }, 500);
+}
+function saveProgressNow() {
+  if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
   const data = { section: currentSection, answers: answers };
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
 }
@@ -823,16 +832,15 @@ function attachInputListeners() {
 
 function goNext() {
   collectCurrentAnswers();
-  saveProgress();
   currentSection++;
-  saveProgress();
+  saveProgressNow();
   renderSection();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function goBack() {
   collectCurrentAnswers();
-  saveProgress();
+  saveProgressNow();
   currentSection--;
   renderSection();
   window.scrollTo({ top: 0, behavior: 'smooth' });

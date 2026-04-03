@@ -1,11 +1,16 @@
 """
-Lecture 1 Pre-Survey + Live Q&A Server
+Electric Motor Control - Course Server
 Run: python server.py
-  - Survey:  http://<ip>:8000/lecture1.html  (students)
-  - Live:    http://<ip>:8000/live.html      (students)
-  - Teacher: http://localhost:8000/teacher.html
+  - Survey:     http://<ip>:8000/lecture1.html   (students)
+  - Lecture 2:  http://<ip>:8000/lecture2.html   (students)
+  - Homework 1: http://<ip>:8000/homework1.html  (students)
+  - Project 1:  http://<ip>:8000/codingProject1.html (students)
+  - Project 2:  http://<ip>:8000/codingProject2.html (students)
+  - Live:       http://<ip>:8000/live.html       (students)
+  - Teacher:    http://localhost:8000/teacher.html
 """
 
+import cgi
 import http.server
 import json
 import os
@@ -18,6 +23,7 @@ PORT = 8000
 RESPONSES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "responses")
 LIVE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "live_responses")
 QUIZ_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quiz_responses")
+HOMEWORK_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "homework_submissions")
 
 # --- In-memory live Q&A state ---
 live_state = {
@@ -32,6 +38,10 @@ live_lock = threading.Lock()
 online_users = {}  # { name: last_heartbeat_timestamp }
 online_lock = threading.Lock()
 ONLINE_TIMEOUT = 15  # seconds
+
+# --- File write locks ---
+survey_lock = threading.Lock()
+quiz_lock = threading.Lock()
 
 
 class SurveyHandler(http.server.SimpleHTTPRequestHandler):
@@ -82,6 +92,8 @@ class SurveyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_save_history()
         elif self.path == "/submit-quiz":
             self._handle_quiz_submit()
+        elif self.path == "/submit-homework":
+            self._handle_homework_submit()
         elif self.path == "/api/heartbeat":
             self._handle_heartbeat()
         else:
@@ -110,9 +122,10 @@ class SurveyHandler(http.server.SimpleHTTPRequestHandler):
         safe_name = name.replace("/", "_").replace("\\", "_").replace("..", "_")
         filepath = os.path.join(RESPONSES_DIR, f"{safe_name}.json")
 
-        os.makedirs(RESPONSES_DIR, exist_ok=True)
-        with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        with survey_lock:
+            os.makedirs(RESPONSES_DIR, exist_ok=True)
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
 
         now = datetime.now().strftime("%H:%M:%S")
         print(f"  [{now}] Survey from: {name}")
@@ -133,17 +146,58 @@ class SurveyHandler(http.server.SimpleHTTPRequestHandler):
 
         lecture = data.get("lecture", "unknown")
         safe_name = name.replace("/", "_").replace("\\", "_").replace("..", "_")
-        os.makedirs(QUIZ_DIR, exist_ok=True)
         filepath = os.path.join(QUIZ_DIR, f"{lecture}_{safe_name}.json")
 
-        with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        with quiz_lock:
+            os.makedirs(QUIZ_DIR, exist_ok=True)
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
 
         now = datetime.now().strftime("%H:%M:%S")
         score = data.get("score", "?")
         total = data.get("total", "?")
         print(f"  [{now}] Quiz {lecture} from: {name} ({score}/{total})")
         self._send_json(200, {"status": "ok"})
+
+    # ---- homework file upload ----
+    def _handle_homework_submit(self):
+        content_type = self.headers.get("Content-Type", "")
+        if "multipart/form-data" not in content_type:
+            self._send_json(400, {"status": "error", "message": "Expected multipart/form-data"})
+            return
+
+        form = cgi.FieldStorage(
+            fp=self.rfile,
+            headers=self.headers,
+            environ={"REQUEST_METHOD": "POST", "CONTENT_TYPE": content_type},
+        )
+
+        name = form.getfirst("name", "").strip()
+        if not name:
+            self._send_json(400, {"status": "error", "message": "Name is required"})
+            return
+
+        homework = form.getfirst("homework", "unknown")
+        safe_name = name.replace("/", "_").replace("\\", "_").replace("..", "_")
+        student_dir = os.path.join(HOMEWORK_DIR, homework, safe_name)
+        os.makedirs(student_dir, exist_ok=True)
+
+        files_field = form["files"]
+        if not isinstance(files_field, list):
+            files_field = [files_field]
+
+        saved = []
+        for item in files_field:
+            if item.filename:
+                safe_fn = os.path.basename(item.filename).replace("..", "_")
+                dest = os.path.join(student_dir, safe_fn)
+                with open(dest, "wb") as f:
+                    f.write(item.file.read())
+                saved.append(safe_fn)
+
+        now = datetime.now().strftime("%H:%M:%S")
+        print(f"  [{now}] Homework {homework} from: {name} ({len(saved)} file(s))")
+        self._send_json(200, {"status": "ok", "files": saved})
 
     # ---- live Q&A: teacher pushes a question ----
     def _handle_push_question(self):
@@ -327,6 +381,8 @@ def get_local_ip():
 
 if __name__ == "__main__":
     os.makedirs(RESPONSES_DIR, exist_ok=True)
+    os.makedirs(QUIZ_DIR, exist_ok=True)
+    os.makedirs(HOMEWORK_DIR, exist_ok=True)
 
     ip = get_local_ip()
 
@@ -335,15 +391,19 @@ if __name__ == "__main__":
     print("  Electric Motor Control - Course Server")
     print("=" * 56)
     print()
-    print(f"  Survey (students): http://{ip}:{PORT}/lecture1.html")
-    print(f"  Live   (students): http://{ip}:{PORT}/live.html")
-    print(f"  Teacher panel:     http://localhost:{PORT}/teacher.html")
+    print(f"  Survey     (students): http://{ip}:{PORT}/lecture1.html")
+    print(f"  Lecture 2  (students): http://{ip}:{PORT}/lecture2.html")
+    print(f"  Homework 1 (students): http://{ip}:{PORT}/homework1.html")
+    print(f"  Project 1  (students): http://{ip}:{PORT}/codingProject1.html")
+    print(f"  Project 2  (students): http://{ip}:{PORT}/codingProject2.html")
+    print(f"  Live       (students): http://{ip}:{PORT}/live.html")
+    print(f"  Teacher panel:         http://localhost:{PORT}/teacher.html")
     print()
 
     try:
         import qrcode
         qr = qrcode.QRCode(box_size=1, border=1)
-        qr.add_data(f"http://{ip}:{PORT}/live.html")
+        qr.add_data(f"http://{ip}:{PORT}/lecture2.html")
         qr.make(fit=True)
         qr.print_ascii(invert=True)
         print()
@@ -351,7 +411,9 @@ if __name__ == "__main__":
         print("  (pip install qrcode for terminal QR code)")
         print()
 
-    print(f"  Responses: {RESPONSES_DIR}")
+    print(f"  Survey responses:  {RESPONSES_DIR}")
+    print(f"  Quiz responses:    {QUIZ_DIR}")
+    print(f"  Homework uploads:  {HOMEWORK_DIR}")
     print("  Press Ctrl+C to stop.")
     print()
 
