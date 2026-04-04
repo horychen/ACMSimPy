@@ -9,7 +9,10 @@
       "Bash(taskkill:*)",
       "Bash(curl:*)",
       "Bash(ipconfig:*)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash(mkdir -p C:/Users/lenovo/Codes/ACMSimPy/course/vendor/katex/contrib && mkdir -p C:/Users/lenovo/Codes/ACMSimPy/course/vendor/katex/fonts)",
+      "Bash(cd C:/Users/lenovo/Codes/ACMSimPy/course && cmd //c deploy-html.bat)",
+      "Bash(cmd //c \"C:\\\\\\\\Users\\\\\\\\lenovo\\\\\\\\Codes\\\\\\\\ACMSimPy\\\\\\\\course\\\\\\\\deploy-html.bat\")"
     ]
   }
 }
