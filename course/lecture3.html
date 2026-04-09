@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Lecture 3 — Motion Control: Observer, Feedforward &amp; the Three-Way Tradeoff</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"
+  onerror="this.onerror=null;this.href='vendor/katex/katex.min.css';">
+<script>
+(function(){
+  var CDN = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/";
+  var LOCAL = "vendor/katex/";
+  var files = ["katex.min.js", "contrib/auto-render.min.js"];
+  var idx = 0, TIMEOUT = 3000;
+  function renderMath() {
+    if (window.renderMathInElement) {
+      renderMathInElement(document.body, {
+        delimiters: [{left:"$$",right:"$$",display:true},{left:"$",right:"$",display:false}]
+      });
+    }
+  }
+  function loadScript(src, ok, fail) {
+    var s = document.createElement("script");
+    var done = false;
+    var timer = setTimeout(function(){ if(!done){ done=true; s.onload=s.onerror=null; fail(); } }, TIMEOUT);
+    s.src = src;
+    s.onload = function(){ if(!done){ done=true; clearTimeout(timer); ok(); } };
+    s.onerror = function(){ if(!done){ done=true; clearTimeout(timer); fail(); } };
+    document.head.appendChild(s);
+  }
+  function loadChain(base, fallback) {
+    if (idx >= files.length) { renderMath(); return; }
+    loadScript(base + files[idx], function(){ idx++; loadChain(base, fallback); }, function(){ if (fallback) { idx=0; loadChain(fallback, null); } });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){ loadChain(CDN, LOCAL); });
+  } else { loadChain(CDN, LOCAL); }
+})();
+</script>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg-deep: #0a0a0b; --bg-card: #131315; --bg-input: #1a1a1e;
+    --amber: #d4a043; --amber-soft: #d4a04322; --amber-glow: #d4a04344;
+    --text-primary: #e8e4dc; --text-secondary: #8a8680; --text-muted: #5a5650;
+    --border: #2a2a2e; --border-focus: #d4a04366;
+    --green: #4a9; --red: #c55; --teal: #7de1d2; --blue: #82a9ff;
+    --font-display: Georgia, 'Noto Serif SC', serif;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+    --font-mono: 'Courier New', monospace;
+  }
+  html { font-size: 16px; scroll-behavior: smooth; }
+  body { font-family: var(--font-body); background: var(--bg-deep); color: var(--text-primary); min-height: 100vh; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
+  body::before { content: ''; position: fixed; inset: 0; z-index: 0; opacity: 0.03; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); pointer-events: none; }
+  body::after { content: ''; position: fixed; top: -40%; right: -20%; width: 70vw; height: 70vw; background: radial-gradient(circle, var(--amber-soft) 0%, transparent 70%); pointer-events: none; z-index: 0; }
+  .app { position: relative; z-index: 1; max-width: 760px; margin: 0 auto; padding: 2rem 1.2rem 4rem; }
+  .header { text-align: center; margin-bottom: 2.5rem; opacity: 0; animation: fadeUp 0.8s ease forwards; }
+  .header__label { font-family: var(--font-mono); font-size: 0.65rem; font-weight: 300; letter-spacing: 0.3em; text-transform: uppercase; color: var(--amber); margin-bottom: 0.8rem; }
+  .header__title { font-family: var(--font-display); font-size: 1.7rem; font-weight: 400; line-height: 1.3; color: var(--text-primary); margin-bottom: 0.5rem; }
+  .header__title em { font-style: italic; color: var(--amber); }
+  .header__sub { font-size: 0.85rem; font-weight: 300; color: var(--text-secondary); line-height: 1.6; }
+  .meta-bar { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-muted); margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); opacity: 0; animation: fadeUp 0.8s ease 0.15s forwards; }
+  .content-section { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 1.8rem 1.4rem; margin-bottom: 1.5rem; opacity: 0; transform: translateY(24px); transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
+  .content-section.visible { opacity: 1; transform: translateY(0); }
+  .content-section__tag { font-family: var(--font-mono); font-size: 0.6rem; font-weight: 300; letter-spacing: 0.2em; color: var(--amber); text-transform: uppercase; margin-bottom: 1rem; }
+  h2 { font-family: var(--font-display); font-size: 1.25rem; font-weight: 400; color: var(--text-primary); margin-bottom: 1rem; }
+  h3 { font-size: 1rem; font-weight: 500; color: var(--amber); margin: 1.4rem 0 0.6rem; }
+  p, li { font-size: 0.9rem; line-height: 1.75; color: var(--text-secondary); margin-bottom: 0.6rem; }
+  ul, ol { padding-left: 1.4rem; margin-bottom: 0.8rem; }
+  ol > li { margin-bottom: 0.5rem; }
+  .eq-block { background: var(--bg-input); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.2rem; margin: 1rem 0; overflow-x: auto; text-align: center; }
+  .eq-label { font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-muted); text-align: right; margin-top: 0.3rem; }
+  .highlight-box { background: var(--amber-soft); border-left: 3px solid var(--amber); border-radius: 0 10px 10px 0; padding: 1rem 1.2rem; margin: 1rem 0; font-size: 0.85rem; color: var(--text-primary); line-height: 1.7; }
+  .task-box { background: #1a2a1a; border: 1px solid #2a4a2a; border-left: 3px solid var(--green); border-radius: 0 10px 10px 0; padding: 1rem 1.2rem; margin: 1rem 0; font-size: 0.85rem; color: var(--text-primary); line-height: 1.7; }
+  .task-box strong { color: var(--green); }
+  .info-box { background: rgba(125,225,210,0.07); border-left: 3px solid var(--teal); border-radius: 0 10px 10px 0; padding: 1rem 1.2rem; margin: 1rem 0; font-size: 0.85rem; color: var(--text-primary); line-height: 1.7; }
+  pre { background: var(--bg-input); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.2rem; margin: 1rem 0; overflow-x: auto; }
+  pre, code { font-family: var(--font-mono); font-size: 0.85rem; }
+  code { color: var(--teal); }
+  pre code { color: #d9e6ff; }
+  strong { color: var(--text-primary); }
+  em { color: var(--amber); }
+  a { color: var(--blue); text-decoration: none; } a:hover { text-decoration: underline; }
+  .katex { color: var(--text-primary); }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+  ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="header">
+    <div class="header__label">Lecture 3 / 第三讲</div>
+    <h1 class="header__title">Motion Control: Observer, Feedforward &amp; the <em>Three-Way Tradeoff</em></h1>
+    <p class="header__sub">运动控制：观测器、前馈补偿与跟踪-抗扰-噪声的三方权衡</p>
+  </header>
+
+  <div class="meta-bar">
+    <span>Related: Coding Projects 2 &amp; 3</span>
+    <span>Topics: ESO, GPIO, ADRC, Feedforward, Noise</span>
+  </div>
+
+  <!-- ===== 6.0 Overview ===== -->
+  <section class="content-section" id="overview">
+    <div class="content-section__tag">Overview / 总述</div>
+    <h2>为什么需要超越 PI？/ Why Go Beyond PI?</h2>
+    <p>在 Lecture 2 中我们建立了统一电机模型。在 Coding Project 1-2 中你已经体验了 PI 调参和前馈解耦。但 PI 只能"被动"地用误差去纠正——它不知道扰动是什么，只能等误差出现后再反应。</p>
+    <p>本讲介绍一种"主动"策略：<strong>用观测器估计扰动，然后前馈补偿</strong>。这就是 Active Disturbance Rejection Control (ADRC) 的核心思想。我们将从三个维度评价控制系统：</p>
+    <ol>
+      <li><strong>Command Tracking</strong>（指令跟踪）——跟踪速度给定有多快？</li>
+      <li><strong>Disturbance Rejection</strong>（扰动抑制）——抗负载扰动有多强？</li>
+      <li><strong>Noise Attenuation</strong>（噪声抑制）——对测量噪声有多敏感？</li>
+    </ol>
+    <p>这三者之间存在根本性的权衡：不可能同时最优。本讲将用传递函数语言精确描述这一权衡。</p>
+  </section>
+
+  <!-- ===== 6.1 Command Tracking ===== -->
+  <section class="content-section" id="sec-tracking">
+    <div class="content-section__tag">6.1 Command Tracking / 指令跟踪</div>
+    <h2>从速度参考到速度输出 / Reference to Output</h2>
+    <p>对于速度环，采用线性反馈控制律 $\dot{e}_s = -k_{ps} e_s$，其中 $e_s = \Omega^* - \hat{\Omega}$ 是速度跟踪误差，可以推导出转矩参考：</p>
+    <div class="eq-block">
+      $$T_e^* = \frac{\dot{\Omega}^* + k_{ps}(\Omega^* - \hat{\Omega}) - \hat{d}_{to}}{b_n}$$
+      <div class="eq-label">(1) — 控制律</div>
+    </div>
+    <p>其中 $b_n = 1/J_n$ 是标称控制增益，$\hat{\Omega}$ 和 $\hat{d}_{to}$ 分别是观测器估计的速度和总扰动。</p>
+
+    <p>闭环系统的输出可以表示为：</p>
+    <div class="eq-block">
+      $$\Omega(s) = \underbrace{\Phi_r(s)}_{\text{tracking}} \Omega^*(s) + \underbrace{\Phi_d(s)}_{\text{disturbance}} d_n(s) + \underbrace{\Phi_n(s)}_{\text{noise}} (-s\delta_p(s))$$
+      <div class="eq-label">(2) — 三通道分解</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>关键结论：</strong>当 $k_b = J/J_n = 1$（惯量匹配）时，系统具有完美的跟踪性能 $\Phi_r(s) = 1$。任何惯量失配 ($k_b \neq 1$) 都会导致跟踪性能退化。
+    </div>
+
+    <h3>跟踪性能指标</h3>
+    <ul>
+      <li><strong>上升时间 $t_r$</strong>：由反馈增益 $k_{ps}$ 决定，$k_{ps}$ 越大越快</li>
+      <li><strong>超调量</strong>：与 $k_b$ 密切相关——$k_b > 1$ 会导致超调和振荡</li>
+      <li><strong>稳态误差</strong>：理论上为零（前提：观测器估计收敛）</li>
+    </ul>
+  </section>
+
+  <!-- ===== 6.2 Disturbance Rejection ===== -->
+  <section class="content-section" id="sec-disturbance">
+    <div class="content-section__tag">6.2 Disturbance Rejection / 扰动抑制</div>
+    <h2>扰动传递函数 / Disturbance-to-Output Path</h2>
+
+    <p>扰动传递函数描述了外部扰动（如负载转矩）到速度输出的关系：</p>
+    <div class="eq-block">
+      $$\Phi_d(s) = \frac{\Omega(s)}{d_n(s)} = \frac{k_b G_3(s)}{\Delta_n(s+k_{ps}) + (k_b - 1)sG_3(s)}$$
+      <div class="eq-label">(3) — 扰动传递函数</div>
+    </div>
+
+    <p>其中 $\Delta_n = (s + \omega_{ob})^n$ 是观测器的特征多项式（$n=3$ 或 $4$），$G_3(s)$ 由观测器结构决定。</p>
+
+    <h3>3 阶 vs 4 阶观测器的扰动抑制能力</h3>
+
+    <div class="info-box">
+      <strong>内模原理 (Internal Model Principle)：</strong>要以零稳态误差跟踪某类信号，控制器/观测器的内部模型必须包含该信号的动态特征。
+      <ul style="margin-top:0.5rem">
+        <li>3 阶观测器：内部模型假设 $\dot{d}_{to} = 0$（恒定扰动）→ 能无差跟踪<strong>阶跃</strong>扰动</li>
+        <li>4 阶观测器：内部模型假设 $\ddot{d}_{to} = 0$（斜坡扰动）→ 能无差跟踪<strong>阶跃和斜坡</strong>扰动</li>
+      </ul>
+    </div>
+
+    <h3>低频 vs 高频扰动抑制</h3>
+    <p>从 Bode 图分析：</p>
+    <ul>
+      <li><strong>低频</strong>扰动抑制能力主要由<em>观测器的扰动估计性能</em>决定。高阶观测器在低频具有更陡的衰减斜率（更好的抑制）</li>
+      <li><strong>高频</strong>扰动抑制能力主要由<em>反馈增益 $k_{ps}$</em> 决定，与观测器阶数关系不大</li>
+    </ul>
+
+    <div class="eq-block">
+      $$\text{3rd-order: low-freq slope} = +20\ \text{dB/dec (ESO\_1)},\quad \text{4th-order: up to } +60\ \text{dB/dec (ESO\_8)}$$
+    </div>
+  </section>
+
+  <!-- ===== 6.3 Noise Attenuation ===== -->
+  <section class="content-section" id="sec-noise">
+    <div class="content-section__tag">6.3 Noise Attenuation / 噪声抑制</div>
+    <h2>高阶观测器的代价 / The Cost of Higher Order</h2>
+
+    <p>噪声传递函数为：</p>
+    <div class="eq-block">
+      $$\Phi_n(s) = 1 - s\Phi_d(s)$$
+      <div class="eq-label">(4) — 噪声与扰动的互补关系</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>核心权衡：</strong>$\Phi_n(s)$ 和 $s\Phi_d(s)$ 满足互补关系——改善扰动抑制必然恶化噪声抑制，反之亦然。这是一个<em>基本约束</em>，无法通过调参绕过。
+    </div>
+
+    <h3>实际影响</h3>
+    <ul>
+      <li>更好的低频扰动抑制（高阶观测器）→ 更差的高频噪声抑制</li>
+      <li>3 阶 ESO\_1：高频噪声衰减 $-60$ dB/dec（最佳噪声抑制）</li>
+      <li>4 阶 ESO\_8：高频噪声衰减 $-40$ dB/dec（最佳扰动抑制，但噪声更大）</li>
+      <li>4 阶 ESO\_4：折中方案，$-60$ dB/dec 噪声衰减 + $+40$ dB/dec 扰动抑制</li>
+    </ul>
+
+    <p>速度测量噪声不是白噪声——它是由编码器量化误差导致的<em>有色噪声</em>，其功率谱密度随转速和频率变化。因此，观测器带宽 $\omega_{ob}$ 的选择不能只看理论 Bode 图，还要考虑实际噪声特性。</p>
+  </section>
+
+  <!-- ===== 6.4 2DOF PI ===== -->
+  <section class="content-section" id="sec-2dof">
+    <div class="content-section__tag">6.4 Two-Degree-Of-Freedom PI / 二自由度 PI</div>
+    <h2>分离跟踪与抗扰 / Separating Tracking from Rejection</h2>
+
+    <p>标准 PI 控制器只有一个自由度——$K_p$ 和 $K_i$ 同时影响跟踪和抗扰。二自由度 (2DOF) 控制器将二者分离：</p>
+
+    <div class="eq-block">
+      $$T_e^* = \underbrace{C_r(s) \cdot \Omega^*}_{\text{tracking path}} - \underbrace{C_y(s) \cdot \hat{\Omega}}_{\text{feedback path}} - \underbrace{\frac{\hat{d}_{to}}{b_n}}_{\text{feedforward}}$$
+    </div>
+
+    <p>其中 $C_r(s)$ 是参考滤波器（整形跟踪响应），$C_y(s)$ 是反馈控制器（决定抗扰和鲁棒性）。</p>
+
+    <div class="info-box">
+      <strong>与 ADRC 的联系：</strong>ADRC 本质上就是一个 2DOF 控制器：
+      <ul style="margin-top:0.5rem">
+        <li>ESO/GPIO 提供 $\hat{\Omega}$ 和 $\hat{d}_{to}$</li>
+        <li>反馈增益 $k_{ps}$ 对应 $C_y(s)$</li>
+        <li>前馈 $\hat{d}_{to}/b_n$ 提供扰动补偿</li>
+        <li>可以独立调节跟踪带宽（通过参考滤波器）和抗扰带宽（通过观测器带宽）</li>
+      </ul>
+    </div>
+
+    <h3>从 PI 到 PI + 前馈</h3>
+    <p>回忆 Coding Project 2 中的速度环 PI 控制器：</p>
+    <div class="eq-block">$$i_q^* = K_p(\omega^* - \hat{\omega}) + K_i \int (\omega^* - \hat{\omega}) dt$$</div>
+    <p>加入扰动前馈后：</p>
+    <div class="eq-block">$$i_q^* = \underbrace{K_p(\omega^* - \hat{\omega}) + K_i \int (\omega^* - \hat{\omega}) dt}_{\text{PI feedback}} + \underbrace{\frac{\hat{d}_{to}}{1.5\, n_{pp}\, K_A}}_{\text{disturbance feedforward}}$$</div>
+    <p>前馈项直接补偿扰动，PI 只需处理残余误差。这就是 Coding Project 3 中你要实现的内容。</p>
+  </section>
+
+  <!-- ===== 6.5 Observer Order and Structure ===== -->
+  <section class="content-section" id="sec-observer">
+    <div class="content-section__tag">6.5 Observer Order &amp; Gain Design / 观测器阶数与增益设计</div>
+    <h2>从 ESO 到 GPI Observer / From ESO to GPIO</h2>
+
+    <h3>统一的观测器框架</h3>
+    <p>所有观测器都可以写成如下形式，区别仅在于扩展状态的阶数：</p>
+
+    <div class="eq-block">
+      $$\begin{aligned}
+      \dot{\hat{\theta}}_d &= \ell_1 e_\theta + \hat{\omega}_r \\
+      \dot{\hat{\omega}}_r &= \ell_2 e_\theta + (T_{em} + \hat{d}_{to}) \frac{n_{pp}}{J_s} \\
+      \dot{\hat{d}}_{to} &= \ell_3 e_\theta + \hat{p}_{to} \\
+      \dot{\hat{p}}_{to} &= \ell_4 e_\theta + \hat{q}_{to} \\
+      &\vdots
+      \end{aligned}$$
+      <div class="eq-label">通用 GPI 观测器结构</div>
+    </div>
+
+    <h3>增益配置（极点配置法）</h3>
+    <p>将所有观测器极点配置在 $s = -\omega_{ob}$：</p>
+    <div class="eq-block">
+      $$\text{3rd-order:}\quad \ell_1 = 3\omega_{ob},\ \ell_2 = 3\omega_{ob}^2,\ \ell_3 = \omega_{ob}^3 \frac{J_s}{n_{pp}},\ \ell_4 = 0$$
+    </div>
+    <div class="eq-block">
+      $$\text{4th-order:}\quad \ell_1 = 4\omega_{ob},\ \ell_2 = 6\omega_{ob}^2,\ \ell_3 = 4\omega_{ob}^3 \frac{J_s}{n_{pp}},\ \ell_4 = \omega_{ob}^4$$
+    </div>
+
+    <h3>$\omega_{ob}$ 的选择</h3>
+    <p>观测器带宽 $\omega_{ob}$ 是<strong>最关键</strong>的调参：</p>
+    <ul>
+      <li>$\omega_{ob}$ 太小 → 估计收敛慢，扰动跟踪滞后</li>
+      <li>$\omega_{ob}$ 太大 → 放大测量噪声，可能导致不稳定</li>
+      <li>高阶观测器需要更小的 $\omega_{ob}$（因为噪声放大更严重）</li>
+    </ul>
+
+    <div class="highlight-box">
+      <strong>经验法则：</strong>$\omega_{ob}$ 通常取速度环带宽的 3-10 倍。对于 4 阶观测器，可能需要比 3 阶减小 30-50%。实际中需要在仿真或实验中找到最佳折中。
+    </div>
+  </section>
+
+  <!-- ===== 6.6 Robustness to Inertia Mismatch ===== -->
+  <section class="content-section" id="sec-robustness">
+    <div class="content-section__tag">6.6 Robustness to Inertia Mismatch / 惯量失配鲁棒性</div>
+    <h2>$k_b = J/J_n$ 对系统的影响 / Effect of Control Gain Ratio</h2>
+
+    <p>定义控制增益比 $k_b = b_n/b = J/J_n$，即实际惯量与标称惯量之比。从闭环传递函数可知：</p>
+
+    <div class="eq-block">
+      $$\Phi_r(s) = \frac{\Delta_n(s+k_{ps})}{\Delta_n(s+k_{ps}) + (k_b - 1)sG_3(s)}$$
+      <div class="eq-label">(5) — 跟踪传递函数</div>
+    </div>
+
+    <ul>
+      <li><strong>$k_b = 1$</strong>：完美跟踪，$\Phi_r = 1$</li>
+      <li><strong>$k_b > 1$</strong>（实际惯量大于标称）：超调、振荡，但噪声抑制更好</li>
+      <li><strong>$k_b < 1$</strong>（实际惯量小于标称）：无超调，但噪声抑制变差</li>
+    </ul>
+
+    <div class="highlight-box">
+      <strong>重要结论：</strong>低频扰动抑制能力越强的系统（如 4th-order ESO\_8），对 $k_b$ 变化越敏感。系统的稳定裕度更小。
+      <br>例如：ESO\_1 在 $k_b > 0.258$ 时稳定，ESO\_4 在 $k_b > 0.233$ 时稳定，而 ESO\_8 在 $k_b < 2.94$ 时稳定。
+    </div>
+
+    <p>实际中，惯量失配来源于：</p>
+    <ul>
+      <li>负载惯量变化（如机器人手臂不同姿态）</li>
+      <li>标称惯量标定误差</li>
+      <li>通常先在控制器中使用较小的 $J_n$（即 $k_b > 1$），因为 $k_b > 1$ 有利于噪声抑制</li>
+    </ul>
+  </section>
+
+  <!-- ===== 6.7 Summary ===== -->
+  <section class="content-section" id="sec-summary">
+    <div class="content-section__tag">Summary / 总结</div>
+    <h2>三方权衡的全景图 / The Complete Picture</h2>
+
+    <div class="task-box">
+      <strong>核心结论</strong>
+      <ol>
+        <li>闭环系统的性能由三条传递函数决定：跟踪 $\Phi_r$、扰动 $\Phi_d$、噪声 $\Phi_n$</li>
+        <li>$\Phi_n(s) = 1 - s\Phi_d(s)$——扰动抑制和噪声抑制是互补的，不可兼得</li>
+        <li>高阶观测器（GPIO）通过扩展内部模型来提升低频扰动抑制（如跟踪斜坡负载），但代价是高频噪声放大</li>
+        <li>观测器带宽 $\omega_{ob}$ 是最关键的设计参数——决定了扰动估计速度与噪声水平的权衡</li>
+        <li>惯量失配 $k_b \neq 1$ 同时影响跟踪、扰动、噪声三个通道。低频抗扰能力越强的系统对 $k_b$ 越敏感</li>
+        <li>2DOF 控制结构（PI + 前馈）可以分离跟踪设计和抗扰设计，提供更大的调参自由度</li>
+      </ol>
+    </div>
+
+    <p>在 Coding Project 3 中，你将亲手实现这些概念：启用 4 阶观测器、接入前馈补偿、用斜坡负载证明高阶观测器的优势，并通过调节 $\omega_{ob}$ 体会噪声-抗扰的权衡。</p>
+  </section>
+
+</div>
+
+<script>
+var io = new IntersectionObserver(function(entries) {
+  entries.forEach(function(e) {
+    if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }
+  });
+}, { threshold: 0.05, rootMargin: '0px 0px -40px 0px' });
+document.querySelectorAll('.content-section').forEach(function(s){ io.observe(s); });
+</script>
+</body>
+</html>

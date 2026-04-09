@@ -3,9 +3,11 @@ Electric Motor Control - Course Server
 Run: python server.py
   - Survey:     http://<ip>:8000/lecture1.html   (students)
   - Lecture 2:  http://<ip>:8000/lecture2.html   (students)
+  - Lecture 3:  http://<ip>:8000/lecture3.html   (students)
   - Homework 1: http://<ip>:8000/homework1.html  (students)
   - Project 1:  http://<ip>:8000/codingProject1.html (students)
   - Project 2:  http://<ip>:8000/codingProject2.html (students)
+  - Project 3:  http://<ip>:8000/codingProject3.html (students)
   - Live:       http://<ip>:8000/live.html       (students)
   - Teacher:    http://localhost:8000/teacher.html
 """
@@ -393,9 +395,11 @@ if __name__ == "__main__":
     print()
     print(f"  Survey     (students): http://{ip}:{PORT}/lecture1.html")
     print(f"  Lecture 2  (students): http://{ip}:{PORT}/lecture2.html")
+    print(f"  Lecture 3  (students): http://{ip}:{PORT}/lecture3.html")
     print(f"  Homework 1 (students): http://{ip}:{PORT}/homework1.html")
     print(f"  Project 1  (students): http://{ip}:{PORT}/codingProject1.html")
     print(f"  Project 2  (students): http://{ip}:{PORT}/codingProject2.html")
+    print(f"  Project 3  (students): http://{ip}:{PORT}/codingProject3.html")
     print(f"  Live       (students): http://{ip}:{PORT}/live.html")
     print(f"  Teacher panel:         http://localhost:{PORT}/teacher.html")
     print()

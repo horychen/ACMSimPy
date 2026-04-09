@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Coding Project 3 — Higher-Order Observer &amp; Disturbance Feedforward</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"
+  onerror="this.onerror=null;this.href='vendor/katex/katex.min.css';">
+<script>
+(function(){
+  var CDN = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/";
+  var LOCAL = "vendor/katex/";
+  var files = ["katex.min.js", "contrib/auto-render.min.js"];
+  var idx = 0, TIMEOUT = 3000;
+  function renderMath() {
+    if (window.renderMathInElement) {
+      renderMathInElement(document.body, {
+        delimiters: [
+          {left:"$$", right:"$$", display:true},
+          {left:"$", right:"$", display:false}
+        ]
+      });
+    }
+  }
+  function loadScript(src, ok, fail) {
+    var s = document.createElement("script");
+    var done = false;
+    var timer = setTimeout(function(){ if(!done){ done = true; s.onload = s.onerror = null; fail(); } }, TIMEOUT);
+    s.src = src;
+    s.onload = function(){ if(!done){ done = true; clearTimeout(timer); ok(); } };
+    s.onerror = function(){ if(!done){ done = true; clearTimeout(timer); fail(); } };
+    document.head.appendChild(s);
+  }
+  function loadChain(base, fallback) {
+    if (idx >= files.length) { renderMath(); return; }
+    loadScript(base + files[idx], function(){ idx++; loadChain(base, fallback); }, function(){ if (fallback) { idx = 0; loadChain(fallback, null); } });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){ loadChain(CDN, LOCAL); });
+  } else {
+    loadChain(CDN, LOCAL);
+  }
+})();
+</script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0d14;
+    --panel: rgba(16, 21, 33, 0.88);
+    --line: rgba(255,255,255,0.10);
+    --text: #edf2ff;
+    --soft: #b6bfd7;
+    --muted: #7f8aa2;
+    --gold: #f1c76e;
+    --teal: #7de1d2;
+    --blue: #82a9ff;
+    --green: #9ce28f;
+    --shadow: 0 24px 80px rgba(0,0,0,0.35);
+    --font-display: Georgia, "Times New Roman", serif;
+    --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
+    --font-mono: "Cascadia Code", Consolas, monospace;
+  }
+  html { font-size: 16px; scroll-behavior: smooth; }
+  body {
+    min-height: 100vh; font-family: var(--font-body); color: var(--text);
+    background:
+      radial-gradient(circle at 15% 18%, rgba(130,169,255,0.18), transparent 30%),
+      radial-gradient(circle at 84% 10%, rgba(125,225,210,0.12), transparent 24%),
+      radial-gradient(circle at 50% 120%, rgba(241,199,110,0.12), transparent 34%),
+      linear-gradient(180deg, #070910 0%, #0b0f18 55%, #070910 100%);
+    overflow-x: hidden; -webkit-font-smoothing: antialiased;
+  }
+  body[data-lang="en"] .lang-zh { display: none !important; }
+  body[data-lang="zh"] .lang-en { display: none !important; }
+  .app { width: min(1120px, calc(100vw - 20px)); margin: 0 auto; padding: 14px 0 48px; }
+  .topbar { position: sticky; top: 8px; z-index: 30; display: flex; justify-content: flex-end; margin-bottom: 12px; }
+  .lang-switch { display: inline-flex; gap: 6px; padding: 6px; border: 1px solid var(--line); border-radius: 999px; background: rgba(12,16,26,0.84); backdrop-filter: blur(12px); box-shadow: var(--shadow); }
+  .lang-switch button { border: none; border-radius: 999px; min-width: 76px; padding: 9px 14px; font-size: 0.88rem; font-weight: 700; cursor: pointer; background: transparent; color: var(--soft); transition: 0.2s ease; }
+  .lang-switch button.active { background: linear-gradient(135deg, var(--gold), #ffe4a8); color: #1b1508; }
+  .lang-switch button:not(.active):hover { background: rgba(255,255,255,0.06); color: var(--text); }
+  .hero, .sidebar, .section { border: 1px solid var(--line); border-radius: 24px; background: var(--panel); backdrop-filter: blur(14px); box-shadow: var(--shadow); }
+  .hero { padding: 28px; margin-bottom: 14px; }
+  .eyebrow, .section-tag, .side-title, .pill { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.16em; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 10px; color: var(--gold); font-size: 0.72rem; margin-bottom: 14px; }
+  .eyebrow::before, .section-tag::before { content: ""; width: 32px; height: 1px; background: linear-gradient(90deg, currentColor, transparent); }
+  .hero h1 { font-family: var(--font-display); font-size: clamp(2rem, 4vw, 3.5rem); line-height: 1.08; font-weight: 500; letter-spacing: -0.03em; margin-bottom: 14px; }
+  .hero h1 em { font-style: normal; color: var(--teal); }
+  .lead { max-width: 900px; color: var(--soft); line-height: 1.85; font-size: 1rem; }
+  .meta-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 20px; }
+  .meta-card { border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,0.03); padding: 12px 14px; }
+  .meta-label { display: block; color: var(--muted); font-size: 0.68rem; margin-bottom: 6px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.16em; }
+  .meta-value { line-height: 1.55; font-size: 0.94rem; }
+  .layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 14px; align-items: start; }
+  .sidebar { position: sticky; top: 72px; padding: 18px; }
+  .side-title { color: var(--gold); font-size: 0.75rem; margin-bottom: 10px; }
+  .nav-list { list-style: none; display: grid; gap: 8px; margin-bottom: 14px; }
+  .nav-list a { display: block; padding: 10px 12px; border-radius: 12px; color: var(--soft); text-decoration: none; border: 1px solid transparent; transition: 0.2s ease; }
+  .nav-list a:hover { color: var(--text); background: rgba(255,255,255,0.04); border-color: var(--line); transform: translateX(3px); }
+  .side-note { border-top: 1px solid var(--line); padding-top: 12px; color: var(--muted); font-size: 0.86rem; line-height: 1.75; }
+  .main { display: grid; gap: 14px; }
+  .section { padding: 24px; opacity: 0; transform: translateY(18px); transition: opacity 0.55s ease, transform 0.55s ease; }
+  .section.visible { opacity: 1; transform: translateY(0); }
+  .section-tag { display: inline-flex; align-items: center; gap: 10px; color: var(--teal); font-size: 0.7rem; margin-bottom: 12px; }
+  h2 { font-family: var(--font-display); font-size: 1.65rem; font-weight: 500; margin-bottom: 12px; }
+  h3 { font-size: 1.04rem; color: var(--gold); margin: 18px 0 10px; }
+  h4 { font-size: 1rem; margin-bottom: 8px; color: var(--text); }
+  p, li { color: var(--soft); line-height: 1.82; font-size: 0.97rem; }
+  strong { color: var(--text); } em { color: var(--teal); }
+  ul, ol { padding-left: 1.2rem; margin: 10px 0 14px; }
+  li + li { margin-top: 6px; }
+  a { color: var(--blue); text-decoration: none; } a:hover { text-decoration: underline; }
+  .grid-2, .grid-3, .q-grid { display: grid; gap: 14px; margin-top: 16px; }
+  .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .q-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .card, .q-card, .callout, .eq-block, pre, .check, .mini-list li { border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,0.03); }
+  .card, .q-card { padding: 18px; }
+  .callout, .eq-block, pre { padding: 16px 18px; margin: 16px 0; }
+  .callout--warn { background: rgba(241,199,110,0.08); border-color: rgba(241,199,110,0.24); }
+  .callout--ok { background: rgba(125,225,210,0.07); border-color: rgba(125,225,210,0.22); }
+  .callout--task { background: rgba(156,226,143,0.07); border-color: rgba(156,226,143,0.22); }
+  .callout-title { display: block; color: var(--text); margin-bottom: 6px; font-weight: 700; }
+  .eq-block, pre { background: #111722; overflow-x: auto; }
+  pre, code { font-family: var(--font-mono); font-size: 0.9rem; }
+  code { color: var(--teal); background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); padding: 0.1rem 0.35rem; border-radius: 8px; }
+  pre code { background: none; border: none; padding: 0; color: #d9e6ff; }
+  .pill { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; color: var(--soft); font-size: 0.72rem; padding: 4px 9px; margin-right: 6px; margin-bottom: 6px; }
+  .q-index { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: rgba(130,169,255,0.14); color: var(--blue); font-family: var(--font-mono); font-size: 0.82rem; margin-bottom: 10px; }
+  .checklist { display: grid; gap: 10px; margin-top: 12px; }
+  .check { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,0.03); }
+  .check::before { content: "\2713"; flex: none; font-weight: 700; color: var(--green); margin-top: 1px; }
+  .task-table { width: 100%; border-collapse: collapse; margin-top: 14px; border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
+  .task-table th, .task-table td { padding: 14px 16px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  .task-table th { background: rgba(255,255,255,0.05); color: var(--text); font-size: 0.9rem; }
+  .task-table td { color: var(--soft); line-height: 1.75; font-size: 0.94rem; }
+  .task-table tr:last-child td { border-bottom: none; }
+  .disabled-box { margin-top: 16px; padding: 16px 18px; border-radius: 18px; border: 1px dashed rgba(255,255,255,0.24); background: rgba(255,255,255,0.025); }
+  .footer-note { margin-top: 16px; color: var(--muted); font-size: 0.88rem; }
+  .katex { color: var(--text); }
+  @media (max-width: 980px) { .meta-grid, .layout, .grid-3, .grid-2, .q-grid { grid-template-columns: 1fr; } .sidebar, .topbar { position: static; } }
+  @media (max-width: 640px) { .app { width: min(100vw - 14px, 1120px); padding-top: 10px; } .hero, .sidebar, .section { padding: 20px; border-radius: 20px; } .lang-switch { width: 100%; } .lang-switch button { flex: 1; min-width: 0; } h2 { font-size: 1.42rem; } .lead, p, li { font-size: 0.95rem; } .task-table { display: block; overflow-x: auto; } }
+</style>
+</head>
+<body data-lang="en">
+<div class="app">
+  <div class="topbar">
+    <div class="lang-switch" aria-label="Language switch">
+      <button id="btn-en" class="active" type="button" onclick="setLang('en')">English</button>
+      <button id="btn-zh" type="button" onclick="setLang('zh')">中文</button>
+    </div>
+  </div>
+
+  <header class="hero">
+    <div class="eyebrow">Coding Project 3 / Observer &amp; Disturbance Feedforward</div>
+    <h1>
+      <span class="lang-en">Can a higher-order observer <em>predict</em> time-varying disturbances?</span>
+      <span class="lang-zh">高阶观测器能否<em>预测</em>时变扰动？</span>
+    </h1>
+    <p class="lead">
+      <span class="lang-en">In Project 2 you used the observer to estimate constant load torque. But real disturbances change over time — ramp loads, sinusoidal friction, parameter drift. A 3rd-order observer assumes disturbance is constant and <strong>cannot</strong> track a ramp. In this project, you will enable the 4th-order observer, wire in feedforward compensation, and prove the difference with simulation.</span>
+      <span class="lang-zh">在 Project 2 中你用观测器估计了恒定负载转矩。但真实扰动会随时间变化——斜坡负载、正弦摩擦、参数漂移。三阶观测器假设扰动恒定，<strong>无法</strong>跟踪斜坡。本项目中你将启用四阶观测器、接入前馈补偿，并通过仿真证明两者的差异。</span>
+    </p>
+    <div class="meta-grid">
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Core scripts</span><span class="lang-zh">核心脚本</span></span>
+        <div class="meta-value"><code>simulation/tutorials_ep6_svpwm.py</code></div>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Keywords</span><span class="lang-zh">关键词</span></span>
+        <div class="meta-value">ESO / GPIO / ramp load / feedforward / disturbance rejection</div>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Prerequisite</span><span class="lang-zh">前置要求</span></span>
+        <div class="meta-value"><span class="lang-en">Coding Project 2</span><span class="lang-zh">编程作业 2</span></div>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Report format</span><span class="lang-zh">报告形式</span></span>
+        <div class="meta-value">PDF</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="side-title"><span class="lang-en">Contents</span><span class="lang-zh">目录</span></div>
+      <ul class="nav-list">
+        <li><a href="#theory"><span class="lang-en">Theory</span><span class="lang-zh">理论</span></a></li>
+        <li><a href="#code"><span class="lang-en">Code walkthrough</span><span class="lang-zh">代码解析</span></a></li>
+        <li><a href="#part1"><span class="lang-en">Part 1: Enable 4th-order</span><span class="lang-zh">Part 1：启用四阶</span></a></li>
+        <li><a href="#part2"><span class="lang-en">Part 2: Wire feedforward</span><span class="lang-zh">Part 2：接入前馈</span></a></li>
+        <li><a href="#part3"><span class="lang-en">Part 3: Ramp vs step</span><span class="lang-zh">Part 3：斜坡 vs 阶跃</span></a></li>
+        <li><a href="#part4"><span class="lang-en">Part 4: Analysis</span><span class="lang-zh">Part 4：性能分析</span></a></li>
+        <li><a href="#deliverables"><span class="lang-en">Deliverables</span><span class="lang-zh">提交要求</span></a></li>
+      </ul>
+      <div class="side-note">
+        <span class="lang-en">This project requires modifying source code. Read the code walkthrough carefully before editing.</span>
+        <span class="lang-zh">本项目需要修改源代码。动手前请仔细阅读代码解析部分。</span>
+      </div>
+    </aside>
+
+    <main class="main">
+
+      <!-- ===== Theory ===== -->
+      <section class="section" id="theory">
+        <div class="section-tag">Theory / Why Higher Order?</div>
+        <h2>
+          <span class="lang-en">From constant disturbance to time-varying disturbance</span>
+          <span class="lang-zh">从恒定扰动到时变扰动</span>
+        </h2>
+
+        <h3><span class="lang-en">The mechanical equation</span><span class="lang-zh">机械方程</span></h3>
+        <div class="eq-block">$$J \frac{d\omega_m}{dt} = T_{em} - T_L - B\omega_m$$</div>
+        <p>
+          <span class="lang-en">Define the <em>total disturbance</em> $d_{to}$ as everything the controller does not model:</span>
+          <span class="lang-zh">定义<em>总扰动</em> $d_{to}$ 为控制器未建模的所有内容：</span>
+        </p>
+        <div class="eq-block">$$d_{to} = -\frac{T_L + B\omega_m + (J - J_n)\dot{\omega}_m}{J_n / n_{pp}}$$</div>
+        <p>
+          <span class="lang-en">An observer that estimates $d_{to}$ can feed it forward to cancel the disturbance <strong>before</strong> the PI regulator reacts. The question is: how well can the observer track $d_{to}$ when it changes over time?</span>
+          <span class="lang-zh">估计 $d_{to}$ 的观测器可以将其前馈，在 PI 调节器反应<strong>之前</strong>就抵消扰动。问题是：当 $d_{to}$ 随时间变化时，观测器能跟踪得多好？</span>
+        </p>
+
+        <h3><span class="lang-en">3rd-order observer: assumes constant disturbance</span><span class="lang-zh">三阶观测器：假设扰动恒定</span></h3>
+        <p><span class="lang-en">States: $[\hat{\theta}_d,\ \hat{\omega}_r,\ \hat{d}_{to}]$. The internal model assumes $\dot{d}_{to} = 0$.</span><span class="lang-zh">状态：$[\hat{\theta}_d,\ \hat{\omega}_r,\ \hat{d}_{to}]$。内部模型假设 $\dot{d}_{to} = 0$。</span></p>
+        <div class="eq-block">
+          $$\begin{aligned}
+          \dot{\hat{\theta}}_d &= \ell_1 e_\theta + \hat{\omega}_r \\
+          \dot{\hat{\omega}}_r &= \ell_2 e_\theta + (T_{em} + \hat{d}_{to}) \frac{n_{pp}}{J_s} \\
+          \dot{\hat{d}}_{to} &= \ell_3 e_\theta
+          \end{aligned}$$
+        </div>
+        <p><span class="lang-en">Gains placed at $(s + \omega_{ob})^3$:</span><span class="lang-zh">增益配置在 $(s + \omega_{ob})^3$：</span></p>
+        <div class="eq-block">$$\ell_1 = 3\omega_{ob},\quad \ell_2 = 3\omega_{ob}^2,\quad \ell_3 = \omega_{ob}^3 \frac{J_s}{n_{pp}},\quad \ell_4 = 0$$</div>
+        <div class="callout callout--warn">
+          <span class="callout-title"><span class="lang-en">Limitation</span><span class="lang-zh">局限性</span></span>
+          <span class="lang-en">Because $\dot{\hat{d}}_{to}$ is driven only by the correction $\ell_3 e_\theta$, the estimate of $d_{to}$ always <strong>lags behind</strong> a ramp disturbance. The steady-state estimation error is proportional to the ramp slope divided by $\omega_{ob}$.</span>
+          <span class="lang-zh">由于 $\dot{\hat{d}}_{to}$ 仅由校正项 $\ell_3 e_\theta$ 驱动，对 $d_{to}$ 的估计总是<strong>滞后于</strong>斜坡扰动。稳态估计误差与斜坡斜率除以 $\omega_{ob}$ 成正比。</span>
+        </div>
+
+        <h3><span class="lang-en">4th-order observer: models ramp disturbance</span><span class="lang-zh">四阶观测器：建模斜坡扰动</span></h3>
+        <p><span class="lang-en">States: $[\hat{\theta}_d,\ \hat{\omega}_r,\ \hat{d}_{to},\ \hat{p}_{to}]$. The internal model assumes $\dot{d}_{to} = p_{to}$, $\dot{p}_{to} = 0$.</span><span class="lang-zh">状态：$[\hat{\theta}_d,\ \hat{\omega}_r,\ \hat{d}_{to},\ \hat{p}_{to}]$。内部模型假设 $\dot{d}_{to} = p_{to}$，$\dot{p}_{to} = 0$。</span></p>
+        <div class="eq-block">
+          $$\begin{aligned}
+          \dot{\hat{\theta}}_d &= \ell_1 e_\theta + \hat{\omega}_r \\
+          \dot{\hat{\omega}}_r &= \ell_2 e_\theta + (T_{em} + \hat{d}_{to}) \frac{n_{pp}}{J_s} \\
+          \dot{\hat{d}}_{to} &= \ell_3 e_\theta + \hat{p}_{to} \\
+          \dot{\hat{p}}_{to} &= \ell_4 e_\theta
+          \end{aligned}$$
+        </div>
+        <p><span class="lang-en">Gains placed at $(s + \omega_{ob})^4$:</span><span class="lang-zh">增益配置在 $(s + \omega_{ob})^4$：</span></p>
+        <div class="eq-block">$$\ell_1 = 4\omega_{ob},\quad \ell_2 = 6\omega_{ob}^2,\quad \ell_3 = 4\omega_{ob}^3 \frac{J_s}{n_{pp}},\quad \ell_4 = \omega_{ob}^4$$</div>
+        <div class="callout callout--ok">
+          <span class="callout-title"><span class="lang-en">Key advantage</span><span class="lang-zh">核心优势</span></span>
+          <span class="lang-en">The extra state $\hat{p}_{to}$ estimates the <em>rate of change</em> of the disturbance. For a ramp load ($T_L = at$), $\hat{p}_{to} \to a$ and $\hat{d}_{to}$ tracks the ramp with <strong>zero</strong> steady-state error.</span>
+          <span class="lang-zh">额外状态 $\hat{p}_{to}$ 估计扰动的<em>变化率</em>。对于斜坡负载（$T_L = at$），$\hat{p}_{to} \to a$，$\hat{d}_{to}$ 以<strong>零</strong>稳态误差跟踪斜坡。</span>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <h4><span class="lang-en">3rd-order under ramp load</span><span class="lang-zh">三阶在斜坡负载下</span></h4>
+            <p><span class="lang-en">$\hat{d}_{to}$ lags behind $d_{to}$. Speed drops continuously. PI compensates slowly via integral action.</span><span class="lang-zh">$\hat{d}_{to}$ 滞后于 $d_{to}$。速度持续下降。PI 通过积分作用缓慢补偿。</span></p>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">4th-order under ramp load</span><span class="lang-zh">四阶在斜坡负载下</span></h4>
+            <p><span class="lang-en">$\hat{d}_{to}$ tracks $d_{to}$ with zero steady-state error. Feedforward cancels the ramp. Speed stays on target.</span><span class="lang-zh">$\hat{d}_{to}$ 以零稳态误差跟踪 $d_{to}$。前馈抵消斜坡。速度保持目标值。</span></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Code Walkthrough ===== -->
+      <section class="section" id="code">
+        <div class="section-tag">Code Walkthrough</div>
+        <h2><span class="lang-en">Where to find and modify the observer</span><span class="lang-zh">观测器代码位置与修改点</span></h2>
+
+        <h3><span class="lang-en">1. Observer gains initialization</span><span class="lang-zh">1. 观测器增益初始化</span></h3>
+        <p><span class="lang-en">In <code>The_Motor_Controller.__init__</code> (around line 165), the observer gains are selected by an <code>if/elif/else</code> chain. Currently the <strong>3rd-order</strong> branch is active:</span><span class="lang-zh">在 <code>The_Motor_Controller.__init__</code>（约第 165 行），观测器增益通过 <code>if/elif/else</code> 链选择。当前<strong>三阶</strong>分支生效：</span></p>
+        <pre><code>omega_ob = 100  # [rad/s]
+if False:    # 2nd-order speed observer
+    ...
+elif False:  # 2nd-order position observer
+    ...
+elif True:   # 3rd-order  &lt;--- CURRENTLY ACTIVE
+    self.ell1 = 3 * omega_ob
+    self.ell2 = 3 * omega_ob**2
+    self.ell3 = omega_ob**3 * init_Js/init_npp
+else:        # 4th-order  &lt;--- YOU NEED TO ACTIVATE THIS
+    self.ell1 = 4 * omega_ob
+    self.ell2 = 6 * omega_ob**2
+    self.ell3 = 4 * omega_ob**3 * init_Js/init_npp
+    self.ell4 = omega_ob**4</code></pre>
+
+        <h3><span class="lang-en">2. Observer dynamics (already supports 4th-order)</span><span class="lang-zh">2. 观���器动态方程（已支持四阶）</span></h3>
+        <pre><code>def DYNAMICS_SpeedObserver(x, CTRL):
+    fx = np.zeros(6)
+    output_error = angle_diff(CTRL.theta_d, x[0])
+    fx[0] = CTRL.ell1*output_error + x[1]           # theta
+    fx[1] = CTRL.ell2*output_error + (CTRL.Tem + x[2]) * CTRL.npp/CTRL.Js  # omega
+    fx[2] = CTRL.ell3*output_error + x[3]           # d_to
+    fx[3] = CTRL.ell4*output_error + 0.0             # p_to (rate)
+    return fx</code></pre>
+        <p><span class="lang-en">When <code>ell4 = 0</code> (3rd-order), <code>x[3]</code> stays zero. When <code>ell4 &gt; 0</code> (4th-order), <code>x[3]</code> estimates the rate of disturbance change.</span><span class="lang-zh">当 <code>ell4 = 0</code>（三阶）时，<code>x[3]</code> 保持为零。当 <code>ell4 &gt; 0</code>（四阶）时，<code>x[3]</code> 估计扰动变化率。</span></p>
+
+        <h3><span class="lang-en">3. The missing link: feedforward is not wired in!</span><span class="lang-zh">3. 缺失的环节：前馈未接入！</span></h3>
+        <p><span class="lang-en">In <code>FOC()</code> (line 638), the speed controller output goes directly to <code>cmd_idq[1]</code>:</span><span class="lang-zh">在 <code>FOC()</code>（第 638 行），速度控制器输出直接赋给 <code>cmd_idq[1]</code>：</span></p>
+        <pre><code># Current code (line 638-639):
+if CTRL.bool_apply_speed_closed_loop_control == True:
+    CTRL.cmd_idq[1] = reg_speed.Out    # feedforward NOT added!</code></pre>
+        <p><span class="lang-en">The observer computes <code>total_disrubance_feedforward</code> (line 757-761) but it is <strong>never used</strong>. You must wire it in.</span><span class="lang-zh">观测器计算了 <code>total_disrubance_feedforward</code>（第 757-761 行），但<strong>从未使用</strong>。你需要将其接入。</span></p>
+
+        <h3><span class="lang-en">4. Watch data for plotting</span><span class="lang-zh">4. 画图用的观测数据</span></h3>
+        <pre><code>sim.gdd['CTRL.xS[2]']       # estimated disturbance (d_to)
+sim.gdd['CTRL.xS[3]']       # estimated rate (p_to)
+sim.gdd['ACM.TLoad']         # actual load torque
+sim.gdd['CTRL.omega_r_mech'] # measured speed [rpm]
+sim.gdd['CTRL.cmd_rpm']      # speed command [rpm]</code></pre>
+      </section>
+
+      <!-- ===== Part 1: Enable 4th-Order ===== -->
+      <section class="section" id="part1">
+        <div class="section-tag">Part 1 / Enable 4th-Order Observer (20 pts)</div>
+        <h2>
+          <span class="lang-en">Switch from 3rd-order to 4th-order observer</span>
+          <span class="lang-zh">从三阶切换到四阶观测器</span>
+        </h2>
+        <p>
+          <span class="lang-en">You need a way to select observer order from the <code>d</code> configuration dictionary, without hard-coding <code>if True</code>/<code>if False</code> in source code.</span>
+          <span class="lang-zh">你需要一种方法，从 <code>d</code> 配置字典选择观测器阶数，而不是在源代码中硬编码 <code>if True</code>/<code>if False</code>。</span>
+        </p>
+        <div class="callout callout--task">
+          <span class="callout-title"><span class="lang-en">Task 1</span><span class="lang-zh">任务 1</span></span>
+          <ol>
+            <li><span class="lang-en">Modify <code>get_global_objects()</code> in <code>tutorials_ep6_svpwm.py</code> so that after creating <code>CTRL</code>, you can overwrite <code>CTRL.ell1</code>–<code>CTRL.ell4</code> based on a new config key <code>d['observer_order']</code> (3 or 4).</span><span class="lang-zh">修改 <code>tutorials_ep6_svpwm.py</code> 中的 <code>get_global_objects()</code>，在创建 <code>CTRL</code> 后，根据新的配置键 <code>d['observer_order']</code>（3 或 4）重写 <code>CTRL.ell1</code>–<code>CTRL.ell4</code>。</span></li>
+            <li><span class="lang-en">Set <code>CTRL.index_separate_speed_estimation = 1</code> to enable the observer.</span><span class="lang-zh">设置 <code>CTRL.index_separate_speed_estimation = 1</code> 来启用观测器。</span></li>
+            <li><span class="lang-en">Verify with a step load: both 3rd-order and 4th-order should track a constant <code>ACM.TLoad = 0.2</code> with zero steady-state error in <code>xS[2]</code>.</span><span class="lang-zh">用阶跃负载验证：三阶和四阶都应以零稳态误差跟踪恒定 <code>ACM.TLoad = 0.2</code> 的 <code>xS[2]</code>。</span></li>
+          </ol>
+        </div>
+        <div class="callout callout--warn">
+          <span class="callout-title"><span class="lang-en">numba constraint</span><span class="lang-zh">numba 约束</span></span>
+          <span class="lang-en"><code>The_Motor_Controller</code> is a <code>@jitclass</code>. You <strong>cannot</strong> add new fields. But <code>ell1</code>–<code>ell4</code> and <code>xS[0:5]</code> already exist — no spec changes needed. You can freely overwrite their values after construction.</span>
+          <span class="lang-zh"><code>The_Motor_Controller</code> 是 <code>@jitclass</code>，<strong>不能</strong>添加新字段。但 <code>ell1</code>–<code>ell4</code> 和 <code>xS[0:5]</code> 已经存在——不需要修改 spec。你可以在构造后自由覆写它们的值。</span>
+        </div>
+      </section>
+
+      <!-- ===== Part 2: Wire Feedforward ===== -->
+      <section class="section" id="part2">
+        <div class="section-tag">Part 2 / Wire Disturbance Feedforward (20 pts)</div>
+        <h2>
+          <span class="lang-en">Connect the observer output to the speed controller</span>
+          <span class="lang-zh">将观测器输出连接到速度控制器</span>
+        </h2>
+        <p>
+          <span class="lang-en">The observer estimates disturbance $\hat{d}_{to}$ in torque-like units. To use it as a feedforward, convert to $i_q$ current:</span>
+          <span class="lang-zh">观测器估计的扰动 $\hat{d}_{to}$ 单位类似转矩。要用作前馈，需转换为 $i_q$ 电流：</span>
+        </p>
+        <div class="eq-block">$$i_{q,ff} = \frac{\hat{d}_{to}}{1.5\, n_{pp}\, K_A}$$</div>
+        <div class="callout callout--task">
+          <span class="callout-title"><span class="lang-en">Task 2: Modify FOC()</span><span class="lang-zh">任务 2：修改 FOC()</span></span>
+          <span class="lang-en">Change line 638-639 of <code>tutorials_ep6_svpwm.py</code> from:</span>
+          <span class="lang-zh">将 <code>tutorials_ep6_svpwm.py</code> 第 638-639 行从：</span>
+        </div>
+        <pre><code># BEFORE:
+CTRL.cmd_idq[1] = reg_speed.Out
+
+# AFTER:
+CTRL.cmd_idq[1] = reg_speed.Out
+if CTRL.use_disturbance_feedforward_rejection > 0:
+    if CTRL.KA > 0:
+        CTRL.cmd_idq[1] += CTRL.total_disrubance_feedforward / (1.5 * CTRL.npp * CTRL.KA)</code></pre>
+        <div class="callout callout--warn">
+          <span class="callout-title"><span class="lang-en">Sign convention</span><span class="lang-zh">符号约定</span></span>
+          <span class="lang-en">In the plant: $J\dot{\omega} = T_{em} - T_L$. In the observer: $\dot{\hat{\omega}} \propto T_{em} + \hat{d}_{to}$. So $\hat{d}_{to} \approx -T_L$ (negative of load torque). Adding $\hat{d}_{to}/(1.5\,n_{pp}\,K_A)$ to $i_q^*$ produces a <em>negative</em> current that cancels the load effect. Verify this in your plots: when $T_L > 0$, <code>xS[2]</code> should be negative.</span>
+          <span class="lang-zh">在被控对象中：$J\dot{\omega} = T_{em} - T_L$。在观测器中：$\dot{\hat{\omega}} \propto T_{em} + \hat{d}_{to}$。所以 $\hat{d}_{to} \approx -T_L$（负载转矩的负值）。将 $\hat{d}_{to}/(1.5\,n_{pp}\,K_A)$ 加到 $i_q^*$ 上会产生<em>负</em>电流来抵消负载效应。请在图中验证：当 $T_L > 0$ 时，<code>xS[2]</code> 应为负。</span>
+        </div>
+      </section>
+
+      <!-- ===== Part 3: Ramp vs Step ===== -->
+      <section class="section" id="part3">
+        <div class="section-tag">Part 3 / Ramp Load vs Step Load (30 pts)</div>
+        <h2>
+          <span class="lang-en">Prove the 4th-order observer can track ramp disturbance</span>
+          <span class="lang-zh">证明四阶观测器能跟踪斜坡扰动</span>
+        </h2>
+
+        <div class="callout callout--task">
+          <span class="callout-title"><span class="lang-en">Task 3: Run 4 scenarios under ramp load</span><span class="lang-zh">任务 3：在斜坡负载下运行 4 种场景</span></span>
+          <table class="task-table">
+            <thead><tr>
+              <th><span class="lang-en">Scenario</span><span class="lang-zh">场景</span></th>
+              <th><span class="lang-en">Observer</span><span class="lang-zh">观测器</span></th>
+              <th><span class="lang-en">Feedforward</span><span class="lang-zh">前馈</span></th>
+              <th><span class="lang-en">Expected result</span><span class="lang-zh">预期结果</span></th>
+            </tr></thead>
+            <tbody>
+              <tr><td><strong>A</strong></td><td>3rd-order</td><td>OFF</td><td><span class="lang-en">Baseline, PI only</span><span class="lang-zh">基准，仅 PI</span></td></tr>
+              <tr><td><strong>B</strong></td><td>3rd-order</td><td>ON</td><td><span class="lang-en">FF helps but cannot eliminate ramp lag</span><span class="lang-zh">FF 有帮助但无法消除斜坡滞后</span></td></tr>
+              <tr><td><strong>C</strong></td><td>4th-order</td><td>OFF</td><td><span class="lang-en">Better estimation, no compensation</span><span class="lang-zh">更好的估计，但无补偿</span></td></tr>
+              <tr><td><strong>D</strong></td><td>4th-order</td><td>ON</td><td><span class="lang-en"><strong>Best:</strong> zero estimation error, full compensation</span><span class="lang-zh"><strong>最佳：</strong>零估计误差，完全补偿</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3><span class="lang-en">Ramp load torque setup</span><span class="lang-zh">斜坡负载转矩设置</span></h3>
+        <pre><code># In user_system_input_code:
+"CTRL.cmd_rpm = 50\n"
+"if ii >= 2: ACM.TLoad = 0.05 * (ii - 2) * d['TIME_SLICE']"</code></pre>
+        <p><span class="lang-en">This creates a linearly increasing load starting at time slice 2. Adjust the slope (0.05) so the motor doesn't stall.</span><span class="lang-zh">这将从时间片 2 开始创建线性增加的负载。调整斜率（0.05）使电机不会堵转。</span></p>
+
+        <h3><span class="lang-en">What to plot for each scenario</span><span class="lang-zh">每个场景需要画什么</span></h3>
+        <ul>
+          <li><span class="lang-en"><strong>Subplot 1</strong>: Speed command <code>CTRL.cmd_rpm</code> vs actual speed <code>CTRL.omega_r_mech</code> [rpm]</span><span class="lang-zh"><strong>子图 1</strong>：速度给定 <code>CTRL.cmd_rpm</code> vs 实际速度 <code>CTRL.omega_r_mech</code> [rpm]</span></li>
+          <li><span class="lang-en"><strong>Subplot 2</strong>: Actual load <code>ACM.TLoad</code> vs estimated disturbance <code>CTRL.xS[2]</code> (note: opposite sign)</span><span class="lang-zh"><strong>子图 2</strong>：实际负载 <code>ACM.TLoad</code> vs 估计扰动 <code>CTRL.xS[2]</code>（注意：符号相反）</span></li>
+          <li><span class="lang-en"><strong>Subplot 3</strong>: Estimated rate <code>CTRL.xS[3]</code> — should converge to the ramp slope for 4th-order</span><span class="lang-zh"><strong>子图 3</strong>：估计变化率 <code>CTRL.xS[3]</code>——四阶时应收敛到斜坡斜率</span></li>
+        </ul>
+
+        <div class="callout callout--task">
+          <span class="callout-title"><span class="lang-en">Task 4: Also test step load for comparison</span><span class="lang-zh">任务 4：同时测试阶跃负载作为对比</span></span>
+          <span class="lang-en">Repeat scenarios A–D with a step load (<code>ACM.TLoad = 0.2</code> at some time). Show that both observers handle step load well, but only 4th-order handles ramp. This demonstrates that the 4th-order advantage is specifically for <em>time-varying</em> disturbances.</span>
+          <span class="lang-zh">用阶跃负载（某时刻 <code>ACM.TLoad = 0.2</code>）重复场景 A–D。展示两种观测器都能很好地处理阶跃负载，但只有四阶能处理斜坡。这证明四阶的优势专门针对<em>时变</em>扰动。</span>
+        </div>
+      </section>
+
+      <!-- ===== Part 4: Performance Analysis ===== -->
+      <section class="section" id="part4">
+        <div class="section-tag">Part 4 / Performance Analysis (30 pts)</div>
+        <h2>
+          <span class="lang-en">Tracking, disturbance rejection, and noise: the three-way tradeoff</span>
+          <span class="lang-zh">跟踪、抗扰与噪声：三方权衡</span>
+        </h2>
+        <p>
+          <span class="lang-en">A closed-loop system's output can be decomposed into three paths:</span>
+          <span class="lang-zh">闭环系统的输出可以分解为三条通道：</span>
+        </p>
+        <div class="eq-block">$$\Omega(s) = \underbrace{\Phi_r(s)}_{\text{tracking}}\,\Omega^*(s) + \underbrace{\Phi_d(s)}_{\text{disturbance}}\,d_n(s) + \underbrace{\Phi_n(s)}_{\text{noise}}\,(-s\delta_p(s))$$</div>
+
+        <div class="q-grid">
+          <div class="q-card">
+            <div class="q-index">Q1</div>
+            <h4><span class="lang-en">Command tracking</span><span class="lang-zh">指令跟踪</span></h4>
+            <p><span class="lang-en">Compare step response (rise time, overshoot) between 3rd and 4th-order observer systems. Does the observer order affect tracking performance? Why or why not?</span><span class="lang-zh">对比三阶和四阶观测器系统的阶跃响应（上升时间、超调）。观测器阶数是否影响跟踪性能？为什么？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q2</div>
+            <h4><span class="lang-en">Disturbance rejection</span><span class="lang-zh">扰动抑制</span></h4>
+            <p><span class="lang-en">Under ramp load, what is the steady-state speed error for 3rd-order vs 4th-order (both with feedforward ON)? Can you derive the theoretical error from the internal model principle?</span><span class="lang-zh">在斜坡负载下，三阶和四阶（均开前馈）的稳态速度误差分别是多少？你能从内模原理推导理论误差吗？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q3</div>
+            <h4><span class="lang-en">Noise sensitivity</span><span class="lang-zh">噪声敏感性</span></h4>
+            <p><span class="lang-en">Higher-order observers amplify noise more. Try increasing <code>omega_ob</code> and observe the noise in <code>xS[2]</code> and <code>xS[3]</code>. Is the 4th-order observer noisier than 3rd-order at the same bandwidth? What is the tradeoff?</span><span class="lang-zh">高阶观测器放大更多噪声。尝试增大 <code>omega_ob</code>，观察 <code>xS[2]</code> 和 <code>xS[3]</code> 中的噪声。在相同带宽下，四阶观测器是否比三阶更嘈杂？权衡是什么？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q4</div>
+            <h4><span class="lang-en">Observer bandwidth selection</span><span class="lang-zh">观测器带宽选择</span></h4>
+            <p><span class="lang-en">Try <code>omega_ob</code> = 50, 100, 200, 400 for the 4th-order observer. Plot disturbance estimation error vs noise level. What is the optimal <code>omega_ob</code>? Does it differ from the 3rd-order optimal?</span><span class="lang-zh">对四阶观测器尝试 <code>omega_ob</code> = 50, 100, 200, 400。画扰动估计误差 vs 噪声水平的图。最优 <code>omega_ob</code> 是多少？与三阶的最优值不同吗？</span></p>
+          </div>
+        </div>
+
+        <div class="callout callout--warn">
+          <span class="callout-title"><span class="lang-en">Connection to Project 2</span><span class="lang-zh">与 Project 2 的联系</span></span>
+          <span class="lang-en">In Project 2 Part 3, you tested parameter mismatch. The observer's disturbance estimate $\hat{d}_{to}$ includes parameter mismatch effects (since $d_{to}$ lumps all unmodeled dynamics). Try combining 4th-order observer + feedforward + parameter mismatch from Project 2. Does the higher-order observer compensate mismatch better than the 3rd-order?</span>
+          <span class="lang-zh">在 Project 2 Part 3 中你测试了参数失配。观测器的扰动估计 $\hat{d}_{to}$ 包含参数失配效应（因为 $d_{to}$ 涵盖了所有未建模动态）。尝试将四阶观测器 + 前馈 + Project 2 的参数失配结合起来。高阶观测器是否比三阶更好地补偿失配？</span>
+        </div>
+      </section>
+
+      <!-- ===== Deliverables ===== -->
+      <section class="section" id="deliverables">
+        <div class="section-tag">Deliverables / Report</div>
+        <h2><span class="lang-en">Required content of the final PDF report</span><span class="lang-zh">最终 PDF 报告要求</span></h2>
+        <div class="callout callout--warn">
+          <span class="callout-title"><span class="lang-en">The final PDF must contain these 4 core figures</span><span class="lang-zh">最终 PDF 必须包含这 4 张核心图</span></span>
+          <ol>
+            <li><span class="lang-en"><strong>Step load comparison</strong> — 4 scenarios (A–D), speed + disturbance estimate waveforms.</span><span class="lang-zh"><strong>阶跃负载对比</strong>——4 种场景（A–D），速度 + 扰动估计波形。</span></li>
+            <li><span class="lang-en"><strong>Ramp load comparison</strong> — 4 scenarios (A–D), speed + disturbance estimate + rate estimate waveforms.</span><span class="lang-zh"><strong>斜坡负载对比</strong>——4 种场景（A–D），速度 + 扰动估计 + 变化率估计波形。</span></li>
+            <li><span class="lang-en"><strong>Observer bandwidth sweep</strong> — effect of <code>omega_ob</code> on estimation accuracy and noise for both observer orders.</span><span class="lang-zh"><strong>观测器带宽扫描</strong>——<code>omega_ob</code> 对两种阶数的估计精度和噪声的影响。</span></li>
+            <li><span class="lang-en"><strong>Code diff</strong> — show the exact lines you modified in <code>tutorials_ep6_svpwm.py</code>.</span><span class="lang-zh"><strong>代码差异</strong>——展示你在 <code>tutorials_ep6_svpwm.py</code> 中修改的确切行。</span></li>
+          </ol>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <h4><span class="lang-en">Mandatory</span><span class="lang-zh">必须包含</span></h4>
+            <div class="checklist">
+              <div class="check"><span class="lang-en">Working 4th-order observer with configurable order selection.</span><span class="lang-zh">可配置阶数选择的四阶观测器。</span></div>
+              <div class="check"><span class="lang-en">Feedforward wired into <code>FOC()</code> with correct unit conversion.</span><span class="lang-zh">前馈接入 <code>FOC()</code>，单位转换正确。</span></div>
+              <div class="check"><span class="lang-en">4-scenario comparison under both step and ramp loads.</span><span class="lang-zh">阶跃和斜坡负载下的 4 场景对比。</span></div>
+              <div class="check"><span class="lang-en">Direct answers to Q1–Q4.</span><span class="lang-zh">逐条回答 Q1–Q4。</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">Suggested report structure</span><span class="lang-zh">建议结构</span></h4>
+            <ol>
+              <li><span class="lang-en">Background: why higher-order observer</span><span class="lang-zh">背景：为什么需要高阶观测器</span></li>
+              <li><span class="lang-en">Code modifications (with diff)</span><span class="lang-zh">代码修改（附差异）</span></li>
+              <li><span class="lang-en">Step load experiments and analysis</span><span class="lang-zh">阶跃负载实验与分析</span></li>
+              <li><span class="lang-en">Ramp load experiments and analysis</span><span class="lang-zh">斜坡负载实验与分析</span></li>
+              <li><span class="lang-en">Bandwidth sweep and noise discussion</span><span class="lang-zh">带宽扫描与噪声讨论</span></li>
+              <li><span class="lang-en">Conclusion</span><span class="lang-zh">结论</span></li>
+            </ol>
+          </div>
+        </div>
+        <div class="disabled-box">
+          <p>
+            <strong><span class="lang-en">Online submission is currently disabled.</span><span class="lang-zh">当前暂不支持在线提交。</span></strong>
+            <span class="lang-en"> Please prepare your report as a PDF.</span>
+            <span class="lang-zh"> 请先准备 PDF 报告。</span>
+          </p>
+        </div>
+        <p class="footer-note"><span class="lang-en">Suggested filename: <code>codingProject3_name.pdf</code></span><span class="lang-zh">建议文件名：<code>codingProject3_姓名.pdf</code></span></p>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<script>
+(function(){
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.section').forEach(function(s){ io.observe(s); });
+})();
+
+function setLang(lang) {
+  document.body.setAttribute('data-lang', lang);
+  document.documentElement.setAttribute('lang', lang === 'zh' ? 'zh-CN' : 'en');
+  document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+  document.getElementById('btn-zh').classList.toggle('active', lang === 'zh');
+  try { localStorage.setItem('codingProject3-lang', lang); } catch(e) {}
+}
+
+(function(){
+  var lang = 'en';
+  try {
+    var saved = localStorage.getItem('codingProject3-lang');
+    if (saved === 'en' || saved === 'zh') lang = saved;
+  } catch(e) {}
+  setLang(lang);
+})();
+</script>
+</body>
+</html>
