@@ -289,7 +289,7 @@ else:        # 4th-order  &lt;--- YOU NEED TO ACTIVATE THIS
     self.ell3 = 4 * omega_ob**3 * init_Js/init_npp
     self.ell4 = omega_ob**4</code></pre>
 
-        <h3><span class="lang-en">2. Observer dynamics (already supports 4th-order)</span><span class="lang-zh">2. 观���器动态方程（已支持四阶）</span></h3>
+        <h3><span class="lang-en">2. Observer dynamics (already supports 4th-order)</span><span class="lang-zh">2. 观测器动态方程（已支持四阶）</span></h3>
         <pre><code>def DYNAMICS_SpeedObserver(x, CTRL):
     fx = np.zeros(6)
     output_error = angle_diff(CTRL.theta_d, x[0])
