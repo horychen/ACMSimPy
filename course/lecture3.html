@@ -178,6 +178,84 @@
     </div>
   </section>
 
+  <!-- ===== 6.2b System Type ===== -->
+  <section class="content-section" id="sec-system-type">
+    <div class="content-section__tag">6.2b System Type / 系统型别</div>
+    <h2>换一个视角：从负载转矩看系统型别 / A Different Viewpoint: System Type from the Load's Perspective</h2>
+
+    <p>经典控制理论中，系统的"型别"（system type）定义为开环传递函数中 $s=0$ 处的积分器个数。Type I 系统能无差跟踪阶跃，Type II 能无差跟踪斜坡，Type III 能无差跟踪抛物线。</p>
+
+    <p>现在我们换一个视角：<strong>把负载转矩 $T_L$ 当作"输入"，转速 $\Omega$ 当作"输出"</strong>，来分析这条<em>扰动通道</em>的型别。</p>
+
+    <h3>核心洞察：ESO 是级联积分器</h3>
+    <p>观测器估计扰动的过程，本质上是在反馈通路中构造积分器链：</p>
+
+    <div class="eq-block">
+      $$\underbrace{\hat{d}_{to} = \frac{\ell_3}{s} e_\theta}_{\text{1 个积分器}} \quad\Longrightarrow\quad \text{Type I（对扰动）} \quad\Longrightarrow\quad \text{零稳态误差 for 阶跃 } T_L$$
+    </div>
+    <div class="eq-block">
+      $$\underbrace{\hat{p}_{to} = \frac{\ell_4}{s} e_\theta,\quad \hat{d}_{to} = \frac{1}{s}\hat{p}_{to} + \frac{\ell_3}{s} e_\theta}_{\text{2 个级联积分器}} \quad\Longrightarrow\quad \text{Type II（对扰动）} \quad\Longrightarrow\quad \text{零稳态误差 for 斜坡 } T_L$$
+    </div>
+
+    <div class="highlight-box">
+      <strong>统一理解：</strong>观测器每多扩展一阶状态，就在扰动抑制通道中多串联一个积分器，系统型别提升一级。<br><br>
+      <table style="width:100%; font-size:0.85rem; border-collapse:collapse; margin-top:0.5rem;">
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.4rem 0.8rem; color:var(--amber); font-weight:600;">观测器阶数</td>
+          <td style="padding:0.4rem 0.8rem; color:var(--amber); font-weight:600;">扰动通道积分器数</td>
+          <td style="padding:0.4rem 0.8rem; color:var(--amber); font-weight:600;">系统型别</td>
+          <td style="padding:0.4rem 0.8rem; color:var(--amber); font-weight:600;">能无差跟踪的扰动</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.4rem 0.8rem;">3 阶 ESO</td>
+          <td style="padding:0.4rem 0.8rem;">1</td>
+          <td style="padding:0.4rem 0.8rem;">Type I</td>
+          <td style="padding:0.4rem 0.8rem;">阶跃 $T_L$（恒定负载）</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.4rem 0.8rem;">4 阶 ESO</td>
+          <td style="padding:0.4rem 0.8rem;">2</td>
+          <td style="padding:0.4rem 0.8rem;">Type II</td>
+          <td style="padding:0.4rem 0.8rem;">斜坡 $T_L$（线性增加负载）</td>
+        </tr>
+        <tr>
+          <td style="padding:0.4rem 0.8rem;">5 阶 ESO</td>
+          <td style="padding:0.4rem 0.8rem;">3</td>
+          <td style="padding:0.4rem 0.8rem;">Type III</td>
+          <td style="padding:0.4rem 0.8rem;">抛物线 $T_L$（加速度变化的负载）</td>
+        </tr>
+      </table>
+    </div>
+
+    <h3>为什么这个视角很有用？</h3>
+    <p>传统讲 ADRC/ESO 时，通常从"内模原理"解释——观测器内部模型必须包含扰动的动态特征。这是正确的，但不够直觉。</p>
+    <p><strong>系统型别的视角更直接：</strong>你只需要数一数，从负载转矩到速度输出的闭环通路中有几个积分器，就能立刻知道系统能抗什么形状的扰动。这和你在本科自动控制原理中学的系统型别判据<em>完全一样</em>——只不过"输入"从参考指令换成了扰动。</p>
+
+    <div class="info-box">
+      <strong>与参考跟踪的类比：</strong><br>
+      在参考跟踪通道中，PI 控制器提供了一个积分器（$K_i/s$），使得系统对阶跃参考是 Type I——零稳态误差。如果你再加一个积分器（PII 控制器），系统对斜坡参考也是零稳态误差。<br><br>
+      <strong>在扰动通道中，ESO 的扩展状态扮演了同样的角色：</strong>每多估计一阶扰动的导数，就等价于在扰动通道中多了一个积分器。3 阶 ESO 的一个扩展状态 $\hat{d}_{to}$ 对应一个积分器（Type I）；4 阶 ESO 的两个扩展状态 $\hat{d}_{to}, \hat{p}_{to}$ 对应两个级联积分器（Type II）。
+    </div>
+
+    <h3>从传递函数验证</h3>
+    <p>以 $k_b = 1$ 为例，扰动传递函数 $\Phi_d(s)$ 在 $s \to 0$ 时的行为：</p>
+    <div class="eq-block">
+      $$\text{3 阶 ESO:}\quad \Phi_d(s) \sim \frac{s}{\omega_{ob}(s + k_{ps})} \quad\text{as } s\to 0 \quad\Longrightarrow\quad \Phi_d(0) = 0$$
+      <div class="eq-label">对阶跃扰动：稳态输出为零 (Type I)</div>
+    </div>
+    <div class="eq-block">
+      $$\text{4 阶 ESO:}\quad \Phi_d(s) \sim \frac{s^2}{\omega_{ob}^2(s + k_{ps})} \quad\text{as } s\to 0 \quad\Longrightarrow\quad s\Phi_d(s)\big|_{s=0} = 0$$
+      <div class="eq-label">对斜坡扰动：稳态输出为零 (Type II)</div>
+    </div>
+    <p>$\Phi_d(s)$ 在 $s=0$ 处的零点个数，正好等于观测器扩展状态的阶数。这就是型别的传递函数定义。</p>
+
+    <div class="task-box">
+      <strong>思考题</strong><br>
+      如果我们不用 ESO，而是在速度 PI 控制器中再串联一个积分器（变成 PII），能不能也实现 Type II 的扰动抑制？为什么实际中不这么做？<br>
+      <em>提示：考虑相位裕度和稳定性。积分器加在反馈控制器中会同时影响所有三条通道（跟踪、扰动、噪声），而 ESO 的积分器只加在扰动估计通道中。</em>
+    </div>
+  </section>
+
   <!-- ===== 6.3 Noise Attenuation ===== -->
   <section class="content-section" id="sec-noise">
     <div class="content-section__tag">6.3 Noise Attenuation / 噪声抑制</div>
