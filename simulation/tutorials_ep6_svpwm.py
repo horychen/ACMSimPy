@@ -637,6 +637,10 @@ def FOC(CTRL, reg_speed, reg_id, reg_iq):
     # dq-frame current commands
     if CTRL.bool_apply_speed_closed_loop_control == True:
         CTRL.cmd_idq[1] = reg_speed.Out
+        # Disturbance feedforward compensation from ESO
+        if CTRL.use_disturbance_feedforward_rejection > 0:
+            if CTRL.KA > 0:
+                CTRL.cmd_idq[1] -= CTRL.total_disrubance_feedforward / (1.5 * CTRL.npp * CTRL.KA)
         # CTRL.cmd_idq[0] = 0.0 # for user specifying
 
     # slip and syn frequencies
