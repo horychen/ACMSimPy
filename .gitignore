@@ -17,3 +17,11 @@ user_input*.txt
 
 *.otf
 *.ttf
+
+# Untracked files added during development
+*.pdf
+course/pdf_figures/
+course/quiz_responses/
+course/vendor/
+simulation/output.log
+simulation/run.bat
