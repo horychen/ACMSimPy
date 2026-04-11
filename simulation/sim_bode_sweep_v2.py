@@ -258,11 +258,12 @@ def run_single_frequency(d, freq_Hz, zeta, CLBW_Hz, enable_ESO, omega_ob, mode='
     # 仿真时间
     slice_dt = VL_TS
     periods_transient = 5.0
-    periods_record    = 3.0
-    # 下限必须足够让电机从零加速到 rpm_0 并进入稳态
-    # 0.1s 对高频不够（电机还在加速），提高到 0.5s
-    transient_time = max(0.5, periods_transient / freq_Hz)
-    record_time    = periods_record / freq_Hz
+    periods_record    = 5.0
+    # 下限必须足够让电机从零加速到 rpm_0 并让 ESO 完全收敛
+    # ESO 的 4 阶滤波器需要 ~5/(omega_ob) 秒收敛 (omega_ob=200 → 0.025s)
+    # 但 PI 速度环的稳态建立需要更久，设 1.0s 保底
+    transient_time = max(1.0, periods_transient / freq_Hz)
+    record_time    = max(0.1, periods_record / freq_Hz)
     total_time = transient_time + record_time
     n_slices = int(total_time / slice_dt)
     record_start_slice = int(transient_time / slice_dt)
@@ -275,15 +276,22 @@ def run_single_frequency(d, freq_Hz, zeta, CLBW_Hz, enable_ESO, omega_ob, mode='
 
     for si in range(n_slices):
         t_now = si * slice_dt
+        is_recording = (si >= record_start_slice)
 
-        if mode == 'tracking':
-            u_val = rpm_amp * np.sin(2 * np.pi * freq_Hz * t_now)
-            CTRL.cmd_rpm = rpm_0 + u_val
+        if not is_recording:
+            # ===== 暖机阶段：恒定指令，零扰动，让电机 + ESO 稳定到工作点 =====
+            CTRL.cmd_rpm = rpm_0
             ACM.TLoad = T_0
         else:
-            u_val = T_amp * np.sin(2 * np.pi * freq_Hz * t_now)
-            CTRL.cmd_rpm = rpm_0
-            ACM.TLoad = T_0 + u_val
+            # ===== 录数据阶段：注入正弦激励 =====
+            if mode == 'tracking':
+                u_val = rpm_amp * np.sin(2 * np.pi * freq_Hz * t_now)
+                CTRL.cmd_rpm = rpm_0 + u_val
+                ACM.TLoad = T_0
+            else:
+                u_val = T_amp * np.sin(2 * np.pi * freq_Hz * t_now)
+                CTRL.cmd_rpm = rpm_0
+                ACM.TLoad = T_0 + u_val
 
         machine_times, watch_data = ACMSimPyIncremental(
             t0=t_now, TIME=slice_dt,
@@ -291,7 +299,7 @@ def run_single_frequency(d, freq_Hz, zeta, CLBW_Hz, enable_ESO, omega_ob, mode='
             reg_id=reg_id, reg_iq=reg_iq, reg_speed=reg_speed
         )
 
-        if si >= record_start_slice:
+        if is_recording:
             t_arr.extend(machine_times)
             y_arr.extend(watch_data[1])  # speed_rpm
             if mode == 'tracking':
@@ -478,17 +486,24 @@ def main():
                     offset = round((sim_start - ana_start) / 360.0) * 360.0
                     ana_data = ana_data + offset
 
-                # 解析（虚线，不带 markers，不单独图例）
+                # 解析（虚线），只在 Mag 行的第一个 config 标一次 "Analytical" 图例
+                ana_label = None
+                if row == 0 and ci == 0:
+                    ana_label = 'Analytical (cont. TF)'
                 ax.semilogx(
                     freqs_dense, ana_data,
                     color=color, ls='--', lw=1.0, alpha=0.5,
+                    label=ana_label,
                 )
 
                 # 数值仿真（实线 + markers）
+                sim_label = None
+                if row == 0:
+                    sim_label = label
                 ax.semilogx(
                     freqs, sim_data,
                     color=color, ls=cfg['ls'], marker=marker, markersize=4,
-                    label=label if (row == 0) else None,  # 只在 Mag 行标图例
+                    label=sim_label,
                 )
 
     # 格式化
