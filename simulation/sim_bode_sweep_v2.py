@@ -196,11 +196,12 @@ def get_analytical_bode(d, zeta, CLBW_Hz, omega_ob, freqs_Hz, enable_ESO=False):
 # ======================================================================
 # 单频仿真
 # ======================================================================
-def run_single_frequency(d, freq_Hz, zeta, CLBW_Hz, enable_ESO, omega_ob, mode='tracking', rpm_0=500.0):
+def run_single_frequency(d, freq_Hz, zeta, CLBW_Hz, enable_ESO, omega_ob, mode='tracking', rpm_0=500.0, return_waveform=False):
     """
     单个频率点的数值仿真注入。
     mode='tracking' → 正弦注入速度给定, 观测速度响应
     mode='disturbance' → 正弦注入负载转矩, 观测速度响应
+    若 return_waveform=True，额外返回 (t_arr, y_ac, u_arr) 时域数据
     """
     dd = copy.deepcopy(d)
 
@@ -316,24 +317,38 @@ def run_single_frequency(d, freq_Hz, zeta, CLBW_Hz, enable_ESO, omega_ob, mode='
     u_arr = u_arr[unique_idx]
 
     y_ac = y_arr - rpm_0
-    return extract_mag_phase_dft(t_arr, y_ac, u_arr, freq_Hz)
+    mag_phase = extract_mag_phase_dft(t_arr, y_ac, u_arr, freq_Hz)
+    if return_waveform:
+        return mag_phase, (t_arr, y_ac, u_arr)
+    return mag_phase
 
 
 # ======================================================================
 # 完整扫频
 # ======================================================================
-def sweep_bode(d, freqs, zeta, CLBW_Hz, enable_ESO, omega_ob, label="", rpm_0=500.0):
+def sweep_bode(d, freqs, zeta, CLBW_Hz, enable_ESO, omega_ob, label="", rpm_0=500.0, save_waveforms=False):
     """
     对一组完整频率做 tracking + disturbance 扫频。
+    若 save_waveforms=True，返回值额外包含 waveforms dict。
     """
     result = {
         'tracking':    {'mag': [], 'phase': []},
         'disturbance': {'mag': [], 'phase': []},
     }
+    waveforms = {
+        'tracking':    [],  # list of (t, y_ac, u) per freq
+        'disturbance': [],
+    }
 
     for mode in ['tracking', 'disturbance']:
         for i, f in enumerate(freqs):
-            m, p = run_single_frequency(d, f, zeta, CLBW_Hz, enable_ESO, omega_ob, mode=mode, rpm_0=rpm_0)
+            ret = run_single_frequency(d, f, zeta, CLBW_Hz, enable_ESO, omega_ob,
+                                       mode=mode, rpm_0=rpm_0, return_waveform=save_waveforms)
+            if save_waveforms:
+                (m, p), wf = ret
+                waveforms[mode].append(wf)
+            else:
+                m, p = ret
             result[mode]['mag'].append(m)
             # 相位连续性
             if len(result[mode]['phase']) > 0:
@@ -346,6 +361,8 @@ def sweep_bode(d, freqs, zeta, CLBW_Hz, enable_ESO, omega_ob, label="", rpm_0=50
         result[mode]['mag']   = np.array(result[mode]['mag'])
         result[mode]['phase'] = np.array(result[mode]['phase'])
 
+    if save_waveforms:
+        return result, waveforms
     return result
 
 
@@ -365,6 +382,8 @@ def main():
                         help="终止频率 Hz (default: 200.0)")
     parser.add_argument('--rpm', type=float, default=500.0,
                         help="工作点转速 RPM (default: 500.0)")
+    parser.add_argument('--waveforms', action='store_true',
+                        help="额外输出时域波形矩阵图")
     args = parser.parse_args()
 
     d = copy.deepcopy(MOTOR_PARAMS)
@@ -414,16 +433,21 @@ def main():
     print()
 
     sim_results = {}
+    sim_waveforms = {}  # ci -> waveforms dict (if --waveforms)
     t_start = time.time()
 
     for ci, cfg in enumerate(configs):
         tag = f"[{ci+1}/{len(configs)}] {cfg['label']}"
         print(f'  {tag}')
-        sim_results[ci] = sweep_bode(
+        ret = sweep_bode(
             d, freqs,
             cfg['zeta'], cfg['CLBW_Hz'], cfg['enable_ESO'], cfg['omega_ob'],
-            label=cfg['label'], rpm_0=args.rpm,
+            label=cfg['label'], rpm_0=args.rpm, save_waveforms=args.waveforms,
         )
+        if args.waveforms:
+            sim_results[ci], sim_waveforms[ci] = ret
+        else:
+            sim_results[ci] = ret
         elapsed_so_far = time.time() - t_start
         print(f'    完成 ({elapsed_so_far:.1f}s elapsed)')
 
@@ -553,6 +577,94 @@ def main():
     print(f'\n  图已保存: {save_path}')
     plt.close('all')
     print('  完成!')
+
+    # ==================================================================
+    # 4. 时域波形矩阵图 (--waveforms)
+    # ==================================================================
+    if args.waveforms and sim_waveforms:
+        print('\n  绘制时域波形矩阵图...')
+        plot_waveform_matrix(freqs, configs, sim_waveforms, d, args)
+        print('  波形图完成!')
+
+
+def plot_waveform_matrix(freqs, configs, sim_waveforms, d, args):
+    """
+    绘制时域波形矩阵图。
+    布局：行 = 频率点, 列 = [tracking cfg0, cfg1, cfg2, dist cfg0, cfg1, cfg2]
+    共 N_freq 行 × 6 列。
+    """
+    n_freq = len(freqs)
+    n_cfg  = len(configs)
+    modes  = ['tracking', 'disturbance']
+    n_cols = n_cfg * len(modes)  # 6
+
+    # 图高按频率数缩放，每行约 1.0 inch
+    fig_h = max(8, n_freq * 0.9 + 2)
+    fig_w = n_cols * 2.8
+
+    fig, axes = plt.subplots(n_freq, n_cols, figsize=(fig_w, fig_h),
+                              squeeze=False, sharex=False)
+
+    for fi in range(n_freq):
+        f_hz = freqs[fi]
+        for mi, mode in enumerate(modes):
+            for ci, cfg in enumerate(configs):
+                col = mi * n_cfg + ci
+                ax = axes[fi, col]
+
+                t, y_ac, u = sim_waveforms[ci][mode][fi]
+                # 时间轴归零到录制起点
+                t_rel = t - t[0]
+
+                # 输入信号（灰色, 归一化到与输出相同量纲便于对比形状）
+                # 对 tracking 模式 u 是 rpm_cmd 偏差, 对 disturbance 模式 u 是 TLoad
+                u_scale = np.max(np.abs(u)) if np.max(np.abs(u)) > 0 else 1
+                y_scale = np.max(np.abs(y_ac - np.mean(y_ac))) if np.max(np.abs(y_ac - np.mean(y_ac))) > 1e-10 else 1
+
+                ax.plot(t_rel * 1000, u / u_scale, color='#bbb', lw=0.6, alpha=0.7)
+                ax.plot(t_rel * 1000, (y_ac - np.mean(y_ac)) / y_scale, color=cfg['color'], lw=0.8)
+
+                # 只标最顶行的列标题
+                if fi == 0:
+                    mode_label = 'Tracking' if mode == 'tracking' else 'Disturbance'
+                    short_cfg = f"cfg{ci+1}"
+                    ax.set_title(f'{mode_label}\n{short_cfg}', fontsize=7, fontweight='bold')
+
+                # 只标最左列的行频率
+                if col == 0:
+                    ax.set_ylabel(f'{f_hz:.1f} Hz', fontsize=6, rotation=0, labelpad=30, va='center')
+
+                ax.tick_params(axis='both', labelsize=4, length=2)
+                ax.set_xticks([])
+                ax.set_yticks([])
+
+                # 在子图内标注 DFT 提取的 mag (dB)
+                mag_dft, _ = extract_mag_phase_dft(t, y_ac, u, f_hz)
+                ax.text(0.97, 0.95, f'{mag_dft:.0f}dB', transform=ax.transAxes,
+                        fontsize=5, ha='right', va='top', color=cfg['color'],
+                        bbox=dict(boxstyle='round,pad=0.1', fc='white', ec='none', alpha=0.7))
+
+    # 总标题
+    fig.suptitle(
+        f'Time-Domain Waveforms at Each Sweep Frequency (RPM={args.rpm})\n'
+        f'Gray = input (normalized), Color = speed deviation (normalized)',
+        fontsize=10, fontweight='bold', y=1.0
+    )
+
+    # 列标题: config labels
+    # 添加配置名到底部 x-label
+    for ci, cfg in enumerate(configs):
+        for mi, mode in enumerate(modes):
+            col = mi * n_cfg + ci
+            axes[-1, col].set_xlabel(cfg['label'], fontsize=5)
+            axes[-1, col].tick_params(axis='x', labelsize=4)
+
+    fig.tight_layout(rect=[0.04, 0, 1, 0.97])
+
+    save_path = f'fig_sim_waveforms_rpm{int(args.rpm)}.png'
+    fig.savefig(save_path, dpi=150, bbox_inches='tight')
+    print(f'  波形矩阵图已保存: {save_path}')
+    plt.close('all')
 
 
 if __name__ == "__main__":
