@@ -196,7 +196,7 @@ def get_analytical_bode(d, zeta, CLBW_Hz, omega_ob, freqs_Hz, enable_ESO=False):
 # ======================================================================
 # 单频仿真
 # ======================================================================
-def run_single_frequency(d, freq_Hz, zeta, CLBW_Hz, enable_ESO, omega_ob, mode='tracking'):
+def run_single_frequency(d, freq_Hz, zeta, CLBW_Hz, enable_ESO, omega_ob, mode='tracking', rpm_0=500.0):
     """
     单个频率点的数值仿真注入。
     mode='tracking' → 正弦注入速度给定, 观测速度响应
@@ -269,7 +269,6 @@ def run_single_frequency(d, freq_Hz, zeta, CLBW_Hz, enable_ESO, omega_ob, mode='
     record_start_slice = int(transient_time / slice_dt)
 
     t_arr, y_arr, u_arr = [], [], []
-    rpm_0 = 500.0
     T_0   = 0.0
     rpm_amp = 10.0
     T_amp   = 1.0
@@ -323,7 +322,7 @@ def run_single_frequency(d, freq_Hz, zeta, CLBW_Hz, enable_ESO, omega_ob, mode='
 # ======================================================================
 # 完整扫频
 # ======================================================================
-def sweep_bode(d, freqs, zeta, CLBW_Hz, enable_ESO, omega_ob, label=""):
+def sweep_bode(d, freqs, zeta, CLBW_Hz, enable_ESO, omega_ob, label="", rpm_0=500.0):
     """
     对一组完整频率做 tracking + disturbance 扫频。
     """
@@ -334,7 +333,7 @@ def sweep_bode(d, freqs, zeta, CLBW_Hz, enable_ESO, omega_ob, label=""):
 
     for mode in ['tracking', 'disturbance']:
         for i, f in enumerate(freqs):
-            m, p = run_single_frequency(d, f, zeta, CLBW_Hz, enable_ESO, omega_ob, mode=mode)
+            m, p = run_single_frequency(d, f, zeta, CLBW_Hz, enable_ESO, omega_ob, mode=mode, rpm_0=rpm_0)
             result[mode]['mag'].append(m)
             # 相位连续性
             if len(result[mode]['phase']) > 0:
@@ -364,6 +363,8 @@ def main():
                         help="起始频率 Hz (default: 1.0)")
     parser.add_argument('--freq-end', type=float, default=200.0,
                         help="终止频率 Hz (default: 200.0)")
+    parser.add_argument('--rpm', type=float, default=500.0,
+                        help="工作点转速 RPM (default: 500.0)")
     args = parser.parse_args()
 
     d = copy.deepcopy(MOTOR_PARAMS)
@@ -407,6 +408,8 @@ def main():
     print(' 数值仿真波特图 v2 — 跟踪/抗扰频域分析')
     print('=' * 65)
     print(f'  频率范围: {args.freq_start} ~ {args.freq_end} Hz, {args.num_points} 点')
+    print(f'  工作点转速: {args.rpm} RPM')
+    print(f'  DC_BUS_VOLTAGE: {d["DC_BUS_VOLTAGE"]} V, VL_LIMIT_OVERLOAD_FACTOR: {d["VL_LIMIT_OVERLOAD_FACTOR"]}')
     print(f'  对比配置: {len(configs)} 组')
     print()
 
@@ -419,7 +422,7 @@ def main():
         sim_results[ci] = sweep_bode(
             d, freqs,
             cfg['zeta'], cfg['CLBW_Hz'], cfg['enable_ESO'], cfg['omega_ob'],
-            label=cfg['label'],
+            label=cfg['label'], rpm_0=args.rpm,
         )
         elapsed_so_far = time.time() - t_start
         print(f'    完成 ({elapsed_so_far:.1f}s elapsed)')
@@ -527,15 +530,25 @@ def main():
     fig.text(0.5, 0.01, 'Dashed = Analytical (continuous-time TF)     Solid + Markers = Numerical Simulation',
              ha='center', fontsize=9, style='italic', color='gray')
 
+    # 参数标注框
+    param_text = (
+        f"$V_{{dc}}$ = {d['DC_BUS_VOLTAGE']} V,  "
+        f"VL_LIMIT_OVERLOAD = {d['VL_LIMIT_OVERLOAD_FACTOR']},  "
+        f"$\\omega_{{0}}$ = {args.rpm} RPM"
+    )
+    fig.text(0.5, 0.96, param_text,
+             ha='center', fontsize=9, color='#555',
+             bbox=dict(boxstyle='round,pad=0.3', facecolor='#f0f0f0', edgecolor='#ccc', alpha=0.8))
+
     fig.suptitle(
         'Speed Loop Frequency Response: Tracking & Disturbance Rejection\n'
         '(Numerical Sine Sweep vs Analytical Transfer Function)',
-        fontsize=13, fontweight='bold', y=0.99
+        fontsize=13, fontweight='bold', y=1.01
     )
 
     fig.tight_layout(rect=[0, 0.03, 1, 0.95])
 
-    save_path = 'fig_sim_bode_sweep_v2.png'
+    save_path = f'fig_sim_bode_sweep_v2_rpm{int(args.rpm)}.png'
     fig.savefig(save_path, dpi=200, bbox_inches='tight')
     print(f'\n  图已保存: {save_path}')
     plt.close('all')
