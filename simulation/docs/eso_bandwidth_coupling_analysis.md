@@ -6,7 +6,7 @@
 
 ## 0. 前情提要 & 修正
 
-在[第一篇文档](file:///C:/Users/lenovo/.gemini/antigravity/brain/a2175baa-6560-4391-a62f-3c7925958640/eso_discretization_analysis.md)中，我们将 ESO 扰动抑制 Bode 图中在 $\omega_{ob}/(2\pi)$ 附近出现的幅值跌落/峰值归因于"离散化引起的破坏性干涉"。
+在[第一篇文档](eso_discretization_analysis.md)中，我们将 ESO 扰动抑制 Bode 图中在 $\omega_{ob}/(2\pi)$ 附近出现的幅值跌落/峰值归因于"离散化引起的破坏性干涉"。
 
 > [!CAUTION]
 > 这个结论是**不正确的**。经过完整的连续时间闭环建模验证，**该现象在连续域中就已存在**，其根因是 ESO 同时充当速度反馈滤波器所带来的闭环动力学改变。
@@ -15,7 +15,7 @@
 
 ## 1. 问题回顾
 
-![密集扫频观测到的幅值跌落](C:/Users/lenovo/.gemini/antigravity/brain/a2175baa-6560-4391-a62f-3c7925958640/fig_debug_eso_dip.png)
+![密集扫频观测到的幅值跌落](fig_debug_eso_dip.png)
 
 数值仿真中观察到：
 - ESO 配置的扰动通道在 $\omega_{ob}/(2\pi)$ 附近出现 **10~45 dB 的幅值变化**
@@ -127,7 +127,7 @@ $$\frac{\omega_{\text{RPM}}}{T_d}(j\omega) = H_{00} \cdot \frac{T_{em}}{T_d} + H
 
 ### 3.4 数值验证结果
 
-![Full continuous-time model vs simplified model and simulation](C:/Users/lenovo/.gemini/antigravity/brain/a2175baa-6560-4391-a62f-3c7925958640/fig_full_vs_simplified_model.png)
+![Full continuous-time model vs simplified model and simulation](fig_full_vs_simplified_model.png)
 
 **三个子图的解读：**
 
@@ -255,7 +255,7 @@ $$L_{\text{eff}}(s) = P(s) \cdot G_{CL}(s) \cdot K_T \cdot C_{PI}(s) \cdot \unde
 
 | 文件 | 说明 |
 |------|------|
-| [verify_full_model.py](file:///c:/Users/lenovo/Codes/ACMSimPy/simulation/verify_full_model.py) | 完整连续时间状态空间模型 + 闭环 TF 计算 |
-| [verify_dip_vs_omega.py](file:///c:/Users/lenovo/Codes/ACMSimPy/simulation/verify_dip_vs_omega.py) | $\omega_{ob}$ 参数扫描验证 |
-| [debug_eso_dip.py](file:///c:/Users/lenovo/Codes/ACMSimPy/simulation/debug_eso_dip.py) | 密集扫频诊断脚本 |
-| [sim_bode_sweep_v2.py](file:///c:/Users/lenovo/Codes/ACMSimPy/simulation/sim_bode_sweep_v2.py) | 主波特图扫频脚本 |
+| [verify_full_model.py](../verify_full_model.py) | 完整连续时间状态空间模型 + 闭环 TF 计算 |
+| [verify_dip_vs_omega.py](../verify_dip_vs_omega.py) | $\omega_{ob}$ 参数扫描验证 |
+| [debug_eso_dip.py](../debug_eso_dip.py) | 密集扫频诊断脚本 |
+| [sim_bode_sweep_v2.py](../sim_bode_sweep_v2.py) | 主波特图扫频脚本 |

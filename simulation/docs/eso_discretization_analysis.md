@@ -8,7 +8,7 @@
 
 在对 PMSM 速度环的扰动抑制通道进行数值 Bode 扫频时，我们观察到了一个**出乎意料的现象**：
 
-![Dense sweep diagnostic plot](C:/Users/lenovo/.gemini/antigravity/brain/a2175baa-6560-4391-a62f-3c7925958640/fig_debug_eso_dip.png)
+![Dense sweep diagnostic plot](fig_debug_eso_dip.png)
 
 ### 1.1 三个关键观察
 
@@ -202,7 +202,7 @@ ESO 的扰动估计 $\hat{T}_d$ 经过以下延迟链才能体现在电机上：
 
 我们分别测试了 $\omega_{ob} = 100, 200, 400$ rad/s，在 5~100 Hz 范围内各扫 50 个频率点：
 
-![Verification: Dip position tracks ESO bandwidth](C:/Users/lenovo/.gemini/antigravity/brain/a2175baa-6560-4391-a62f-3c7925958640/fig_verify_dip_vs_omega_ob.png)
+![Verification: Dip position tracks ESO bandwidth](fig_verify_dip_vs_omega_ob.png)
 
 | $\omega_{ob}$ | BW (Hz) | 凹坑位置 (Hz) | 深度 |
 |---|---|---|---|
