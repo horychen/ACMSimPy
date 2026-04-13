@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Homework 2 — From Active Flux to Observer-Based Motion Control</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"
+  onerror="this.onerror=null;this.href='vendor/katex/katex.min.css';">
+<script>
+// KaTeX loader: CDN with 3s timeout, fallback to local vendor/
+(function(){
+  var CDN = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/";
+  var LOCAL = "vendor/katex/";
+  var files = ["katex.min.js", "contrib/auto-render.min.js"];
+  var idx = 0;
+  var TIMEOUT = 3000;
+
+  function renderMath() {
+    if (window.renderMathInElement) {
+      renderMathInElement(document.body, {
+        delimiters: [{left:"$$",right:"$$",display:true},{left:"$",right:"$",display:false}]
+      });
+    }
+  }
+
+  function loadScript(src, onSuccess, onFail) {
+    var s = document.createElement("script");
+    var done = false;
+    var timer = setTimeout(function() {
+      if (!done) { done = true; s.onload = s.onerror = null; onFail(); }
+    }, TIMEOUT);
+    s.src = src;
+    s.onload = function() { if (!done) { done = true; clearTimeout(timer); onSuccess(); } };
+    s.onerror = function() { if (!done) { done = true; clearTimeout(timer); onFail(); } };
+    document.head.appendChild(s);
+  }
+
+  function loadChain(base, fallback) {
+    if (idx >= files.length) { renderMath(); return; }
+    loadScript(base + files[idx],
+      function() { idx++; loadChain(base, fallback); },
+      function() { if (fallback) { idx = 0; loadChain(fallback, null); } }
+    );
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){ loadChain(CDN, LOCAL); });
+  } else {
+    loadChain(CDN, LOCAL);
+  }
+})();
+</script>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-deep: #0a0a0b;
+    --bg-card: #131315;
+    --bg-input: #1a1a1e;
+    --bg-hover: #222228;
+    --amber: #d4a043;
+    --amber-soft: #d4a04322;
+    --amber-glow: #d4a04344;
+    --text-primary: #e8e4dc;
+    --text-secondary: #8a8680;
+    --text-muted: #5a5650;
+    --border: #2a2a2e;
+    --border-focus: #d4a04366;
+    --green: #4a9;
+    --red: #c55;
+    --font-display: Georgia, 'Noto Serif SC', serif;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+    --font-mono: 'Courier New', monospace;
+  }
+
+  html { font-size: 16px; scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0; opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    pointer-events: none;
+  }
+
+  body::after {
+    content: '';
+    position: fixed; top: -40%; right: -20%;
+    width: 70vw; height: 70vw;
+    background: radial-gradient(circle, var(--amber-soft) 0%, transparent 70%);
+    pointer-events: none; z-index: 0;
+  }
+
+  .app {
+    position: relative; z-index: 1;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 2rem 1.2rem 4rem;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+    opacity: 0; animation: fadeUp 0.8s ease forwards;
+  }
+  .header__label {
+    font-family: var(--font-mono);
+    font-size: 0.65rem; font-weight: 300;
+    letter-spacing: 0.3em; text-transform: uppercase;
+    color: var(--amber); margin-bottom: 0.8rem;
+  }
+  .header__title {
+    font-family: var(--font-display);
+    font-size: 1.7rem; font-weight: 400;
+    line-height: 1.3; color: var(--text-primary);
+    margin-bottom: 0.5rem;
+  }
+  .header__title em { font-style: italic; color: var(--amber); }
+  .header__sub {
+    font-size: 0.85rem; font-weight: 300;
+    color: var(--text-secondary); line-height: 1.6;
+  }
+
+  /* Meta info */
+  .meta-bar {
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+    opacity: 0; animation: fadeUp 0.8s ease 0.15s forwards;
+  }
+
+  /* Content sections */
+  .content-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.8rem 1.4rem;
+    margin-bottom: 1.5rem;
+    opacity: 0; transform: translateY(24px);
+    transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .content-section.visible { opacity: 1; transform: translateY(0); }
+
+  .content-section__tag {
+    font-family: var(--font-mono);
+    font-size: 0.6rem; font-weight: 300;
+    letter-spacing: 0.2em;
+    color: var(--amber); text-transform: uppercase;
+    margin-bottom: 1rem;
+  }
+
+  h2 {
+    font-family: var(--font-display);
+    font-size: 1.25rem; font-weight: 400;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+  }
+
+  h3 {
+    font-size: 1rem; font-weight: 500;
+    color: var(--amber);
+    margin: 1.4rem 0 0.6rem;
+  }
+
+  p, li {
+    font-size: 0.9rem;
+    line-height: 1.75;
+    color: var(--text-secondary);
+    margin-bottom: 0.6rem;
+  }
+
+  ul, ol { padding-left: 1.4rem; margin-bottom: 0.8rem; }
+  ol > li { margin-bottom: 0.5rem; }
+
+  .eq-block {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    margin: 1rem 0;
+    overflow-x: auto;
+    text-align: center;
+  }
+
+  .eq-label {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-align: right;
+    margin-top: 0.3rem;
+  }
+
+  /* Highlight / hint box */
+  .highlight-box {
+    background: var(--amber-soft);
+    border-left: 3px solid var(--amber);
+    border-radius: 0 10px 10px 0;
+    padding: 1rem 1.2rem;
+    margin: 1rem 0;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    line-height: 1.7;
+  }
+
+  /* Task box */
+  .task-box {
+    background: #1a2a1a;
+    border: 1px solid #2a4a2a;
+    border-left: 3px solid var(--green);
+    border-radius: 0 10px 10px 0;
+    padding: 1rem 1.2rem;
+    margin: 1rem 0;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    line-height: 1.7;
+  }
+  .task-box strong { color: var(--green); }
+
+  /* Sub-question numbering */
+  .sub-q {
+    counter-increment: subq;
+    padding-left: 0.2rem;
+    margin-bottom: 1rem;
+  }
+  .sub-q::before {
+    content: "(" counter(subq, lower-alpha) ") ";
+    color: var(--amber);
+    font-weight: 500;
+  }
+
+  /* Submit section */
+  .name-row {
+    display: flex; gap: 0.8rem; align-items: center;
+    margin-bottom: 1rem;
+  }
+  .name-row label {
+    font-size: 0.9rem; color: var(--text-primary); white-space: nowrap;
+  }
+  .text-input, .file-input {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.7rem 1rem;
+    font-family: var(--font-body);
+    font-size: 16px;
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+  .text-input:focus, .file-input:focus {
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 3px var(--amber-soft);
+  }
+  .text-input::placeholder { color: var(--text-muted); }
+
+  .btn {
+    font-family: var(--font-body);
+    font-size: 0.85rem; font-weight: 500;
+    padding: 0.8rem 1.8rem;
+    border-radius: 10px; border: none;
+    cursor: pointer; transition: all 0.2s ease;
+    min-height: 48px;
+  }
+  .btn--primary {
+    background: var(--amber); color: var(--bg-deep);
+  }
+  .btn--primary:active { filter: brightness(0.9); transform: scale(0.97); }
+  .btn--primary:disabled { opacity: 0.3; cursor: not-allowed; }
+  .actions { display: flex; justify-content: flex-end; margin-top: 1.5rem; }
+
+  .result-banner {
+    border-radius: 10px; padding: 1rem; margin-top: 1rem;
+    text-align: center; font-size: 0.9rem; display: none;
+  }
+  .result-banner.visible { display: block; }
+  .result-banner.success { background: #4a922; border: 1px solid var(--green); color: var(--green); }
+  .result-banner.error { background: #c5522; border: 1px solid var(--red); color: #e88; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .katex { color: var(--text-primary); }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <header class="header">
+    <div class="header__label">Homework 2 / 第二次作业</div>
+    <h1 class="header__title">From <em>Active Flux</em> to Observer-Based Motion Control</h1>
+    <p class="header__sub">从统一电机模型到观测器速度控制——总扰动、观测器、前馈与三方权衡</p>
+  </header>
+
+  <div class="meta-bar">
+    <span>Related: Lecture 2 + Lecture 3</span>
+    <span>Due: TBD</span>
+  </div>
+
+  <!-- ===== 引言 ===== -->
+  <section class="content-section" id="intro">
+    <div class="content-section__tag">Overview / 总述</div>
+    <h2>作业目标 / Objective</h2>
+
+    <p>Lecture 2 中我们已经得到了统一 AC 电机模型：电磁转矩由 active flux 和 $q$ 轴电流产生，机械方程决定转速演化。Lecture 3 在此基础上继续向上走一层：把电机看成一个可控转矩源，研究如何用<strong>观测器 + 前馈</strong>提升速度控制性能。</p>
+
+    <div class="eq-block">
+      $$T_e = \frac{3}{2}n_{\mathrm{pp}}\psi_{\mathrm{AF}}i_Q, \qquad
+      J\dot{\Omega} = T_e - B\Omega - T_L$$
+    </div>
+
+    <p><strong>本次作业要求你从 Lecture 2 的转矩方程出发，推导出 Lecture 3 的观测器型速度控制框架，并解释跟踪、扰动抑制、噪声抑制之间的三方权衡。</strong></p>
+
+    <div class="highlight-box">
+      <strong>为什么要做这一层抽象？</strong><br>
+      在电流内环足够快时，速度控制器不必直接关心每个绕组的微分方程，而是可以把电机等效成“转矩输入、速度输出”的对象。这样我们就能把负载变化、摩擦、参数失配全部打包成 <em>total disturbance</em>，再用观测器去估计并补偿它。
+    </div>
+  </section>
+
+  <!-- ===== Part 1 ===== -->
+  <section class="content-section" id="part1">
+    <div class="content-section__tag">Part 1 / 第一部分 (25 分)</div>
+    <h2>从统一电机模型到机械速度子系统 / From the Unified Machine Model to the Mechanical Speed Plant</h2>
+
+    <h3>1.1 从 Lecture 2 回到机械方程 / Back to the Mechanical Equation</h3>
+
+    <p>回忆 Lecture 2 的两个核心关系：</p>
+    <div class="eq-block">
+      $$T_e = \frac{3}{2}n_{\mathrm{pp}}\psi_{\mathrm{AF}}i_Q, \qquad
+      J_s\frac{d\omega_{\mathrm{mech}}}{dt}=T_e-T_{\mathrm{load}}$$
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 1.1</strong>
+      <div class="sub-q">解释为什么在电流内环足够快时，速度控制器可以把电机近似看成“转矩输入、速度输出”的对象，而不必直接处理 $i_D,i_Q,\psi_{\mathrm{AF}}$ 的全部电磁动态。</div>
+      <div class="sub-q">在 Lecture 2 的机械方程基础上引入粘性摩擦 $B\Omega$，写出 PMSM 机械速度方程：$J\dot{\Omega}=T_e-B\Omega-T_L$。</div>
+      <div class="sub-q">定义 $\theta_m$ 为机械角度，$\Omega=\dot{\theta}_m$ 为机械角速度。将系统改写成一个以 $T_e$ 为输入、以 $(\theta_m,\Omega)$ 为状态的二阶机械子系统。</div>
+    </div>
+
+    <h3>1.2 定义总扰动 / Defining the Total Disturbance</h3>
+
+    <p>Lecture 3 不再把所有不确定性单独处理，而是把它们合并成一个标量扰动项。</p>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 1.2</strong>
+      <div class="sub-q">令 $b=1/J$，把 Task 1.1(b) 写成 $\dot{\Omega}=bT_e+d_n$ 的形式，给出 $d_n$ 的表达式，并说明它包含了哪些物理量。</div>
+      <div class="sub-q">若控制器实际输出的是转矩参考 $T_e^*$ 而不是精确的 $T_e$，并且控制器内部使用标称惯量 $J_n$，定义 $b_n=1/J_n$。推导
+        $$\dot{\Omega}=b_nT_e^*+d_{to}$$
+        并写出 $d_{to}$ 的具体表达式。</div>
+      <div class="sub-q">定义 $k_b=b_n/b=J/J_n$。分别解释 $k_b=1,\;k_b>1,\;k_b<1$ 时的物理含义，并说明这三种情况对应什么样的惯量失配。</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>Key idea / 关键思想：</strong>
+      在控制器视角中，负载转矩、摩擦、惯量失配、转矩建模误差都可以被“打包”为一个总扰动 $d_{to}$。后续观测器要做的事，就是估计这个量。
+    </div>
+  </section>
+
+  <!-- ===== Part 2 ===== -->
+  <section class="content-section" id="part2">
+    <div class="content-section__tag">Part 2 / 第二部分 (25 分)</div>
+    <h2>观测器型速度控制律 / Observer-Based Speed Control Law</h2>
+
+    <h3>2.1 理想控制律与实际控制律 / Ideal vs Practical Control Law</h3>
+
+    <p>定义速度跟踪误差为 $e_s=\Omega^*-\Omega$，并希望它满足一阶指数收敛规律：</p>
+    <div class="eq-block">
+      $$\dot e_s=-k_{ps}e_s, \qquad k_{ps}>0$$
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 2.1</strong>
+      <div class="sub-q">利用 $\dot e_s=\dot{\Omega}^*-\dot{\Omega}$ 和 Part 1 的速度方程，推导理想转矩控制律
+        $$T_e^*=\frac{\dot{\Omega}^*+k_{ps}(\Omega^*-\Omega)-d_{to}}{b_n}.$$
+      </div>
+      <div class="sub-q">说明为什么上式不能直接实现。进一步用估计值 $\hat{\Omega}$ 和 $\hat d_{to}$ 替代真实量，写出实际控制律。</div>
+      <div class="sub-q">利用 Lecture 2 的统一转矩方程
+        $$T_e=\frac{3}{2}n_{\mathrm{pp}}\psi_{\mathrm{AF}}i_Q,$$
+        将转矩参考 $T_e^*$ 转换成 $q$ 轴电流参考 $i_Q^*$。指出在这一变换中为什么需要 active flux $\psi_{\mathrm{AF}}$（代码中记作 <code>KA</code>）。</div>
+    </div>
+
+    <h3>2.2 三阶与四阶观测器 / 3rd- and 4th-Order Observers</h3>
+
+    <p>编码器能直接测量的是位置，而不是速度和扰动。因此我们从 $\theta_m^{\mathrm{meas}}$ 出发构造观测器。</p>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 2.2</strong>
+      <div class="sub-q">写出三阶观测器的状态方程，状态取为 $[\hat{\theta}_m,\hat{\Omega},\hat d_{to}]$。说明每个状态的物理意义，以及位置误差 $e_\theta=\theta_m^{\mathrm{meas}}-\hat{\theta}_m$ 在观测器中扮演的角色。</div>
+      <div class="sub-q">写出四阶观测器的状态方程，状态取为 $[\hat{\theta}_m,\hat{\Omega},\hat d_{to},\hat p_{to}]$。说明新增状态 $\hat p_{to}$ 的含义，以及它为何能帮助跟踪“斜坡型”扰动。</div>
+      <div class="sub-q">若将三阶观测器的极点统一配置在 $s=-\omega_{ob}$，由 $(s+\omega_{ob})^3$ 推导 $\ell_1,\ell_2,\ell_3$；若为四阶观测器，由 $(s+\omega_{ob})^4$ 推导 $\ell_1,\ell_2,\ell_3,\ell_4$。</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>设计提示 / Hint：</strong>
+      $\omega_{ob}$ 是观测器带宽。它越大，估计越快；但对测量噪声越敏感。Lecture 3 给出的经验规则是：$\omega_{ob}$ 通常取速度环带宽的 3 到 10 倍。
+    </div>
+  </section>
+
+  <!-- ===== Part 3 ===== -->
+  <section class="content-section" id="part3">
+    <div class="content-section__tag">Part 3 / 第三部分 (30 分)</div>
+    <h2>三条闭环通道与系统型别 / The Three Closed-Loop Channels and System Type</h2>
+
+    <h3>3.1 跟踪、扰动、噪声三条通道 / Tracking, Disturbance, and Noise</h3>
+
+    <p>Lecture 3 的核心观点是：闭环输出不是由“一个性能指标”决定，而是由三条传递路径叠加得到。</p>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 3.1</strong>
+      <div class="sub-q">写出三通道分解公式
+        $$\Omega(s)=\Phi_r(s)\Omega^*(s)+\Phi_d(s)d_n(s)+\Phi_n(s)\big(-s\delta_p(s)\big).$$
+        说明 $\Phi_r,\Phi_d,\Phi_n$ 分别代表什么物理意义。</div>
+      <div class="sub-q">解释为什么位置测量噪声 $\delta_p$ 在速度闭环中会以 $-s\delta_p$ 的形式出现。它与“从位置求导得到速度”之间有什么关系？</div>
+      <div class="sub-q">写出 Lecture 3 给出的统一表达式：
+        $$\Phi_r(s),\quad \Phi_d(s),\quad \Phi_n(s)=1-s\Phi_d(s),$$
+        并说明辅助传递函数 $G_3(s)$ 在分析中起什么作用。</div>
+    </div>
+
+    <h3>3.2 扰动通道中的系统型别 / System Type in the Disturbance Channel</h3>
+
+    <p>当 $k_b=1$ 时，扰动通道可以写成更简单的形式：</p>
+    <div class="eq-block">
+      $$\Phi_d(s)\big|_{k_b=1}=\frac{G_3(s)}{\Delta_n(s+k_{ps})}$$
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 3.2</strong>
+      <div class="sub-q">解释为什么“观测器每多扩展一阶扰动状态，就相当于在扰动抑制通道中多引入一个积分器”。</div>
+      <div class="sub-q">对于三阶观测器，若 $G_3(s)\sim c_1 s$（当 $s\to 0$），说明为什么该系统是扰动通道上的 Type I，并指出它能无稳态误差抑制哪一类负载扰动。</div>
+      <div class="sub-q">对于四阶观测器，若 $G_3(s)\sim c_2 s^2$（当 $s\to 0$），说明为什么它对应 Type II，并指出它相对于三阶观测器额外能消除哪一类负载扰动的稳态误差。</div>
+      <div class="sub-q">Lecture 3 提出一个思考题：如果不用高阶观测器，而是在速度 PI 控制器中再串联一个积分器（PII），能否也获得更高的扰动型别？请从“三条通道同时受影响”这个角度讨论其代价。</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>提示 / Hint：</strong>
+      不要只写“Type I / Type II”的名称。你需要明确说明：什么是输入、什么是输出、终值定理分析的对象是什么、哪类扰动可以实现零稳态误差。
+    </div>
+  </section>
+
+  <!-- ===== Part 4 ===== -->
+  <section class="content-section" id="part4">
+    <div class="content-section__tag">Part 4 / 第四部分 (20 分)</div>
+    <h2>三方权衡、鲁棒性与实现映射 / Tradeoff, Robustness, and Implementation Mapping</h2>
+
+    <h3>4.1 噪声与抗扰的互补关系 / Complementarity of Noise and Disturbance</h3>
+
+    <p>Lecture 3 给出了一个非常重要的互补约束：</p>
+    <div class="eq-block">
+      $$\Phi_n(s)+s\Phi_d(s)=1$$
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 4.1</strong>
+      <div class="sub-q">解释上式为什么意味着“改善低频扰动抑制，必然在某些频率上恶化噪声抑制”。这里的“不可兼得”具体是指什么？</div>
+      <div class="sub-q">定性讨论观测器带宽 $\omega_{ob}$ 增大时，扰动估计速度、噪声放大、高频衰减之间会发生什么变化。</div>
+      <div class="sub-q">结合 Lecture 3 中对 $k_b$ 的分析，比较 $k_b>1$ 与 $k_b<1$ 时的典型表现：谁更容易出现超调和振荡？谁更容易暴露噪声？谁对低频抗扰更不利？</div>
+    </div>
+
+    <h3>4.2 从数学到代码 / From Math to Code</h3>
+
+    <p>Lecture 2 和 Lecture 3 的最终目标都是为了指导仿真实现与控制器编程。</p>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 4.2</strong>
+      <div class="sub-q">画出一个从 $\theta_m^{\mathrm{meas}}$ 到 $i_Q^*$ 的信号流程图，至少包含：位置测量、观测器、速度误差反馈、扰动前馈、转矩到电流换算这 5 个模块。</div>
+      <div class="sub-q">解释为什么
+        $$i_q^*= \underbrace{\text{PI feedback}}_{\text{tracking}} + \underbrace{\text{disturbance feedforward}}_{\text{rejection}}$$
+        属于二自由度（2DOF）控制，而不是单一 PI 控制。</div>
+      <div class="sub-q">若让你在实际系统中二选一：采用三阶观测器还是四阶观测器？请给出一个工程化选择标准，说明你会如何综合考虑负载变化类型、编码器噪声水平和参数失配风险。</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>完成本次作业后，你应该能回答：</strong><br>
+      从 Lecture 2 到 Lecture 3，电机控制从“写出统一电机 ODE”走到了“如何围绕这些 ODE 构造一个更强的速度控制器”。如果说 Lecture 2 解决的是“对象是什么”，那么 Lecture 3 解决的是“如何利用对象模型去抗扰、去估计、去折中”。
+    </div>
+  </section>
+
+  <!-- ===== 提交说明 ===== -->
+  <section class="content-section" id="submission-note">
+    <div class="content-section__tag">Submission Notice / 提交说明</div>
+    <h2>提交方式 / How to Submit</h2>
+
+    <div class="highlight-box">
+      <strong>请按课程通知提交 Markdown。</strong><br>
+      Please submit your work as a Markdown document according to the course announcement. This page does not provide online upload.
+    </div>
+  </section>
+
+</div>
+
+<script>
+// Scroll reveal via IntersectionObserver
+(function() {
+  var io = new IntersectionObserver(function(entries) {
+    entries.forEach(function(e) {
+      if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.05, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.content-section').forEach(function(s) { io.observe(s); });
+})();
+
+</script>
+
+</body>
+</html>
