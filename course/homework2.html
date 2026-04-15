@@ -83,6 +83,8 @@
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
   }
+  body[data-lang="en"] .lang-zh { display: none !important; }
+  body[data-lang="zh"] .lang-en { display: none !important; }
 
   body::before {
     content: '';
@@ -104,6 +106,37 @@
     max-width: 720px;
     margin: 0 auto;
     padding: 2rem 1.2rem 4rem;
+  }
+  .topbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 1rem;
+  }
+  .lang-switch {
+    display: inline-flex;
+    gap: 0.35rem;
+    padding: 0.25rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg-card);
+  }
+  .lang-switch button {
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-secondary);
+    padding: 0.45rem 0.9rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: 0.2s ease;
+  }
+  .lang-switch button.active {
+    background: var(--amber);
+    color: var(--bg-deep);
+  }
+  .lang-switch button:not(.active):hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
   }
 
   /* Header */
@@ -294,29 +327,52 @@
     from { opacity: 0; transform: translateY(16px); }
     to { opacity: 1; transform: translateY(0); }
   }
+  @media (max-width: 640px) {
+    .topbar { justify-content: center; }
+  }
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
   .katex { color: var(--text-primary); }
 </style>
 </head>
-<body>
+<body data-lang="zh">
 
 <div class="app">
-
+  <div class="topbar">
+    <div class="lang-switch" aria-label="Language switch">
+      <button id="btn-zh" class="active" type="button" onclick="setLang('zh')">中文</button>
+      <button id="btn-en" type="button" onclick="setLang('en')">English</button>
+    </div>
+  </div>
   <header class="header">
-    <div class="header__label">Homework 2 / 第二次作业</div>
-    <h1 class="header__title">From <em>Active Flux</em> to Observer-Based Motion Control</h1>
-    <p class="header__sub">从统一电机模型到观测器速度控制——总扰动、观测器、前馈与三方权衡</p>
+    <div class="header__label">
+      <span class="lang-zh">第二次作业</span>
+      <span class="lang-en">Homework 2</span>
+    </div>
+    <h1 class="header__title">
+      <span class="lang-zh">从<em>主动磁链</em>到观测器型运动控制</span>
+      <span class="lang-en">From <em>Active Flux</em> to Observer-Based Motion Control</span>
+    </h1>
+    <p class="header__sub">
+      <span class="lang-zh">从统一电机模型到观测器速度控制——总扰动、观测器、前馈与三方权衡</span>
+      <span class="lang-en">From the unified machine model to observer-based speed control: total disturbance, observer, feedforward, and three-way tradeoffs.</span>
+    </p>
   </header>
 
   <div class="meta-bar">
-    <span>Related: Lecture 2 + Lecture 3</span>
-    <span>Due: TBD</span>
+    <span>
+      <span class="lang-zh">相关内容：Lecture 2 + Lecture 3</span>
+      <span class="lang-en">Related: Lecture 2 + Lecture 3</span>
+    </span>
+    <span>
+      <span class="lang-zh">截止时间：待定</span>
+      <span class="lang-en">Due: TBD</span>
+    </span>
   </div>
 
   <!-- ===== 引言 ===== -->
-  <section class="content-section" id="intro">
+  <section class="content-section lang-zh" id="intro">
     <div class="content-section__tag">Overview / 总述</div>
     <h2>作业目标 / Objective</h2>
 
@@ -336,7 +392,7 @@
   </section>
 
   <!-- ===== Part 1 ===== -->
-  <section class="content-section" id="part1">
+  <section class="content-section lang-zh" id="part1">
     <div class="content-section__tag">Part 1 / 第一部分 (25 分)</div>
     <h2>从统一电机模型到机械速度子系统 / From the Unified Machine Model to the Mechanical Speed Plant</h2>
 
@@ -375,7 +431,7 @@
   </section>
 
   <!-- ===== Part 2 ===== -->
-  <section class="content-section" id="part2">
+  <section class="content-section lang-zh" id="part2">
     <div class="content-section__tag">Part 2 / 第二部分 (25 分)</div>
     <h2>观测器型速度控制律 / Observer-Based Speed Control Law</h2>
 
@@ -415,7 +471,7 @@
   </section>
 
   <!-- ===== Part 3 ===== -->
-  <section class="content-section" id="part3">
+  <section class="content-section lang-zh" id="part3">
     <div class="content-section__tag">Part 3 / 第三部分 (30 分)</div>
     <h2>三条闭环通道与系统型别 / The Three Closed-Loop Channels and System Type</h2>
 
@@ -456,7 +512,7 @@
   </section>
 
   <!-- ===== Part 4 ===== -->
-  <section class="content-section" id="part4">
+  <section class="content-section lang-zh" id="part4">
     <div class="content-section__tag">Part 4 / 第四部分 (20 分)</div>
     <h2>三方权衡、鲁棒性与实现映射 / Tradeoff, Robustness, and Implementation Mapping</h2>
 
@@ -493,14 +549,185 @@
     </div>
   </section>
 
-  <!-- ===== 提交说明 ===== -->
-  <section class="content-section" id="submission-note">
-    <div class="content-section__tag">Submission Notice / 提交说明</div>
-    <h2>提交方式 / How to Submit</h2>
+  <section class="content-section lang-en" id="english-version">
+    <div class="content-section__tag">English Version</div>
+    <h2>Homework 2 in English</h2>
+
+    <p>In Lecture 2, we already obtained the unified AC motor model: electromagnetic torque is generated by active flux and the $q$-axis current, while the mechanical equation determines the evolution of rotor speed. Lecture 3 moves one layer higher on that basis: it treats the motor as a controllable torque source and studies how <strong>observer + feedforward</strong> can improve speed-control performance.</p>
+
+    <div class="eq-block">
+      $$T_e = \frac{3}{2}n_{\mathrm{pp}}\psi_{\mathrm{AF}}i_Q, \qquad
+      J\dot{\Omega} = T_e - B\Omega - T_L$$
+    </div>
+
+    <p><strong>This homework asks you to start from the torque equation in Lecture 2, derive the observer-based speed-control framework in Lecture 3, and explain the three-way tradeoff among tracking, disturbance rejection, and noise suppression.</strong></p>
 
     <div class="highlight-box">
-      <strong>请按课程通知提交 Markdown。</strong><br>
-      Please submit your work as a Markdown document according to the course announcement. This page does not provide online upload.
+      <strong>Why introduce this abstraction layer?</strong><br>
+      When the current inner loop is sufficiently fast, the speed controller no longer needs to care about the differential equation of each winding directly. Instead, the motor can be approximated as a plant with torque input and speed output. Then load variation, friction, and parameter mismatch can all be packed into a single <em>total disturbance</em>, which is estimated and compensated by an observer.
+    </div>
+
+    <h3>Part 1. From the Unified Machine Model to the Mechanical Speed Subsystem</h3>
+
+    <h3>1.1 Back to the Mechanical Equation from Lecture 2</h3>
+
+    <p>Recall the two core relations in Lecture 2:</p>
+    <div class="eq-block">
+      $$T_e = \frac{3}{2}n_{\mathrm{pp}}\psi_{\mathrm{AF}}i_Q, \qquad
+      J_s\frac{d\omega_{\mathrm{mech}}}{dt}=T_e-T_{\mathrm{load}}$$
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 1.1</strong>
+      <div class="sub-q">Explain why, when the current inner loop is sufficiently fast, the speed controller can approximate the motor as a plant with torque input and speed output, instead of directly handling the full electromagnetic dynamics of $i_D$, $i_Q$, and $\psi_{\mathrm{AF}}$.</div>
+      <div class="sub-q">Starting from the mechanical equation in Lecture 2, add viscous friction $B\Omega$ and write the PMSM mechanical-speed equation: $J\dot{\Omega}=T_e-B\Omega-T_L$.</div>
+      <div class="sub-q">Define $\theta_m$ as the mechanical angle and $\Omega=\dot{\theta}_m$ as the mechanical angular speed. Rewrite the system as a second-order mechanical subsystem with input $T_e$ and states $(\theta_m,\Omega)$.</div>
+    </div>
+
+    <h3>1.2 Defining the Total Disturbance</h3>
+
+    <p>Lecture 3 no longer treats every uncertainty separately. Instead, it combines them into one scalar disturbance term.</p>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 1.2</strong>
+      <div class="sub-q">Let $b=1/J$. Rewrite Task 1.1(b) into the form $\dot{\Omega}=bT_e+d_n$, give the expression of $d_n$, and explain what physical quantities it contains.</div>
+      <div class="sub-q">If the controller outputs a torque reference $T_e^*$ rather than the exact actual torque $T_e$, and if the controller internally uses the nominal inertia $J_n$, define $b_n=1/J_n$. Derive
+        $$\dot{\Omega}=b_nT_e^*+d_{to}$$
+        and write the explicit expression of $d_{to}$.</div>
+      <div class="sub-q">Define $k_b=b_n/b=J/J_n$. Explain the physical meaning of $k_b=1,\;k_b>1,\;k_b<1$, and state what kind of inertia mismatch each case corresponds to.</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>Key idea:</strong>
+      From the controller's perspective, load torque, friction, inertia mismatch, and torque-modeling error can all be packaged into one total disturbance $d_{to}$. The observer that follows is meant to estimate exactly this quantity.
+    </div>
+
+    <h3>Part 2. Observer-Based Speed Control Law</h3>
+
+    <h3>2.1 Ideal Control Law and Practical Control Law</h3>
+
+    <p>Define the speed-tracking error as $e_s=\Omega^*-\Omega$ and require it to satisfy a first-order exponential convergence law:</p>
+    <div class="eq-block">
+      $$\dot e_s=-k_{ps}e_s, \qquad k_{ps}>0$$
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 2.1</strong>
+      <div class="sub-q">Using $\dot e_s=\dot{\Omega}^*-\dot{\Omega}$ together with the speed equation from Part 1, derive the ideal torque control law
+        $$T_e^*=\frac{\dot{\Omega}^*+k_{ps}(\Omega^*-\Omega)-d_{to}}{b_n}.$$
+      </div>
+      <div class="sub-q">Explain why this expression cannot be implemented directly. Then replace the unavailable true quantities with the estimates $\hat{\Omega}$ and $\hat d_{to}$, and write the practical control law.</div>
+      <div class="sub-q">Use the unified torque equation from Lecture 2,
+        $$T_e=\frac{3}{2}n_{\mathrm{pp}}\psi_{\mathrm{AF}}i_Q,$$
+        to convert the torque reference $T_e^*$ into the $q$-axis current reference $i_Q^*$. Explain why active flux $\psi_{\mathrm{AF}}$, denoted as <code>KA</code> in the code, is required in this conversion.</div>
+    </div>
+
+    <h3>2.2 Third-Order and Fourth-Order Observers</h3>
+
+    <p>The encoder can measure position directly, but not speed or disturbance. Therefore we build the observer starting from $\theta_m^{\mathrm{meas}}$.</p>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 2.2</strong>
+      <div class="sub-q">Write the state equations of the third-order observer with states $[\hat{\theta}_m,\hat{\Omega},\hat d_{to}]$. Explain the physical meaning of each state and the role played by the position error $e_\theta=\theta_m^{\mathrm{meas}}-\hat{\theta}_m$.</div>
+      <div class="sub-q">Write the state equations of the fourth-order observer with states $[\hat{\theta}_m,\hat{\Omega},\hat d_{to},\hat p_{to}]$. Explain the meaning of the additional state $\hat p_{to}$ and why it helps track ramp-type disturbances.</div>
+      <div class="sub-q">If the poles of the third-order observer are all placed at $s=-\omega_{ob}$, derive $\ell_1,\ell_2,\ell_3$ from $(s+\omega_{ob})^3$. For the fourth-order observer, derive $\ell_1,\ell_2,\ell_3,\ell_4$ from $(s+\omega_{ob})^4$.</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>Design hint:</strong>
+      $\omega_{ob}$ is the observer bandwidth. A larger value gives faster estimation, but also makes the observer more sensitive to measurement noise. The empirical rule given in Lecture 3 is that $\omega_{ob}$ is usually chosen to be 3 to 10 times the bandwidth of the speed loop.
+    </div>
+
+    <h3>Part 3. The Three Closed-Loop Channels and System Type</h3>
+
+    <h3>3.1 Tracking, Disturbance, and Noise as Three Channels</h3>
+
+    <p>The key point of Lecture 3 is that the closed-loop output is not determined by one single performance index. Instead, it is the superposition of three transfer paths.</p>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 3.1</strong>
+      <div class="sub-q">Write the three-channel decomposition
+        $$\Omega(s)=\Phi_r(s)\Omega^*(s)+\Phi_d(s)d_n(s)+\Phi_n(s)\big(-s\delta_p(s)\big).$$
+        Explain the physical meaning of $\Phi_r$, $\Phi_d$, and $\Phi_n$.</div>
+      <div class="sub-q">Explain why position-measurement noise $\delta_p$ appears in the speed loop as $-s\delta_p$. What is the relation between this and differentiating position in order to obtain speed?</div>
+      <div class="sub-q">Write the unified expressions given in Lecture 3,
+        $$\Phi_r(s),\quad \Phi_d(s),\quad \Phi_n(s)=1-s\Phi_d(s),$$
+        and explain what role the auxiliary transfer function $G_3(s)$ plays in the analysis.</div>
+    </div>
+
+    <h3>3.2 System Type in the Disturbance Channel</h3>
+
+    <p>When $k_b=1$, the disturbance channel can be written in a simpler form:</p>
+    <div class="eq-block">
+      $$\Phi_d(s)\big|_{k_b=1}=\frac{G_3(s)}{\Delta_n(s+k_{ps})}$$
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 3.2</strong>
+      <div class="sub-q">Explain why every extra disturbance state added in the observer is equivalent to introducing one more integrator into the disturbance-rejection channel.</div>
+      <div class="sub-q">For the third-order observer, if $G_3(s)\sim c_1 s$ as $s\to 0$, explain why the system is Type I in the disturbance channel, and identify what class of load disturbance can be rejected with zero steady-state error.</div>
+      <div class="sub-q">For the fourth-order observer, if $G_3(s)\sim c_2 s^2$ as $s\to 0$, explain why it becomes Type II, and state what additional class of load disturbance can be eliminated in steady state compared with the third-order observer.</div>
+      <div class="sub-q">Lecture 3 raises a discussion question: instead of using a higher-order observer, if we add another integrator after the speed PI controller to form a PII controller, can we also obtain a higher disturbance type? Discuss the price from the perspective that all three channels are affected at the same time.</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>Hint:</strong>
+      Do not only write the labels "Type I" or "Type II". You need to state clearly what the input is, what the output is, what quantity the final-value-theorem analysis is applied to, and what kind of disturbance can achieve zero steady-state error.
+    </div>
+
+    <h3>Part 4. Tradeoff, Robustness, and Mapping to Implementation</h3>
+
+    <h3>4.1 Complementarity of Noise and Disturbance Rejection</h3>
+
+    <p>Lecture 3 gives a very important complementary constraint:</p>
+    <div class="eq-block">
+      $$\Phi_n(s)+s\Phi_d(s)=1$$
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 4.1</strong>
+      <div class="sub-q">Explain why this relation means that improving low-frequency disturbance rejection must necessarily worsen noise rejection over some frequency range. What exactly does this "you cannot get both" mean here?</div>
+      <div class="sub-q">Discuss qualitatively what happens as the observer bandwidth $\omega_{ob}$ increases: how do disturbance-estimation speed, noise amplification, and high-frequency attenuation change?</div>
+      <div class="sub-q">Using the analysis of $k_b$ in Lecture 3, compare the typical behavior of $k_b>1$ and $k_b<1$: which one is more likely to exhibit overshoot and oscillation, which one is more likely to expose noise, and which one is less favorable for low-frequency disturbance rejection?</div>
+    </div>
+
+    <h3>4.2 From Mathematics to Code</h3>
+
+    <p>The final goal of both Lecture 2 and Lecture 3 is to guide simulation implementation and controller programming.</p>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 4.2</strong>
+      <div class="sub-q">Draw a signal-flow diagram from $\theta_m^{\mathrm{meas}}$ to $i_Q^*$, including at least the following five modules: position measurement, observer, speed-error feedback, disturbance feedforward, and torque-to-current conversion.</div>
+      <div class="sub-q">Explain why
+        $$i_q^*= \underbrace{\text{PI feedback}}_{\text{tracking}} + \underbrace{\text{disturbance feedforward}}_{\text{rejection}}$$
+        is a two-degree-of-freedom (2DOF) control structure rather than a plain PI controller.</div>
+      <div class="sub-q">If you had to choose only one for a practical system, a third-order observer or a fourth-order observer, give an engineering criterion for the choice. Explain how you would balance load-change type, encoder-noise level, and parameter-mismatch risk.</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>After finishing this homework, you should be able to answer the following:</strong><br>
+      From Lecture 2 to Lecture 3, motor control moves from "writing down the unified motor ODEs" to "how to build a stronger speed controller around those ODEs". If Lecture 2 answers the question "what is the plant?", then Lecture 3 answers the question "how do we use the plant model to reject disturbances, estimate hidden quantities, and manage tradeoffs?"
+    </div>
+  </section>
+
+  <!-- ===== 提交说明 ===== -->
+  <section class="content-section" id="submission-note">
+    <div class="content-section__tag">
+      <span class="lang-zh">提交说明</span>
+      <span class="lang-en">Submission Notice</span>
+    </div>
+    <h2>
+      <span class="lang-zh">提交方式</span>
+      <span class="lang-en">How to Submit</span>
+    </h2>
+
+    <div class="highlight-box">
+      <strong>
+        <span class="lang-zh">请按课程通知提交 Markdown。</span>
+        <span class="lang-en">Please submit your work as a Markdown document according to the course announcement.</span>
+      </strong><br>
+      <span class="lang-zh">本页面不提供在线上传。</span>
+      <span class="lang-en">This page does not provide online upload.</span>
     </div>
   </section>
 
@@ -515,6 +742,26 @@
     });
   }, { threshold: 0.05, rootMargin: '0px 0px -40px 0px' });
   document.querySelectorAll('.content-section').forEach(function(s) { io.observe(s); });
+})();
+
+function setLang(lang) {
+  document.body.setAttribute('data-lang', lang);
+  document.documentElement.setAttribute('lang', lang === 'zh' ? 'zh-CN' : 'en');
+  document.getElementById('btn-zh').classList.toggle('active', lang === 'zh');
+  document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+  document.title = lang === 'zh'
+    ? '作业 2 — 从主动磁链到观测器型运动控制'
+    : 'Homework 2 — From Active Flux to Observer-Based Motion Control';
+  try { localStorage.setItem('homework2-lang', lang); } catch (e) {}
+}
+
+(function() {
+  var lang = 'zh';
+  try {
+    var saved = localStorage.getItem('homework2-lang');
+    if (saved === 'zh' || saved === 'en') lang = saved;
+  } catch (e) {}
+  setLang(lang);
 })();
 
 </script>

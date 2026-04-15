@@ -83,6 +83,8 @@
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
   }
+  body[data-lang="en"] .lang-zh { display: none !important; }
+  body[data-lang="zh"] .lang-en { display: none !important; }
 
   body::before {
     content: '';
@@ -104,6 +106,37 @@
     max-width: 720px;
     margin: 0 auto;
     padding: 2rem 1.2rem 4rem;
+  }
+  .topbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 1rem;
+  }
+  .lang-switch {
+    display: inline-flex;
+    gap: 0.35rem;
+    padding: 0.25rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg-card);
+  }
+  .lang-switch button {
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-secondary);
+    padding: 0.45rem 0.9rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: 0.2s ease;
+  }
+  .lang-switch button.active {
+    background: var(--amber);
+    color: var(--bg-deep);
+  }
+  .lang-switch button:not(.active):hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
   }
 
   /* Header */
@@ -294,29 +327,52 @@
     from { opacity: 0; transform: translateY(16px); }
     to { opacity: 1; transform: translateY(0); }
   }
+  @media (max-width: 640px) {
+    .topbar { justify-content: center; }
+  }
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
   .katex { color: var(--text-primary); }
 </style>
 </head>
-<body>
+<body data-lang="zh">
 
 <div class="app">
-
+  <div class="topbar">
+    <div class="lang-switch" aria-label="Language switch">
+      <button id="btn-zh" class="active" type="button" onclick="setLang('zh')">中文</button>
+      <button id="btn-en" type="button" onclick="setLang('en')">English</button>
+    </div>
+  </div>
   <header class="header">
-    <div class="header__label">Homework 1 / 第一次作业</div>
-    <h1 class="header__title">From Coordinates to the <em>Unified Machine ODE</em></h1>
-    <p class="header__sub">从坐标系到统一电机微分方程——手工推导代码中的五条 ODE</p>
+    <div class="header__label">
+      <span class="lang-zh">第一次作业</span>
+      <span class="lang-en">Homework 1</span>
+    </div>
+    <h1 class="header__title">
+      <span class="lang-zh">从坐标系到<em>统一电机微分方程</em></span>
+      <span class="lang-en">From Coordinates to the <em>Unified Machine ODE</em></span>
+    </h1>
+    <p class="header__sub">
+      <span class="lang-zh">从坐标系到统一电机微分方程——手工推导代码中的五条 ODE</span>
+      <span class="lang-en">From coordinate frames to the unified machine differential equations: derive the five ODEs used in the code.</span>
+    </p>
   </header>
 
   <div class="meta-bar">
-    <span>Related: Lecture 2 — Active Flux</span>
-    <span>Due: TBD</span>
+    <span>
+      <span class="lang-zh">相关内容：Lecture 2 - Active Flux</span>
+      <span class="lang-en">Related: Lecture 2 - Active Flux</span>
+    </span>
+    <span>
+      <span class="lang-zh">截止时间：待定</span>
+      <span class="lang-en">Due: TBD</span>
+    </span>
   </div>
 
   <!-- ===== 引言 ===== -->
-  <section class="content-section" id="intro">
+  <section class="content-section lang-zh" id="intro">
     <div class="content-section__tag">Overview / 总述</div>
     <h2>作业目标 / Objective</h2>
 
@@ -335,7 +391,7 @@
   </section>
 
   <!-- ===== Part 1: 坐标系与旋转 ===== -->
-  <section class="content-section" id="part1">
+  <section class="content-section lang-zh" id="part1">
     <div class="content-section__tag">Part 1 / 第一部分 (30 分)</div>
     <h2>坐标系、旋转与物理矢量 / Coordinate Frames, Rotation, and Physical Vectors</h2>
 
@@ -395,7 +451,7 @@
   </section>
 
   <!-- ===== Part 2: 磁通、磁链与法拉第定律 ===== -->
-  <section class="content-section" id="part2">
+  <section class="content-section lang-zh" id="part2">
     <div class="content-section__tag">Part 2 / 第二部分 (20 分)</div>
     <h2>从磁场到电路：磁通与磁链 / From Field to Circuit: Flux and Flux Linkage</h2>
 
@@ -424,7 +480,7 @@
   </section>
 
   <!-- ===== Part 3: 电路模型 ===== -->
-  <section class="content-section" id="part3">
+  <section class="content-section lang-zh" id="part3">
     <div class="content-section__tag">Part 3 / 第三部分 (30 分)</div>
     <h2>电机等效电路与 KVL/KCL / Equivalent Circuit and Kirchhoff's Laws</h2>
 
@@ -462,7 +518,7 @@
   </section>
 
   <!-- ===== Part 4: 推导统一 ODE ===== -->
-  <section class="content-section" id="part4">
+  <section class="content-section lang-zh" id="part4">
     <div class="content-section__tag">Part 4 / 第四部分 (20 分)</div>
     <h2>综合推导：写出五条 ODE / Putting It All Together: Derive the 5 ODEs</h2>
 
@@ -493,21 +549,196 @@
     </div>
   </section>
 
+  <!-- ===== English Version ===== -->
+  <section class="content-section lang-en" id="english-version">
+    <div class="content-section__tag">English Version</div>
+    <h2>Homework 1 in English</h2>
+
+    <p>In our simulation code, the motor model is described by five ordinary differential equations (ODEs):</p>
+    <div class="eq-block">
+      $$\dot{x}[0],\;\dot{x}[1],\;\dot{x}[2],\;\dot{x}[3],\;\dot{x}[4]$$
+    </div>
+    <p>They correspond to the time derivatives of $\theta_\text{mech}$, $\omega_\text{mech}$, $\psi_\text{AF}$ (<code>KA</code>), $i_D$, and $i_Q$, respectively. By choosing different parameters ($R_\text{req}$, $\psi_\text{PM}$, $L_d$, $L_q$), the same set of equations can describe SPM, IPMSM, SynRM, and IM.</p>
+
+    <p><strong>This homework asks you to start from nothing and derive these five equations step by step.</strong></p>
+
+    <div class="highlight-box">
+      <strong>Why write differential equations?</strong><br>
+      If you place a microphone on a table, you can directly see its position. But the internal states of a motor, such as current and flux linkage, are <em>not visible</em>. We write differential equations in order to use mathematics to <strong>predict</strong> those invisible states, and only then can we <strong>control</strong> them. This is one of the core ideas of the course.
+    </div>
+
+    <h3>Part 1. Coordinate Frames, Rotation, and Physical Vectors</h3>
+
+    <h3>1.1 Coordinates of Circular Motion</h3>
+
+    <p>Let a point $P$ move on a circle of radius $r$ with constant angular speed $\omega$.</p>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 1.1</strong>
+      <div class="sub-q">In the stationary Cartesian frame $(\alpha, \beta)$, write the coordinates of $P$ as $(p_\alpha(t),\; p_\beta(t))$.</div>
+      <div class="sub-q">Project the position of $P$ onto one diameter of the circle, taking the $\alpha$ axis. Write the expression of this projection and state what kind of motion it is (sine/cosine vibration).</div>
+      <div class="sub-q">Now introduce a coordinate frame $(d, q)$ that <strong>rotates synchronously with $P$</strong>, with the $d$ axis always pointing toward $P$. What are the coordinates of $P$ in this rotating frame? Compared with part (a), which description is simpler?</div>
+    </div>
+
+    <h3>1.2 Physical Vectors are Frame-Independent</h3>
+
+    <p>A physical vector $\hat{\vec{p}}$ (the hat means that no coordinate frame is specified) has different coordinate components in different frames, but the physical entity it represents does not change. For example:</p>
+    <ul>
+      <li>In the stationary $\alpha\beta$ frame: $\vec{p}^s = \begin{bmatrix} p_\alpha \\ p_\beta \end{bmatrix}$</li>
+      <li>In the rotating $dq$ frame: $\vec{p}^r = \begin{bmatrix} p_d \\ p_q \end{bmatrix}$</li>
+    </ul>
+    <p>The two are connected by the rotation matrix $\mathbf{R}(\theta)$: $\vec{p}^r = \mathbf{R}(-\theta)\,\vec{p}^s$.</p>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 1.2</strong>
+      <div class="sub-q">Write the $2\times2$ rotation matrix $\mathbf{R}(\theta)$ and verify that $\mathbf{R}(-\theta) = \mathbf{R}^T(\theta)$.</div>
+      <div class="sub-q">Using the result of Task 1.1(a), verify whether transforming the $\alpha\beta$ coordinates to the $dq$ frame through $\mathbf{R}(-\omega t)$ gives the same result as Task 1.1(c).</div>
+    </div>
+
+    <h3>1.3 Derivative Operator in a Rotating Frame</h3>
+
+    <p>When physical laws such as Newton's law and Faraday's law are written in vector form, they should remain valid in any coordinate frame. However, if we directly take the time derivative $\frac{d}{dt}$ of the coordinate components in a rotating frame, we lose the contribution caused by the rotation of the frame itself.</p>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 1.3 - Inertial Force Example</strong><br>
+      <p style="margin: 0.5rem 0;">Suppose a microphone is placed on a table. The table is stationary relative to the wall. Define:</p>
+      <ul>
+        <li>The wall as the reference origin, the distance from the microphone to the edge of the table as $Y$, and the distance from the table to the wall as $X$.</li>
+        <li>The absolute position of the microphone relative to the wall as $X + Y$.</li>
+      </ul>
+      <div class="sub-q">If the table, which plays the role of the "rotating frame" in this analogy, moves with speed $v$, while the microphone is stationary in the table frame ($\dot{Y}=0$), write the acceleration of the microphone in the wall frame. Identify what force the extra term caused by the moving table corresponds to (inertial force).</div>
+      <div class="sub-q">Generalize this result to a rotating frame: for a vector $\hat{\vec{p}}$ in a frame rotating at angular speed $\omega$, what is the relation between its "absolute derivative" (in the inertial frame) and its "relative derivative" (taking the derivative of the rotating-frame coordinates directly)? Write the corrected derivative operator.</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>Key Result:</strong> In a rotating frame with angular speed $\omega$, if a physical vector is represented in complex form, the derivative operator must be corrected to
+      $$\frac{d}{dt}\bigg|_{\text{inertial}} = \frac{d}{dt}\bigg|_{\text{rotating}} + j\omega$$
+      that is, the Laplace operator changes from $s$ to $s + j\omega$. This is what guarantees that Newton's law and Faraday's law remain valid in the rotating frame.
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 1.4 - Back-EMF Example</strong><br>
+      <p style="margin: 0.5rem 0;">Faraday's law of electromagnetic induction is $e = -\frac{d\psi}{dt}$ (induced voltage equals the negative time derivative of flux linkage).</p>
+      <div class="sub-q">In <strong>classical mechanics</strong>, force $F = m\ddot{x}$ is the second derivative of position. In <strong>motor circuits</strong>, back-EMF $e = -\frac{d\psi}{dt}$ is the first derivative of flux linkage. Explain why "force <-> back-EMF" is a useful analogy.</div>
+      <div class="sub-q">If the flux-linkage vector $\hat{\vec{\psi}}$ has components $(\psi_d,\, \psi_q)$ in the rotating frame, use the corrected operator from Task 1.3 to write the back-EMF expression in that frame. State the physical meaning of the extra $j\omega\vec{\psi}$ term (speed EMF).</div>
+    </div>
+
+    <h3>Part 2. From Field to Circuit: Flux and Flux Linkage</h3>
+
+    <h3>2.1 Magnetic Flux is a Field Quantity</h3>
+
+    <p>Magnetic flux $\Phi$ is the <strong>surface integral</strong> of the magnetic flux density $\vec{B}$ over a cross-section $S$:</p>
+    <div class="eq-block">
+      $$\Phi = \iint_S \vec{B} \cdot d\vec{A}$$
+    </div>
+    <p>This is a concept from the field description because it depends on spatial distribution. In circuit analysis, however, we do not want to handle spatial integrals; we want all quantities to be <strong>functions of time</strong>.</p>
+
+    <h3>2.2 Definition of Flux Linkage</h3>
+
+    <p>For a coil with $N$ turns, <strong>flux linkage</strong> is defined as</p>
+    <div class="eq-block">
+      $$\psi = N \Phi = L \, i$$
+    </div>
+    <p>where $L$ is the inductance and $i$ is the current. Flux linkage $\psi$ is a purely <strong>circuit-level quantity</strong> with unit Wb (weber). It compresses the field information into a scalar quantity that depends only on time.</p>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 2.1</strong>
+      <div class="sub-q">Explain why circuit analysis prefers flux linkage $\psi$ rather than magnetic flux density $\vec{B}$. Hint: differential equations need time-domain quantities.</div>
+      <div class="sub-q">Faraday's law in terms of flux linkage is $u = \frac{d\psi}{dt}$, ignoring the sign convention. If $\psi = L\,i$ and $L$ is constant, write the expression of $u$ in terms of $i$.</div>
+      <div class="sub-q">If the inductance $L$ is not constant, for example if it varies with rotor position, how many terms appear when you expand $u = \frac{d(Li)}{dt}$? Which term corresponds to back-EMF?</div>
+    </div>
+
+    <h3>Part 3. Equivalent Circuit and Kirchhoff's Laws</h3>
+
+    <h3>3.1 Single-Phase Equivalent Circuit</h3>
+
+    <p>Consider one stator phase winding of the motor. Its equivalent circuit contains:</p>
+    <ul>
+      <li><strong>Voltage source</strong> $u$: the terminal voltage applied by the inverter</li>
+      <li><strong>Resistance</strong> $R_s$: the copper resistance of the winding</li>
+      <li><strong>Leakage inductance</strong> $L_\sigma$: the inductance associated with leakage flux that does not link the rotor</li>
+      <li><strong>Magnetizing inductance</strong> $L_m$: the inductance associated with the main flux path that links the rotor, whether through magnets or an induction cage</li>
+    </ul>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 3.1</strong>
+      <div class="sub-q"><strong>Draw</strong> this single-phase equivalent circuit. Label $u$, $R_s$, $L_\sigma$, $L_m$, together with the branch currents and flux linkages.</div>
+      <div class="sub-q">Write the <strong>KVL</strong> equation for this circuit. State the physical meaning of each term: resistive voltage drop, induced voltage of the leakage flux linkage, and induced voltage/back-EMF of the main flux linkage.</div>
+      <div class="sub-q">Explain the physical difference between $L_\sigma$ and $L_m$. Which one corresponds to the flux path that does not link the rotor, and which one corresponds to the flux path that links the permanent magnets or rotor windings?</div>
+    </div>
+
+    <h3>3.2 From Three Phases to a Vector: The KCL Constraint</h3>
+
+    <p>The motor has three stator windings, phases A, B, and C, with currents $i_A$, $i_B$, and $i_C$.</p>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 3.2</strong>
+      <div class="sub-q">If the three-phase windings share a neutral point in a star connection, write the KCL constraint: $i_A + i_B + i_C = \;?$</div>
+      <div class="sub-q">This constraint means that the three current components are not independent; they are confined to a <strong>two-dimensional plane</strong> in three-dimensional space. Explain why a <strong>two-dimensional vector</strong> $\vec{i}^s = \begin{bmatrix} i_\alpha \\ i_\beta \end{bmatrix}$ is enough to represent the three-phase current equivalently.</div>
+      <div class="sub-q">What is the connection between the $\alpha\beta \to dq$ coordinate transformation and the circular-motion example in Part 1? Why does choosing a rotating frame simplify the motor differential equations?</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>Hint:</strong> Recall that in Part 1 the coordinates of a point moving in a circle are sinusoidal in the $\alpha\beta$ frame, but become constants in the synchronously rotating $dq$ frame. In steady state, the three-phase motor currents are also sinusoidal. Without a coordinate transformation, products of sinusoidal terms appear in the voltage equations, creating modulation and making the model highly nonlinear. A proper rotating frame turns sinusoids into constants and simplifies the equations greatly.
+    </div>
+
+    <h3>Part 4. Putting It All Together: Derive the 5 ODEs</h3>
+
+    <p>You now have all the required tools: rotating coordinates, the corrected derivative operator $\frac{d}{dt} + j\omega$, flux linkage, and KVL.</p>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 4.1 - Derivation of the Voltage Equations</strong>
+      <div class="sub-q">Starting from the KVL equation in Part 3, rewrite the voltage equation in flux-linkage form: $u = R_s\,i + \frac{d\psi}{dt}$.</div>
+      <div class="sub-q">Transform the above equation into the rotating $dq$ frame with angular speed $\omega_\text{syn}$. Using the corrected derivative operator, write the voltage equations in the $dq$ frame, one for the $d$ axis and one for the $q$ axis.</div>
+      <div class="sub-q">Introduce the active-flux definition $\psi_\text{AF} = \psi_d - L_q\,i_D$. Rewrite the result of part (b) in terms of the state variables $(\psi_\text{AF},\, i_D,\, i_Q)$. Solve for $\frac{di_D}{dt}$ and $\frac{di_Q}{dt}$. These are exactly $\dot{x}[3]$ and $\dot{x}[4]$ in the code.</div>
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 4.2 - Active-Flux Dynamics</strong>
+      <div class="sub-q">For PMSM ($R_\text{req} = 0$), start directly from $\psi_\text{AF} = (L_d - L_q)\,i_D + \psi_\text{PM}$ and derive $\frac{d\psi_\text{AF}}{dt}$. This is the PMSM branch of $\dot{x}[2]$ in the code.</div>
+      <div class="sub-q">For IM ($R_\text{req} > 0$), explain why $\psi_\text{AF}$ becomes an independent dynamic variable, and write $\frac{d\psi_\text{AF}}{dt} = R_\text{req}\,i_D - \frac{R_\text{req}}{L_d - L_q}\psi_\text{AF}$. This is the IM branch of $\dot{x}[2]$.</div>
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 4.3 - Mechanical Equations</strong>
+      <div class="sub-q">Write the torque equation $T_\text{em} = \frac{3}{2}\,n_\text{pp}\,\psi_\text{AF}\,i_Q$.</div>
+      <div class="sub-q">Write Newton's second law in rotational form: $J_s \frac{d\omega_\text{mech}}{dt} = T_\text{em} - T_\text{load}$. This is $\dot{x}[1]$.</div>
+      <div class="sub-q">Write $\frac{d\theta_\text{mech}}{dt} = \omega_\text{mech} + \frac{\omega_\text{slip}}{n_\text{pp}}$. This is $\dot{x}[0]$. Explain why the IM slip term $\omega_\text{slip} = \frac{R_\text{req}\,i_Q}{\psi_\text{AF}}$ becomes zero for PMSM.</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>Congratulations!</strong> After completing Tasks 4.1 to 4.3, you will have derived from scratch all five ODEs used in the code inside the <code>DYNAMICS_MACHINE</code> function, namely $\dot{x}[0] \sim \dot{x}[4]$. This is the complete mathematical foundation of the unified AC machine model.
+    </div>
+  </section>
+
   <!-- ===== 提交 ===== -->
   <section class="content-section" id="submit-section">
-    <div class="content-section__tag">Submission / 提交</div>
-    <h2>作业提交 / Submit Your Work</h2>
+    <div class="content-section__tag">
+      <span class="lang-zh">提交</span>
+      <span class="lang-en">Submission</span>
+    </div>
+    <h2>
+      <span class="lang-zh">作业提交</span>
+      <span class="lang-en">Submit Your Work</span>
+    </h2>
 
-    <p>请将你的推导过程（手写拍照或电子文档）整理好后提交。要求书写清晰，公式推导完整，图表标注规范。</p>
+    <p>
+      <span class="lang-zh">请将你的推导过程（手写拍照或电子文档）整理好后提交。要求书写清晰，公式推导完整，图表标注规范。</span>
+      <span class="lang-en">Please organize your derivation clearly before submission. Handwritten scans and digital documents are both acceptable, but the writing, formulas, and figure labels should all be clear.</span>
+    </p>
 
     <div class="name-row">
-      <label>姓名 / Name:</label>
+      <label>
+        <span class="lang-zh">姓名：</span>
+        <span class="lang-en">Name:</span>
+      </label>
       <input type="text" class="text-input" id="hwName" placeholder="请输入姓名..." style="max-width: 240px;">
     </div>
 
     <div style="margin-bottom: 1rem;">
       <label style="font-size: 0.9rem; color: var(--text-primary); display: block; margin-bottom: 0.5rem;">
-        上传文件 / Upload (PDF or images):
+        <span class="lang-zh">上传文件（PDF 或图片）：</span>
+        <span class="lang-en">Upload (PDF or images):</span>
       </label>
       <input type="file" id="hwFile" accept=".pdf,.png,.jpg,.jpeg" multiple
         style="font-size: 0.85rem; color: var(--text-secondary);">
@@ -516,7 +747,7 @@
     <div id="resultBanner" class="result-banner"></div>
 
     <div class="actions">
-      <button class="btn btn--primary" id="submitHwBtn" onclick="submitHomework()">Submit / 提交</button>
+      <button class="btn btn--primary" id="submitHwBtn" data-state="idle" onclick="submitHomework()">提交</button>
     </div>
   </section>
 
@@ -533,23 +764,70 @@
   document.querySelectorAll('.content-section').forEach(function(s) { io.observe(s); });
 })();
 
+function getLang() {
+  return document.body.getAttribute('data-lang') === 'en' ? 'en' : 'zh';
+}
+
+function updateHomework1LanguageUI(lang) {
+  document.documentElement.setAttribute('lang', lang === 'zh' ? 'zh-CN' : 'en');
+  document.title = lang === 'zh'
+    ? '作业 1 — 从坐标系到统一电机微分方程'
+    : 'Homework 1 — From Coordinates to the Unified Machine ODE';
+
+  var nameInput = document.getElementById('hwName');
+  if (nameInput) {
+    nameInput.placeholder = lang === 'zh' ? '请输入姓名...' : 'Enter your name...';
+  }
+
+  var btn = document.getElementById('submitHwBtn');
+  if (btn) {
+    var state = btn.getAttribute('data-state') || 'idle';
+    if (state === 'uploading') {
+      btn.textContent = lang === 'zh' ? '上传中...' : 'Uploading...';
+    } else if (state === 'submitted') {
+      btn.textContent = lang === 'zh' ? '已提交' : 'Submitted';
+    } else {
+      btn.textContent = lang === 'zh' ? '提交' : 'Submit';
+    }
+  }
+}
+
+function setLang(lang) {
+  document.body.setAttribute('data-lang', lang);
+  document.getElementById('btn-zh').classList.toggle('active', lang === 'zh');
+  document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+  updateHomework1LanguageUI(lang);
+  try { localStorage.setItem('homework1-lang', lang); } catch (e) {}
+}
+
+(function() {
+  var lang = 'zh';
+  try {
+    var saved = localStorage.getItem('homework1-lang');
+    if (saved === 'zh' || saved === 'en') lang = saved;
+  } catch (e) {}
+  setLang(lang);
+})();
+
 // Submit homework
 async function submitHomework() {
+  const lang = getLang();
   const name = document.getElementById('hwName').value.trim();
   if (!name) {
-    showResult('error', '请填写姓名 / Please enter your name.');
+    showResult('error', lang === 'zh' ? '请填写姓名。' : 'Please enter your name.');
     return;
   }
 
   const fileInput = document.getElementById('hwFile');
   if (!fileInput.files.length) {
-    showResult('error', '请选择文件 / Please select a file to upload.');
+    showResult('error', lang === 'zh' ? '请选择文件。' : 'Please select a file to upload.');
     return;
   }
 
   const btn = document.getElementById('submitHwBtn');
   btn.disabled = true;
-  btn.textContent = 'Uploading...';
+  btn.setAttribute('data-state', 'uploading');
+  updateHomework1LanguageUI(lang);
 
   const formData = new FormData();
   formData.append('name', name);
@@ -565,15 +843,17 @@ async function submitHomework() {
       body: formData
     });
     if (resp.ok) {
-      showResult('success', '提交成功！Submission received.');
-      btn.textContent = 'Submitted';
+      btn.setAttribute('data-state', 'submitted');
+      updateHomework1LanguageUI(getLang());
+      showResult('success', getLang() === 'zh' ? '提交成功！' : 'Submission received.');
     } else {
       throw new Error(`Server error: ${resp.status}`);
     }
   } catch(e) {
     btn.disabled = false;
-    btn.textContent = 'Submit / 提交';
-    showResult('error', `提交失败 / Failed: ${e.message}`);
+    btn.setAttribute('data-state', 'idle');
+    updateHomework1LanguageUI(getLang());
+    showResult('error', (getLang() === 'zh' ? '提交失败：' : 'Failed: ') + e.message);
   }
 }
 
