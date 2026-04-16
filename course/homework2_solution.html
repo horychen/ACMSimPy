@@ -686,6 +686,64 @@ Omega* --&gt; [ Speed Error ] --&gt; [ PI feedback ] --+
     </div>
   </section>
 
+  <section class="content-section" id="grading-rubric">
+    <div class="content-section__tag">Grading Rubric / 评分标准</div>
+    <h2>评分标准（满分 100 分） / Rubric (100 Points Total)</h2>
+
+    <div class="highlight-box">
+      <strong>总原则：</strong><br>
+      评分不仅看最终公式是否写对，也看推导链条是否完整、物理解释是否清楚、符号是否一致、结构是否清晰。只写结论不给推导或解释，将被扣分。
+    </div>
+
+    <div class="task-box">
+      <strong>Part 1：从统一电机模型到机械速度子系统（25 分）</strong>
+      <ul>
+        <li>正确写出并解释机械方程、转矩输入与速度输出的等效关系：10 分</li>
+        <li>正确定义并推导 $d_n$、$d_{to}$、$k_b$：10 分</li>
+        <li>物理解释清楚，能说明惯量失配的含义：5 分</li>
+      </ul>
+    </div>
+
+    <div class="task-box">
+      <strong>Part 2：观测器型速度控制律（25 分）</strong>
+      <ul>
+        <li>正确推导理想控制律与实际控制律：10 分</li>
+        <li>正确完成从 $T_e^*$ 到 $i_Q^*$ 的换算，并说明 active flux 的作用：5 分</li>
+        <li>正确写出三阶、四阶观测器及其极点配置结果：10 分</li>
+      </ul>
+    </div>
+
+    <div class="task-box">
+      <strong>Part 3：三条闭环通道与系统型别（30 分）</strong>
+      <ul>
+        <li>正确写出三通道分解，并解释 $\Phi_r$、$\Phi_d$、$\Phi_n$：10 分</li>
+        <li>正确说明位置噪声为何以 $-s\delta_p$ 形式进入速度通道：5 分</li>
+        <li>正确分析三阶 / 四阶观测器在扰动通道中的 Type I / Type II 性质：10 分</li>
+        <li>能讨论 PII 与高阶观测器的代价差异：5 分</li>
+      </ul>
+    </div>
+
+    <div class="task-box">
+      <strong>Part 4：三方权衡、鲁棒性与实现映射（20 分）</strong>
+      <ul>
+        <li>正确解释噪声抑制与扰动抑制的互补关系：8 分</li>
+        <li>正确讨论 $\omega_{ob}$ 与 $k_b$ 对性能的影响：6 分</li>
+        <li>信号流程图、2DOF 解释和工程化选择标准清楚完整：6 分</li>
+      </ul>
+    </div>
+
+    <div class="highlight-box">
+      <strong>常见扣分项：</strong>
+      <ul>
+        <li>只给最后公式，不写中间推导步骤。</li>
+        <li>符号混乱，例如把机械角速度、转速、扰动、估计量混写。</li>
+        <li>只说“Type I / Type II”而不说明对应的输入、输出和可消除的扰动类型。</li>
+        <li>只做数学推导，不做物理解释，或只讲直觉不对应公式。</li>
+        <li>结构混乱，Markdown 报告中标题层级、公式编号、图表标注不清楚。</li>
+      </ul>
+    </div>
+  </section>
+
 </div>
 
 <script>
