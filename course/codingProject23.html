@@ -913,17 +913,20 @@ if CTRL.use_disturbance_feedforward_rejection > 0:
             <h4><span class="lang-en">Noise sensitivity</span><span class="lang-zh">噪声敏感性</span></h4>
             <p><span class="lang-en">Higher-order observers amplify noise more. Try increasing <code>omega_ob</code> and observe the noise in <code>xS[2]</code> and <code>xS[3]</code>. Is the 4th-order observer noisier than 3rd-order at the same bandwidth? What is the tradeoff?</span><span class="lang-zh">高阶观测器放大更多噪声。尝试增大 <code>omega_ob</code>，观察 <code>xS[2]</code> 和 <code>xS[3]</code> 中的噪声。在相同带宽下，四阶观测器是否比三阶更嘈杂？权衡是什么？</span></p>
           </div>
-          <div class="q-card">
-            <div class="q-index">Q4</div>
-            <h4><span class="lang-en">Observer bandwidth selection</span><span class="lang-zh">观测器带宽选择</span></h4>
-            <p><span class="lang-en">Try <code>omega_ob</code> = 50, 100, 200, 400 for the 4th-order observer. Plot disturbance estimation error vs noise level. What is the optimal <code>omega_ob</code>? Does it differ from the 3rd-order optimal?</span><span class="lang-zh">对四阶观测器尝试 <code>omega_ob</code> = 50, 100, 200, 400。画扰动估计误差 vs 噪声水平的图。最优 <code>omega_ob</code> 是多少？与三阶的最优值不同吗？</span></p>
-          </div>
         </div>
 
         <div class="callout callout--warn">
           <span class="callout-title"><span class="lang-en">Connection to Project 2</span><span class="lang-zh">与 Project 2 的联系</span></span>
           <span class="lang-en">In Project 2 Part 3, you tested parameter mismatch. The observer's disturbance estimate $\hat{d}_{to}$ includes parameter mismatch effects (since $d_{to}$ lumps all unmodeled dynamics). Try combining 4th-order observer + feedforward + parameter mismatch from Project 2. Does the higher-order observer compensate mismatch better than the 3rd-order?</span>
           <span class="lang-zh">在 Project 2 Part 3 中你测试了参数失配。观测器的扰动估计 $\hat{d}_{to}$ 包含参数失配效应（因为 $d_{to}$ 涵盖了所有未建模动态）。尝试将四阶观测器 + 前馈 + Project 2 的参数失配结合起来。高阶观测器是否比三阶更好地补偿失配？</span>
+        </div>
+
+        <div class="callout callout--task">
+          <span class="callout-title"><span class="lang-en">Additional required frequency-domain study</span><span class="lang-zh">额外必须完成的频域实验</span></span>
+          <ol>
+            <li><span class="lang-en">Add the Bode plot obtained from sweeping the transfer path $\hat{T}_L / T_L$, where the input is the actual load torque and the output is the observer-estimated load torque.</span><span class="lang-zh">补充对传递路径 $\hat{T}_L / T_L$ 进行扫频后得到的伯德图，其中输入为实际负载转矩，输出为观测器估计的负载转矩。</span></li>
+            <li><span class="lang-en">At $\omega = 0$ rpm and load-torque amplitude $0.15\,\mathrm{N\cdot m}$, perform a load-torque frequency sweep and include both the resulting Bode plot and the corresponding time-domain waveforms.</span><span class="lang-zh">在 $\omega = 0$ rpm、负载转矩幅值为 $0.15\,\mathrm{N\cdot m}$ 的条件下，对负载转矩进行扫频，并给出对应的伯德图和时域波形图。</span></li>
+          </ol>
         </div>
       </section>
 
@@ -932,12 +935,13 @@ if CTRL.use_disturbance_feedforward_rejection > 0:
         <div class="section-tag">Deliverables / Report</div>
         <h2><span class="lang-en">Required content of the Markdown report</span><span class="lang-zh">Markdown 报告要求</span></h2>
         <div class="callout callout--warn">
-          <span class="callout-title"><span class="lang-en">The Markdown report must contain these 4 core figures</span><span class="lang-zh">Markdown 报告必须包含这 4 张核心图</span></span>
+          <span class="callout-title"><span class="lang-en">The Markdown report must contain these 5 core figures</span><span class="lang-zh">Markdown 报告必须包含这 5 张核心图</span></span>
           <ol>
             <li><span class="lang-en"><strong>Step load comparison</strong> — 4 scenarios (A–D), speed + disturbance estimate waveforms.</span><span class="lang-zh"><strong>阶跃负载对比</strong>——4 种场景（A–D），速度 + 扰动估计波形。</span></li>
             <li><span class="lang-en"><strong>Ramp load comparison</strong> — 4 scenarios (A–D), speed + disturbance estimate + rate estimate waveforms.</span><span class="lang-zh"><strong>斜坡负载对比</strong>——4 种场景（A–D），速度 + 扰动估计 + 变化率估计波形。</span></li>
-            <li><span class="lang-en"><strong>Observer bandwidth sweep</strong> — effect of <code>omega_ob</code> on estimation accuracy and noise for both observer orders.</span><span class="lang-zh"><strong>观测器带宽扫描</strong>——<code>omega_ob</code> 对两种阶数的估计精度和噪声的影响。</span></li>
             <li><span class="lang-en"><strong>Code diff</strong> — show the exact lines you modified in <code>tutorials_ep6_svpwm.py</code>.</span><span class="lang-zh"><strong>代码差异</strong>——展示你在 <code>tutorials_ep6_svpwm.py</code> 中修改的确切行。</span></li>
+            <li><span class="lang-en"><strong>Bode plot of $\hat{T}_L / T_L$</strong> — frequency response from actual load torque to estimated load torque.</span><span class="lang-zh"><strong>$\hat{T}_L / T_L$ 的伯德图</strong>——从实际负载转矩到估计负载转矩的频率响应。</span></li>
+            <li><span class="lang-en"><strong>Load-torque sweep at $\omega = 0$ rpm, amplitude $0.15\,\mathrm{N\cdot m}$</strong> — include both the Bode plot and the time-domain waveforms.</span><span class="lang-zh"><strong>$\omega = 0$ rpm、幅值 $0.15\,\mathrm{N\cdot m}$ 的负载转矩扫频</strong>——同时包含伯德图和时域波形图。</span></li>
           </ol>
         </div>
         <div class="grid-2">
@@ -947,7 +951,9 @@ if CTRL.use_disturbance_feedforward_rejection > 0:
               <div class="check"><span class="lang-en">Working 4th-order observer with configurable order selection.</span><span class="lang-zh">可配置阶数选择的四阶观测器。</span></div>
               <div class="check"><span class="lang-en">Feedforward wired into <code>FOC()</code> with correct unit conversion.</span><span class="lang-zh">前馈接入 <code>FOC()</code>，单位转换正确。</span></div>
               <div class="check"><span class="lang-en">4-scenario comparison under both step and ramp loads.</span><span class="lang-zh">阶跃和斜坡负载下的 4 场景对比。</span></div>
-              <div class="check"><span class="lang-en">Direct answers to Q1–Q4.</span><span class="lang-zh">逐条回答 Q1–Q4。</span></div>
+              <div class="check"><span class="lang-en">Bode plot of $\hat{T}_L / T_L$.</span><span class="lang-zh">$\hat{T}_L / T_L$ 的伯德图。</span></div>
+              <div class="check"><span class="lang-en">At $\omega = 0$ rpm and load-torque amplitude $0.15\,\mathrm{N\cdot m}$, include both the load-torque sweep Bode plot and time-domain waveforms.</span><span class="lang-zh">在 $\omega = 0$ rpm、负载转矩幅值 $0.15\,\mathrm{N\cdot m}$ 条件下，必须同时给出负载转矩扫频的伯德图和时域波形图。</span></div>
+              <div class="check"><span class="lang-en">Direct answers to Q1–Q3.</span><span class="lang-zh">逐条回答 Q1–Q3。</span></div>
             </div>
           </div>
           <div class="card">
@@ -957,7 +963,7 @@ if CTRL.use_disturbance_feedforward_rejection > 0:
               <li><span class="lang-en">Code modifications (with diff)</span><span class="lang-zh">代码修改（附差异）</span></li>
               <li><span class="lang-en">Step load experiments and analysis</span><span class="lang-zh">阶跃负载实验与分析</span></li>
               <li><span class="lang-en">Ramp load experiments and analysis</span><span class="lang-zh">斜坡负载实验与分析</span></li>
-              <li><span class="lang-en">Bandwidth sweep and noise discussion</span><span class="lang-zh">带宽扫描与噪声讨论</span></li>
+              <li><span class="lang-en">Bode analysis and load-torque sweep results</span><span class="lang-zh">伯德图分析与负载转矩扫频结果</span></li>
               <li><span class="lang-en">Conclusion</span><span class="lang-zh">结论</span></li>
             </ol>
           </div>
