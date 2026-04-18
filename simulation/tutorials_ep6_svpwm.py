@@ -204,6 +204,8 @@ class The_Motor_Controller:
         # states
         ('NS',    int32),
         ('x',   float64[:]),
+        ('custom_load_type', int32),
+        ('custom_load_params', float64[:]),
         # inputs
         ('uab',   float64[:]),
         ('udq',   float64[:]),
@@ -249,6 +251,8 @@ class The_AC_Machine:
         self.NS = 5
         self.x = np.zeros(self.NS, dtype=np.float64)
         self.x[2] = CTRL.KA
+        self.custom_load_type = 0
+        self.custom_load_params = np.zeros(10, dtype=np.float64)
         # inputs
         self.uab = np.zeros(2, dtype=np.float64)
         self.udq = np.zeros(2, dtype=np.float64)
@@ -971,6 +975,72 @@ def vehicel_load_model(t, ACM):
     ACM.Js = EVJ = EVM*EVR*EVR*0.25  ##### 单轮等效转动惯量
 
 @njit(nogil=True)
+def custom_load_model(t, ACM):
+    ltype = ACM.custom_load_type
+    if ltype == 0:
+        pass
+    elif ltype == 1: # step
+        t_step = ACM.custom_load_params[0]
+        amp = ACM.custom_load_params[1]
+        ACM.TLoad = amp if t >= t_step else 0.0
+    elif ltype == 2: # ramp
+        t_start = ACM.custom_load_params[0]
+        slope = ACM.custom_load_params[1]
+        if t >= t_start:
+            ACM.TLoad = slope * (t - t_start)
+        else:
+            ACM.TLoad = 0.0
+    elif ltype == 3: # sine
+        t_start = ACM.custom_load_params[0]
+        amp = ACM.custom_load_params[1]
+        freq = ACM.custom_load_params[2]
+        if t >= t_start:
+            ACM.TLoad = amp * np.sin(2 * np.pi * freq * (t - t_start))
+        else:
+            ACM.TLoad = 0.0
+    elif ltype == 4: # parabola
+        t_start = ACM.custom_load_params[0]
+        coeff = ACM.custom_load_params[1]
+        if t >= t_start:
+            ACM.TLoad = coeff * (t - t_start)**2
+        else:
+            ACM.TLoad = 0.0
+    elif ltype == 5: # stepped sweep
+        t_start = ACM.custom_load_params[0]
+        amp = ACM.custom_load_params[1]
+        f_start = ACM.custom_load_params[2]
+        f_end = ACM.custom_load_params[3]
+        T_span = ACM.custom_load_params[4]
+        if t < t_start:
+            ACM.TLoad = 0.0
+        else:
+            current_f = ACM.custom_load_params[5]
+            current_cycle_start = ACM.custom_load_params[6]
+            
+            t_loc_cycle = t - current_cycle_start
+            phase = 2 * np.pi * current_f * t_loc_cycle
+            
+            if phase >= 2 * np.pi:
+                overflow_t = t_loc_cycle - (1.0 / current_f)
+                if current_f < 0.3:
+                    new_f = 0.5
+                elif current_f < 0.7:
+                    new_f = 1.0
+                else:
+                    new_f = current_f + 1.0
+                    
+                if new_f > f_end:
+                    new_f = f_end
+                
+                current_f = new_f
+                ACM.custom_load_params[5] = current_f
+                current_cycle_start = t - overflow_t
+                ACM.custom_load_params[6] = current_cycle_start
+                phase = 2 * np.pi * current_f * overflow_t
+                
+            ACM.TLoad = amp * np.sin(phase)
+
+@njit(nogil=True)
 def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None, reg_speed=None):
 
     # RK4 simulation and controller execution relative freuqencies
@@ -1002,6 +1072,7 @@ def ACMSimPyIncremental(t0, TIME, ACM=None, CTRL=None, reg_id=None, reg_iq=None,
         """ Machine Simulation @ MACHINE_TS """
         # Numerical Integration (ode4) with 5 states
         if ACM.bool_apply_load_model: vehicel_load_model(t, ACM)
+        if ACM.custom_load_type > 0: custom_load_model(t, ACM)
         RK4_MACHINE(t, ACM, hs=MACHINE_TS)
 
         """ Machine Simulation Output @ MACHINE_TS """

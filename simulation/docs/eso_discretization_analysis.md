@@ -12,11 +12,11 @@
 
 ### 1.1 三个关键观察
 
-| # | 现象 | 频率范围 |
-|---|------|----------|
-| ① | ESO 仿真（蓝色实线）在低频段比连续时间解析模型（蓝色虚线）**高出 15~18 dB** | 15~25 Hz |
-| ② | 在 ~29 Hz 处出现一个**剧烈的幅值跌落**（从 ~58 dB 骤降到 ~31 dB），然后迅速恢复 | 27~33 Hz |
-| ③ | 无 ESO 的仿真（绿色实线）也系统性地比解析低 **~10 dB** | 全频段 |
+| #   | 现象                                                                            | 频率范围 |
+| --- | ------------------------------------------------------------------------------- | -------- |
+| ①   | ESO 仿真（蓝色实线）在低频段比连续时间解析模型（蓝色虚线）**高出 15~18 dB**     | 15~25 Hz |
+| ②   | 在 ~29 Hz 处出现一个**剧烈的幅值跌落**（从 ~58 dB 骤降到 ~31 dB），然后迅速恢复 | 27~33 Hz |
+| ③   | 无 ESO 的仿真（绿色实线）也系统性地比解析低 **~10 dB**                          | 全频段   |
 
 > [!IMPORTANT]
 > 现象②的跌落频率 ~29 Hz 恰好在 ESO 带宽 $\omega_{ob}/(2\pi) = 200/(2\pi) \approx 31.8$ Hz 附近，这绝非巧合。
@@ -65,13 +65,13 @@ graph LR
 
 ### 2.2 关键时间尺度
 
-| 参数 | 值 | 说明 |
-|------|-----|------|
-| `CL_TS` | 0.1 ms (10 kHz) | 电流环 + ESO 执行周期 |
-| `VL_TS` | 0.5 ms (2 kHz) | 速度环执行周期 |
-| `VL_EXE_PER_CL_EXE` | 5 | 速度环每 5 个电流环执行一次 |
-| CLBW | 1000 Hz | 电流环带宽 |
-| $\omega_{ob}$ | 200 rad/s ≈ 31.8 Hz | ESO 带宽 |
+| 参数                | 值                  | 说明                        |
+| ------------------- | ------------------- | --------------------------- |
+| `CL_TS`             | 0.1 ms (10 kHz)     | 电流环 + ESO 执行周期       |
+| `VL_TS`             | 0.5 ms (2 kHz)      | 速度环执行周期              |
+| `VL_EXE_PER_CL_EXE` | 5                   | 速度环每 5 个电流环执行一次 |
+| CLBW                | 1000 Hz             | 电流环带宽                  |
+| $\omega_{ob}$       | 200 rad/s ≈ 31.8 Hz | ESO 带宽                    |
 
 > [!NOTE]
 > ESO 带宽 (31.8 Hz) 相对于速度环采样频率 (2 kHz) 看似很低，但相对于速度环的闭环带宽 (~15-20 Hz)，它已经进入了**过渡区**——离散化效应在这里不再可忽略。
@@ -79,23 +79,29 @@ graph LR
 ### 2.3 关键离散化细节
 
 #### Speed PI (Tustin / Bilinear)
+
 ```python
 # tustin_pid 实现：
 reg.integrator += 0.5 * reg.Ki * reg.T * (error + reg.prevError)  # Tustin 积分
 ```
+
 速度 PI 使用 **Tustin 变换** 离散化积分项，相比 Forward Euler 更准确，但仍引入频率预畸变效应：
 $$s = \frac{2}{T_s} \cdot \frac{z-1}{z+1}$$
 
 #### ESO (RK4 on CL_TS)
+
 ```python
 # ESO 在 CL_TS 上用 RK4 求解连续 ODE：
 RK4_ObserverSolver_CJH_Style(DYNAMICS_SpeedObserver, CTRL.xS, CTRL.CL_TS, CTRL)
 ```
+
 ESO 的连续 ODE 用 RK4 在 $T_c = 0.1\text{ ms}$ 步长上求解。RK4 的频率响应特性为：
 $$H_{RK4}(j\omega) \approx e^{-j\omega T_c/2} \cdot \frac{1}{1 + (\omega T_c)^4/120 + \cdots}$$
 
 #### 计算延迟
+
 从测量到ESO输出再到前馈补偿生效，存在 **至少 1 个 CL_TS 的计算延迟**，因为：
+
 1. 当前中断读取测量值
 2. ESO 更新状态输出 $\hat{x}_S[2]$
 3. FOC 使用该输出计算 $i_q^*$ 补偿
@@ -160,6 +166,7 @@ ESO 的扰动估计 $\hat{T}_d$ 经过以下延迟链才能体现在电机上：
 **定性分析：**
 
 在 $f \approx 29\text{ Hz}$（略低于 $\omega_{ob}/(2\pi) = 31.8\text{ Hz}$）时：
+
 - ESO 前馈路径：提供了一个**几乎完整的扰动估计**（高增益），但因计算延迟和电流环延迟，其相位**滞后**于真实扰动
 - 速度 PI 反馈路径：提供了一个**基于速度误差的校正**，其相位由 PI 控制器的零点和积分极点决定
 
@@ -187,6 +194,7 @@ ESO 的扰动估计 $\hat{T}_d$ 经过以下延迟链才能体现在电机上：
 ### 4.1 已完成的验证
 
 #### 密集扫频确认凹坑的可重复性
+
 我们在 15~50 Hz 范围内以 40 个点进行了密集的线性扫频（而非原来的 15~25 个对数间隔点）。结果如上图所示：
 
 - **凹坑是可重复的**：在 ~29 Hz 处有明确的幅值最小点 (~31 dB)
@@ -194,7 +202,9 @@ ESO 的扰动估计 $\hat{T}_d$ 经过以下延迟链才能体现在电机上：
 - **无 ESO 的对照组无此现象**：绿色曲线平滑通过同一频段
 
 #### 时域波形矩阵确认
+
 通过 `--waveforms` 标志生成的时域波形矩阵图（15行×6列），我们观察到：
+
 - 在 ~30 Hz 的 ESO 配置（cfg3 Disturbance）子图中，速度偏差确实非常小（归一化后显得很 noisy），确认了频域的低增益
 - 相邻频率点（25 Hz, 35 Hz）的波形幅度正常
 
@@ -204,11 +214,11 @@ ESO 的扰动估计 $\hat{T}_d$ 经过以下延迟链才能体现在电机上：
 
 ![Verification: Dip position tracks ESO bandwidth](fig_verify_dip_vs_omega_ob.png)
 
-| $\omega_{ob}$ | BW (Hz) | 凹坑位置 (Hz) | 深度 |
-|---|---|---|---|
-| **100** (红) | 15.9 | ~10 Hz | **极深** (~45 dB) |
-| **200** (蓝) | 31.8 | ~30 Hz | ~15 dB |
-| **400** (绿) | 63.7 | ~33 Hz | ~5 dB |
+| $\omega_{ob}$ | BW (Hz) | 凹坑位置 (Hz) | 深度              |
+| ------------- | ------- | ------------- | ----------------- |
+| **100** (红)  | 15.9    | ~10 Hz        | **极深** (~45 dB) |
+| **200** (蓝)  | 31.8    | ~30 Hz        | ~15 dB            |
+| **400** (绿)  | 63.7    | ~33 Hz        | ~5 dB             |
 
 > [!IMPORTANT]
 > **凹坑确实随 $\omega_{ob}$ 移动** — 完全排除了数值伪点的可能性。
@@ -245,18 +255,19 @@ $$\omega_{ob} < \frac{1}{k \cdot T_{\text{delay,total}}}$$
 其中 $T_{\text{delay,total}}$ 包括 CL_TS 计算延迟 + 电流环响应时间 + ZOH 效应，$k$ 是安全裕度因子（通常 3~5）。
 
 当 $\omega_{ob}$ 接近延迟倒数时，ESO 前馈的补偿信号就会与真实扰动产生显著的相位差，导致：
+
 - 在某些频率上"超前补偿"→ 幅值上升
 - 在某些频率上"过度补偿"→ 破坏性干涉 → 幅值跌落
 - 系统可能出现**意外的激励模态**
 
 ### 5.2 数字控制中的 ESO 调参建议
 
-| 情况 | 建议 |
-|------|------|
-| CL_TS 很小（<50 μs） | $\omega_{ob}$ 可以适当激进 |
+| 情况                         | 建议                                  |
+| ---------------------------- | ------------------------------------- |
+| CL_TS 很小（<50 μs）         | $\omega_{ob}$ 可以适当激进            |
 | VL_EXE_PER_CL_EXE 较大（>5） | 应降低 $\omega_{ob}$ 以避免多速率干涉 |
-| 对中频段抗扰有严格要求 | 考虑用 Smith 预估器补偿计算延迟 |
-| 系统有柔性负载（机械共振） | $\omega_{ob}$ 必须远低于共振频率 |
+| 对中频段抗扰有严格要求       | 考虑用 Smith 预估器补偿计算延迟       |
+| 系统有柔性负载（机械共振）   | $\omega_{ob}$ 必须远低于共振频率      |
 
 ### 5.3 仿真验证的重要性
 
@@ -267,11 +278,11 @@ $$\omega_{ob} < \frac{1}{k \cdot T_{\text{delay,total}}}$$
 
 ## 6. 代码与数据索引
 
-| 文件 | 说明 |
-|------|------|
-| [sim_bode_sweep_v2.py](file:///c:/Users/lenovo/Codes/ACMSimPy/simulation/sim_bode_sweep_v2.py) | 主数值扫频脚本 |
-| [debug_eso_dip.py](file:///c:/Users/lenovo/Codes/ACMSimPy/simulation/debug_eso_dip.py) | 15~50 Hz 密集扫频诊断脚本 |
-| [tuner.py](file:///c:/Users/lenovo/Codes/ACMSimPy/simulation/tuner.py) | PI 参数整定 |
+| 文件                                                                                               | 说明                                 |
+| -------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| [sim_bode_sweep_v2.py](file:///c:/Users/lenovo/Codes/ACMSimPy/simulation/sim_bode_sweep_v2.py)     | 主数值扫频脚本                       |
+| [debug_eso_dip.py](file:///c:/Users/lenovo/Codes/ACMSimPy/simulation/debug_eso_dip.py)             | 15~50 Hz 密集扫频诊断脚本            |
+| [tuner.py](file:///c:/Users/lenovo/Codes/ACMSimPy/simulation/tuner.py)                             | PI 参数整定                          |
 | [tutorials_ep6_svpwm.py](file:///c:/Users/lenovo/Codes/ACMSimPy/simulation/tutorials_ep6_svpwm.py) | 仿真引擎（含 ESO/PI/SVPWM 离散实现） |
 
 ### 仿真参数

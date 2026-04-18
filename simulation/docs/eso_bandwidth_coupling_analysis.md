@@ -18,6 +18,7 @@
 ![密集扫频观测到的幅值跌落](fig_debug_eso_dip.png)
 
 数值仿真中观察到：
+
 - ESO 配置的扰动通道在 $\omega_{ob}/(2\pi)$ 附近出现 **10~45 dB 的幅值变化**
 - 连续时间简化解析模型（虚线）**完全无法预测**这一现象
 - $\omega_{ob}$ 越低，异常越剧烈
@@ -34,11 +35,11 @@ $$G_{d,\text{ESO}}^{\text{(简化)}}(s) = \underbrace{\frac{P_{TL \to RPM}(s)}{1
 
 ### 2.2 这个模型做了什么假设？
 
-| 假设 | 实际情况 | 正确？ |
-|------|----------|--------|
-| 速度反馈 = 真实速度 $\omega$ | 速度反馈 = ESO 估计值 $\hat{\omega}$ | ❌ **错误** |
-| 开环增益 $L(s)$ 不受 ESO 影响 | ESO 滤波改变了等效开环增益 | ❌ **错误** |
-| ESO 只影响前馈通道 | ESO 同时影响反馈和前馈 | ❌ **错误** |
+| 假设                          | 实际情况                             | 正确？      |
+| ----------------------------- | ------------------------------------ | ----------- |
+| 速度反馈 = 真实速度 $\omega$  | 速度反馈 = ESO 估计值 $\hat{\omega}$ | ❌ **错误** |
+| 开环增益 $L(s)$ 不受 ESO 影响 | ESO 滤波改变了等效开环增益           | ❌ **错误** |
+| ESO 只影响前馈通道            | ESO 同时影响反馈和前馈               | ❌ **错误** |
 
 > [!IMPORTANT]
 > **核心问题**：当 `index_separate_speed_estimation == 1` 时，代码第 759 行 `CTRL.omega_r_elec = CTRL.xS[1]` 意味着速度 PI 控制器使用的速度反馈**来自 ESO 的估计值**，而不是编码器直接测量值。简化模型完全忽略了这一点。
@@ -48,6 +49,7 @@ $$G_{d,\text{ESO}}^{\text{(简化)}}(s) = \underbrace{\frac{P_{TL \to RPM}(s)}{1
 ESO 的速度估计 $\hat{\omega}(s)$ 相对于真实速度 $\omega(s)$ 是一个**低通滤波器**——在 ESO 带宽 $\omega_{ob}$ 以上的频率成分被衰减和延迟。
 
 这意味着 PI 控制器在高频段"看不清"真实的速度变化，导致：
+
 - PI 反馈环的**等效开环增益**在高频降低
 - **等效闭环带宽**受到 ESO 带宽的限制
 - 扰动抑制能力在 $\omega_{ob}$ 附近发生**定性改变**
@@ -85,19 +87,22 @@ graph LR
 **增广系统状态：** $\mathbf{x} = [\theta, \omega, \hat{x}_0, \hat{x}_1, \hat{x}_2, \hat{x}_3]^T$
 
 其中：
+
 - $\theta$, $\omega$：真实电角度和电角速度
 - $\hat{x}_0 \sim \hat{x}_3$：ESO 内部状态（位置、速度、扰动、扰动率）
 
 **系统矩阵：**
 
-$$A = \begin{bmatrix}
+$$
+A = \begin{bmatrix}
 0 & 1 & 0 & 0 & 0 & 0 \\
 0 & 0 & 0 & 0 & 0 & 0 \\
 \ell_1 & 0 & -\ell_1 & 1 & 0 & 0 \\
 \ell_2 & 0 & -\ell_2 & 0 & \kappa & 0 \\
 \ell_3 & 0 & -\ell_3 & 0 & 0 & 1 \\
 \ell_4 & 0 & -\ell_4 & 0 & 0 & 0
-\end{bmatrix}$$
+\end{bmatrix}
+$$
 
 其中 $\kappa = n_{pp}/J_s$，$\ell_i$ 为 ESO 增益。
 
@@ -132,17 +137,20 @@ $$\frac{\omega_{\text{RPM}}}{T_d}(j\omega) = H_{00} \cdot \frac{T_{em}}{T_d} + H
 **三个子图的解读：**
 
 **上图 — 连续时间模型对比：**
+
 - **实线（Full Model）**：包含 ESO 速度反馈效应的正确模型
 - **虚线（Simplified）**：仅含 ESO 前馈残差的错误简化模型
 - 在低频段，Full Model 比 Simplified 高出 **40~90 dB**
 - Full Model 在 $\omega_{ob}/(2\pi)$ 附近有一个**明确的峰值**，然后缓慢衰减
 
 **中图 — 影响量化：**
+
 - ESO 速度反馈效应在低频段造成 **80~90 dB** 的差异
 - 随频率增高差异减小，在 ~100 Hz 以上趋近 0 dB
 - $\omega_{ob}$ 越低（红色），影响范围越大
 
 **下图 — 与仿真对比：**
+
 - 连续时间 Full Model（实线）和数值仿真（散点）的**趋势一致**
 - 仿真中的"凹坑"对应于连续模型中的**峰值→衰减过渡区**
 - 残余差异来自离散化效应（次要因素）
@@ -182,6 +190,7 @@ $$L_{\text{eff}}(s) = P(s) \cdot G_{CL}(s) \cdot K_T \cdot C_{PI}(s) \cdot \unde
 ### 4.3 峰值形成机制
 
 在 $\omega \approx \omega_{ob}$ 附近：
+
 - ESO 前馈的残差已经接近 1（前馈补偿快要失效）
 - PI 反馈的等效增益因 $G_{\text{ESO},\omega}$ 衰减也在下降
 - **两条路径同时减弱**，形成扰动抑制的"真空区"
@@ -194,6 +203,7 @@ $$L_{\text{eff}}(s) = P(s) \cdot G_{CL}(s) \cdot K_T \cdot C_{PI}(s) \cdot \unde
 ### 5.1 当 $\omega_{ob} \gg$ 速度环带宽
 
 （如 $\omega_{ob} = 400$, 速度环 BW ≈ 15~20 Hz）
+
 - ESO 速度估计在速度环带宽内几乎无衰减
 - PI 反馈环不受影响
 - 前馈在速度环带宽内有效
@@ -202,6 +212,7 @@ $$L_{\text{eff}}(s) = P(s) \cdot G_{CL}(s) \cdot K_T \cdot C_{PI}(s) \cdot \unde
 ### 5.2 当 $\omega_{ob} \sim$ 速度环带宽
 
 （如 $\omega_{ob} = 200$, 速度环 BW ≈ 15~20 Hz）
+
 - ESO 在速度环带宽附近开始滤波
 - PI 环增益被削弱
 - 前馈在速度环带宽以上开始失效
@@ -210,6 +221,7 @@ $$L_{\text{eff}}(s) = P(s) \cdot G_{CL}(s) \cdot K_T \cdot C_{PI}(s) \cdot \unde
 ### 5.3 当 $\omega_{ob} <$ 速度环带宽
 
 （如 $\omega_{ob} = 100$）
+
 - ESO 严重限制了 PI 的等效带宽
 - PI 反馈几乎在所有频段都被削弱
 - 前馈在更低频就开始失效
@@ -220,22 +232,22 @@ $$L_{\text{eff}}(s) = P(s) \cdot G_{CL}(s) \cdot K_T \cdot C_{PI}(s) \cdot \unde
 > [!TIP]
 > **ESO 带宽应至少为速度闭环带宽的 3~5 倍**，以确保 ESO 的速度估计在 PI 控制器的整个工作频段内足够准确。这既保证了前馈的有效性，又避免了 ESO 速度反馈对 PI 反馈环的干扰。
 
-| 配置 | 效果 |
-|------|------|
-| $\omega_{ob} \geq 5 \times \omega_{BW,speed}$ | 最佳：ESO 几乎透明，前馈有效 |
-| $\omega_{ob} \approx 2 \times \omega_{BW,speed}$ | 过渡区：出现峰值/凹坑 |
-| $\omega_{ob} < \omega_{BW,speed}$ | 危险：ESO 反而恶化抗扰性能 |
+| 配置                                             | 效果                         |
+| ------------------------------------------------ | ---------------------------- |
+| $\omega_{ob} \geq 5 \times \omega_{BW,speed}$    | 最佳：ESO 几乎透明，前馈有效 |
+| $\omega_{ob} \approx 2 \times \omega_{BW,speed}$ | 过渡区：出现峰值/凹坑        |
+| $\omega_{ob} < \omega_{BW,speed}$                | 危险：ESO 反而恶化抗扰性能   |
 
 ---
 
 ## 6. 第一篇文档的修正勘误
 
-| 原结论 | 修正后 |
-|------|------|
-| 凹坑由离散化引起 | 凹坑是连续域效应，ESO 速度反馈滤波是根因 |
-| ZOH 和计算延迟是主因 | 离散化是次要因素，只贡献了仿真与连续模型间的残余差异 |
+| 原结论                 | 修正后                                                   |
+| ---------------------- | -------------------------------------------------------- |
+| 凹坑由离散化引起       | 凹坑是连续域效应，ESO 速度反馈滤波是根因                 |
+| ZOH 和计算延迟是主因   | 离散化是次要因素，只贡献了仿真与连续模型间的残余差异     |
 | $\omega_{ob}$ 越高越好 | $\omega_{ob}$ 需要远高于速度环带宽，但受限于噪声和稳定性 |
-| 凹坑类似"动力吸振器" | 更准确的类比是"ESO 充当了一个带通衰减器" |
+| 凹坑类似"动力吸振器"   | 更准确的类比是"ESO 充当了一个带通衰减器"                 |
 
 ---
 
@@ -253,9 +265,9 @@ $$L_{\text{eff}}(s) = P(s) \cdot G_{CL}(s) \cdot K_T \cdot C_{PI}(s) \cdot \unde
 
 ## 附录：代码索引
 
-| 文件 | 说明 |
-|------|------|
-| [verify_full_model.py](../verify_full_model.py) | 完整连续时间状态空间模型 + 闭环 TF 计算 |
-| [verify_dip_vs_omega.py](../verify_dip_vs_omega.py) | $\omega_{ob}$ 参数扫描验证 |
-| [debug_eso_dip.py](../debug_eso_dip.py) | 密集扫频诊断脚本 |
-| [sim_bode_sweep_v2.py](../sim_bode_sweep_v2.py) | 主波特图扫频脚本 |
+| 文件                                                | 说明                                    |
+| --------------------------------------------------- | --------------------------------------- |
+| [verify_full_model.py](../verify_full_model.py)     | 完整连续时间状态空间模型 + 闭环 TF 计算 |
+| [verify_dip_vs_omega.py](../verify_dip_vs_omega.py) | $\omega_{ob}$ 参数扫描验证              |
+| [debug_eso_dip.py](../debug_eso_dip.py)             | 密集扫频诊断脚本                        |
+| [sim_bode_sweep_v2.py](../sim_bode_sweep_v2.py)     | 主波特图扫频脚本                        |

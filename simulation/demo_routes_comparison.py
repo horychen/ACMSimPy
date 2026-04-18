@@ -82,7 +82,7 @@ def get_base_d():
 # ======================================================================
 # Core function: run one ESO scenario
 # ======================================================================
-def run_scenario(d_base, observer_order, feedforward_on, load_type='ramp', omega_ob=100.0, cmd_rpm=50.0, verbose=True):
+def run_scenario(d_base, observer_order=4, feedforward_on=True, load_type='step', omega_ob=100.0, cmd_rpm=50.0, verbose=True, virtual_inertia_kd=0.0):
     """
     运行单次仿真。返回时间序列和关键波形数据。
 
@@ -115,8 +115,7 @@ def run_scenario(d_base, observer_order, feedforward_on, load_type='ramp', omega
     dd['user_system_input_code'] = f"CTRL.cmd_rpm = {cmd_rpm}\n"
 
     # --- 先自动整定 PI 参数 ---
-    if not dd.get('skip_tuning', False):
-        tuner.tunner_wrapper(dd)
+    tuner.tunner_wrapper(dd)
     if dd.get('override_speed_ki') is not None:
         dd['VL_SERIES_KI'] = dd['override_speed_ki']
 
@@ -138,6 +137,16 @@ def run_scenario(d_base, observer_order, feedforward_on, load_type='ramp', omega
 
     # 获取全局对象 (包含已整定的 PI 参数)
     CTRL, ACM, reg_id, reg_iq, reg_speed, reg_dispX, reg_dispY = sim.get_global_objects()
+    
+    if virtual_inertia_kd > 0.0:
+        from tutorials_ep6_svpwm import The_PID_Regulator
+        local_Kp = dd['VL_SERIES_KP']
+        local_Ki = dd['VL_SERIES_KP'] * dd['VL_SERIES_KI']
+        local_Kd = virtual_inertia_kd
+        local_tau = 0.0005 # differentiator filtering time constant
+        local_OutLimit = dd['VL_LIMIT_OVERLOAD_FACTOR'] * 1.414 * dd['init_IN']
+        local_IntLimit = local_OutLimit
+        reg_speed = The_PID_Regulator(local_Kp, local_Ki, local_Kd, local_tau, local_OutLimit, local_IntLimit, CTRL.VL_TS)
 
     # --- 配置连续且高分辨率的负载模型 ---
     if load_type == 'ramp':
@@ -575,11 +584,6 @@ if __name__ == '__main__':
                         help="Observer bandwidth in rad/s (default: 100.0)")
     parser.add_argument('--cmd_rpm', type=float, default=50.0,
                         help="Constant speed command in rpm (default: 50.0)")
-    parser.add_argument('--Rs', type=float, default=None, help="Override stator resistance (init_R)")
-    parser.add_argument('--Ld', type=float, default=None, help="Override d-axis inductance (init_Ld)")
-    parser.add_argument('--Lq', type=float, default=None, help="Override q-axis inductance (init_Lq)")
-    parser.add_argument('--KE', type=float, default=None, help="Override back-EMF constant (init_KE)")
-    parser.add_argument('--Js', type=float, default=None, help="Override rotor inertia (init_Js)")
     args = parser.parse_args()
 
     all_configs = {
@@ -595,14 +599,6 @@ if __name__ == '__main__':
         target_scenarios = args.scenarios
 
     d = get_base_d()
-    
-    # 覆盖电机硬参数 (若CLI有传入)
-    if args.Rs is not None: d['init_R'] = args.Rs
-    if args.Ld is not None: d['init_Ld'] = args.Ld
-    if args.Lq is not None: d['init_Lq'] = args.Lq
-    if args.KE is not None: d['init_KE'] = args.KE
-    if args.Js is not None: d['init_Js'] = args.Js
-    
     d['NUMBER_OF_SLICES'] = int(args.time / d['TIME_SLICE'])
     d['override_speed_ki'] = args.ki
     
