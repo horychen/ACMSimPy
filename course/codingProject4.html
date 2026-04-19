@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Coding Project 4 - Sensorless Speed and Load-Torque Observer</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"
+  onerror="this.onerror=null;this.href='vendor/katex/katex.min.css';">
+<script>
+(function(){
+  var CDN = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/";
+  var LOCAL = "vendor/katex/";
+  var files = ["katex.min.js", "contrib/auto-render.min.js"];
+  var idx = 0, TIMEOUT = 3000;
+  function renderMath() {
+    if (window.renderMathInElement) {
+      renderMathInElement(document.body, {
+        delimiters: [
+          {left:"$$", right:"$$", display:true},
+          {left:"$", right:"$", display:false}
+        ]
+      });
+    }
+  }
+  function loadScript(src, ok, fail) {
+    var s = document.createElement("script");
+    var done = false;
+    var timer = setTimeout(function(){ if(!done){ done = true; s.onload = s.onerror = null; fail(); } }, TIMEOUT);
+    s.src = src;
+    s.onload = function(){ if(!done){ done = true; clearTimeout(timer); ok(); } };
+    s.onerror = function(){ if(!done){ done = true; clearTimeout(timer); fail(); } };
+    document.head.appendChild(s);
+  }
+  function loadChain(base, fallback) {
+    if (idx >= files.length) { renderMath(); return; }
+    loadScript(base + files[idx], function(){ idx++; loadChain(base, fallback); }, function(){ if (fallback) { idx = 0; loadChain(fallback, null); } });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){ loadChain(CDN, LOCAL); });
+  } else {
+    loadChain(CDN, LOCAL);
+  }
+})();
+</script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0b1018;
+    --panel: rgba(17, 23, 37, 0.90);
+    --line: rgba(255,255,255,0.10);
+    --text: #eef4ff;
+    --soft: #bac6da;
+    --muted: #7e8ca3;
+    --gold: #efc46a;
+    --teal: #79dfd0;
+    --blue: #84a8ff;
+    --green: #9bdf93;
+    --rose: #efaaa2;
+    --shadow: 0 24px 80px rgba(0,0,0,0.34);
+    --font-display: "Palatino Linotype", Georgia, serif;
+    --font-body: Aptos, "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
+    --font-mono: "Cascadia Code", Consolas, monospace;
+  }
+  html { font-size: 16px; scroll-behavior: smooth; }
+  body {
+    min-height: 100vh;
+    font-family: var(--font-body);
+    color: var(--text);
+    background:
+      radial-gradient(circle at 14% 18%, rgba(132,168,255,0.17), transparent 29%),
+      radial-gradient(circle at 85% 8%, rgba(121,223,208,0.12), transparent 24%),
+      radial-gradient(circle at 50% 120%, rgba(239,196,106,0.10), transparent 34%),
+      linear-gradient(180deg, #070b12 0%, #0c111a 54%, #070b12 100%);
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  body[data-lang="en"] .lang-zh { display: none !important; }
+  body[data-lang="zh"] .lang-en { display: none !important; }
+  .app { width: min(1140px, calc(100vw - 20px)); margin: 0 auto; padding: 14px 0 48px; }
+  .topbar { position: sticky; top: 8px; z-index: 30; display: flex; justify-content: flex-end; margin-bottom: 12px; }
+  .lang-switch { display: inline-flex; gap: 6px; padding: 6px; border: 1px solid var(--line); border-radius: 999px; background: rgba(11,15,24,0.84); backdrop-filter: blur(12px); box-shadow: var(--shadow); }
+  .lang-switch button { border: none; border-radius: 999px; min-width: 84px; padding: 9px 14px; font-size: 0.9rem; font-weight: 700; cursor: pointer; background: transparent; color: var(--soft); transition: 0.2s ease; }
+  .lang-switch button.active { background: linear-gradient(135deg, var(--gold), #ffe4a8); color: #1a1407; }
+  .lang-switch button:not(.active):hover { background: rgba(255,255,255,0.06); color: var(--text); }
+  .hero, .sidebar, .section { border: 1px solid var(--line); border-radius: 24px; background: var(--panel); backdrop-filter: blur(14px); box-shadow: var(--shadow); }
+  .hero { padding: 30px; margin-bottom: 14px; position: relative; overflow: hidden; }
+  .hero::before {
+    content: "";
+    position: absolute;
+    inset: -40px auto auto -40px;
+    width: 180px;
+    height: 180px;
+    background: radial-gradient(circle, rgba(132,168,255,0.16), transparent 70%);
+    pointer-events: none;
+  }
+  .eyebrow, .section-tag, .side-title, .pill {
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+  }
+  .eyebrow { display: inline-flex; align-items: center; gap: 10px; color: var(--gold); font-size: 0.72rem; margin-bottom: 14px; }
+  .eyebrow::before, .section-tag::before { content: ""; width: 32px; height: 1px; background: linear-gradient(90deg, currentColor, transparent); }
+  .hero h1 { font-family: var(--font-display); font-size: clamp(2.05rem, 4vw, 3.5rem); line-height: 1.06; font-weight: 500; letter-spacing: -0.03em; margin-bottom: 14px; max-width: 920px; }
+  .hero h1 em { font-style: normal; color: var(--teal); }
+  .lead { max-width: 920px; color: var(--soft); line-height: 1.84; font-size: 1rem; }
+  .meta-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 22px; }
+  .meta-card { border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,0.03); padding: 13px 14px; }
+  .meta-label { display: block; color: var(--muted); font-size: 0.68rem; margin-bottom: 6px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.16em; }
+  .meta-value { line-height: 1.58; font-size: 0.95rem; }
+  .layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 14px; align-items: start; }
+  .sidebar { position: sticky; top: 72px; padding: 18px; }
+  .side-title { color: var(--gold); font-size: 0.75rem; margin-bottom: 10px; }
+  .nav-list { list-style: none; display: grid; gap: 8px; margin-bottom: 14px; }
+  .nav-list a { display: block; padding: 10px 12px; border-radius: 12px; color: var(--soft); text-decoration: none; border: 1px solid transparent; transition: 0.2s ease; }
+  .nav-list a:hover { color: var(--text); background: rgba(255,255,255,0.04); border-color: var(--line); transform: translateX(3px); }
+  .side-note { border-top: 1px solid var(--line); padding-top: 12px; color: var(--muted); font-size: 0.86rem; line-height: 1.75; }
+  .main { display: grid; gap: 14px; }
+  .section { padding: 24px; opacity: 0; transform: translateY(18px); transition: opacity 0.55s ease, transform 0.55s ease; }
+  .section.visible { opacity: 1; transform: translateY(0); }
+  .section-tag { display: inline-flex; align-items: center; gap: 10px; color: var(--teal); font-size: 0.7rem; margin-bottom: 12px; }
+  h2 { font-family: var(--font-display); font-size: 1.68rem; font-weight: 500; margin-bottom: 12px; }
+  h3 { font-size: 1.04rem; color: var(--gold); margin: 18px 0 10px; }
+  h4 { font-size: 1rem; margin-bottom: 8px; color: var(--text); }
+  p, li { color: var(--soft); line-height: 1.82; font-size: 0.97rem; }
+  strong { color: var(--text); }
+  em { color: var(--teal); }
+  ul, ol { padding-left: 1.2rem; margin: 10px 0 14px; }
+  li + li { margin-top: 6px; }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .grid-2, .grid-3, .q-grid { display: grid; gap: 14px; margin-top: 16px; }
+  .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .q-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .card, .q-card, .callout, .eq-block, pre, .check, .table-wrap { border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,0.03); }
+  .card, .q-card, .table-wrap { padding: 18px; }
+  .callout, .eq-block, pre { padding: 16px 18px; margin: 16px 0; }
+  .callout--warn { background: rgba(239,196,106,0.08); border-color: rgba(239,196,106,0.24); }
+  .callout--ok { background: rgba(121,223,208,0.07); border-color: rgba(121,223,208,0.22); }
+  .callout--task { background: rgba(155,223,147,0.07); border-color: rgba(155,223,147,0.22); }
+  .callout--rose { background: rgba(239,170,162,0.07); border-color: rgba(239,170,162,0.22); }
+  .callout-title { display: block; color: var(--text); margin-bottom: 6px; font-weight: 700; }
+  .eq-block, pre { background: #101723; overflow-x: auto; }
+  pre code, code {
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+  }
+  code {
+    color: var(--teal);
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.06);
+    padding: 0.1rem 0.35rem;
+    border-radius: 8px;
+  }
+  pre code { background: none; border: none; padding: 0; color: #d9e6ff; }
+  .pill { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; color: var(--soft); font-size: 0.72rem; padding: 4px 9px; margin-right: 6px; margin-bottom: 6px; }
+  .q-index { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: rgba(132,168,255,0.14); color: var(--blue); font-family: var(--font-mono); font-size: 0.82rem; margin-bottom: 10px; }
+  .checklist { display: grid; gap: 10px; margin-top: 12px; }
+  .check { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; }
+  .check::before { content: "•"; flex: none; font-weight: 700; color: var(--green); margin-top: 1px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 13px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  th { color: var(--text); background: rgba(255,255,255,0.05); font-size: 0.9rem; }
+  td { color: var(--soft); line-height: 1.72; font-size: 0.94rem; }
+  tr:last-child td { border-bottom: none; }
+  .footer-note { margin-top: 16px; color: var(--muted); font-size: 0.88rem; }
+  .katex { color: var(--text); }
+  @media (max-width: 980px) {
+    .meta-grid, .layout, .grid-3, .grid-2, .q-grid { grid-template-columns: 1fr; }
+    .sidebar, .topbar { position: static; }
+  }
+  @media (max-width: 640px) {
+    .app { width: min(100vw - 14px, 1140px); padding-top: 10px; }
+    .hero, .sidebar, .section { padding: 20px; border-radius: 20px; }
+    .lang-switch { width: 100%; }
+    .lang-switch button { flex: 1; min-width: 0; }
+    h2 { font-size: 1.44rem; }
+    .lead, p, li { font-size: 0.95rem; }
+    .table-wrap { overflow-x: auto; }
+    table { min-width: 560px; }
+  }
+</style>
+</head>
+<body data-lang="en">
+<div class="app">
+  <div class="topbar">
+    <div class="lang-switch" aria-label="Language switch">
+      <button id="btn-en" class="active" type="button" onclick="setLang('en')">English</button>
+      <button id="btn-zh" type="button" onclick="setLang('zh')">中文</button>
+    </div>
+  </div>
+
+  <header class="hero">
+    <div class="eyebrow">Coding Project 4 / Sensorless Speed and Load-Torque Observer</div>
+    <h1>
+      <span class="lang-en">Can an <em>observer</em> replace the missing speed sensor well enough for control?</span>
+      <span class="lang-zh">一个 <em>observer</em> 能不能把缺失的速度传感器“补”到足够好？</span>
+    </h1>
+    <p class="lead">
+      <span class="lang-en">This project turns Chapter 4 into evidence. You will use the observer already embedded in the simulation to reconstruct speed and load torque, vary the observer bandwidth, compare medium-speed and low-speed operation, and decide when the estimate is good enough for control instead of only “looking similar.”</span>
+      <span class="lang-zh">这个项目的目标是把 Chapter 4 变成可验证的证据。你将使用仿真里已经写好的 observer 来重建速度和负载转矩，改变 observer 带宽，对比中速与低速工况，并判断这个估计是否真的“足够用于控制”，而不仅仅是“看起来差不多”。</span>
+    </p>
+    <div class="meta-grid">
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Core scripts</span><span class="lang-zh">核心脚本</span></span>
+        <div class="meta-value"><code>simulation/tutorials_ep6_svpwm.py</code><br><code>simulation/demo_4th_order_ESO.py</code></div>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Support script</span><span class="lang-zh">辅助脚本</span></span>
+        <div class="meta-value"><code>simulation/tuner.py</code></div>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Report format</span><span class="lang-zh">报告格式</span></span>
+        <div class="meta-value">PDF / 4 required figures</div>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Main variable</span><span class="lang-zh">关键参数</span></span>
+        <div class="meta-value"><code>omega_ob</code> and <code>ell1</code> ... <code>ell4</code></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="side-title"><span class="lang-en">Contents</span><span class="lang-zh">目录</span></div>
+      <ul class="nav-list">
+        <li><a href="#goal"><span class="lang-en">Goal</span><span class="lang-zh">目标</span></a></li>
+        <li><a href="#setup"><span class="lang-en">Setup</span><span class="lang-zh">环境与资源</span></a></li>
+        <li><a href="#code-map"><span class="lang-en">Code map</span><span class="lang-zh">代码地图</span></a></li>
+        <li><a href="#experiments"><span class="lang-en">Required experiments</span><span class="lang-zh">必做实验</span></a></li>
+        <li><a href="#figures"><span class="lang-en">Four required figures</span><span class="lang-zh">4 张必做图</span></a></li>
+        <li><a href="#questions"><span class="lang-en">Analysis questions</span><span class="lang-zh">分析问题</span></a></li>
+        <li><a href="#report"><span class="lang-en">Report requirements</span><span class="lang-zh">报告要求</span></a></li>
+      </ul>
+      <div class="side-note">
+        <span class="lang-en">Use the built-in observer first. You are not asked to invent a new observer from scratch; you are asked to understand, instrument, and verify the one in the codebase.</span>
+        <span class="lang-zh">先用代码里已经存在的 observer。这个项目不是让你从零发明一个新 observer，而是让你读懂、加仪表、并验证现有实现。</span>
+      </div>
+    </aside>
+
+    <main class="main">
+      <section class="section" id="goal">
+        <div class="section-tag">Project Goal / What You Must Show</div>
+        <h2><span class="lang-en">Turn the observer into measurable evidence</span><span class="lang-zh">把 observer 变成可验证的证据</span></h2>
+        <p>
+          <span class="lang-en">Your final report should answer one main question: <strong>without directly measuring mechanical speed, can the observer reconstruct speed and load torque accurately enough to support motor control?</strong></span>
+          <span class="lang-zh">你的最终报告要回答一个主问题：<strong>在不直接测量机械转速的前提下，observer 能否足够准确地重建速度和负载转矩，从而支撑电机控制？</strong></span>
+        </p>
+        <div class="grid-2">
+          <div class="card">
+            <h4><span class="lang-en">You must investigate</span><span class="lang-zh">你必须研究</span></h4>
+            <ul>
+              <li><span class="lang-en">speed estimation accuracy</span><span class="lang-zh">速度估计精度</span></li>
+              <li><span class="lang-en">load-torque or disturbance reconstruction quality</span><span class="lang-zh">负载转矩或扰动重建质量</span></li>
+              <li><span class="lang-en">effect of observer bandwidth</span><span class="lang-zh">观察器带宽影响</span></li>
+              <li><span class="lang-en">low-speed observability degradation</span><span class="lang-zh">低速可观测性恶化</span></li>
+            </ul>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">You are not required to</span><span class="lang-zh">你不必做</span></h4>
+            <ul>
+              <li><span class="lang-en">derive every proof in Chapter 4</span><span class="lang-zh">把 Chapter 4 的证明全部推完</span></li>
+              <li><span class="lang-en">design a brand-new observer structure</span><span class="lang-zh">从头设计一个全新的 observer</span></li>
+              <li><span class="lang-en">build an online submission page</span><span class="lang-zh">做在线提交页面</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="callout callout--task">
+          <span class="callout-title"><span class="lang-en">Core deliverable</span><span class="lang-zh">核心交付物</span></span>
+          <span class="lang-en">Use figures and short quantitative commentary to convince the reader that you understand <em>when</em> the observer works, <em>why</em> it works, and <em>where</em> it starts to fail.</span>
+          <span class="lang-zh">你要用图和简洁的定量分析，让读者相信你真正理解了 observer <em>什么时候有效</em>、<em>为什么有效</em>、以及 <em>从哪里开始失效</em>。</span>
+        </div>
+      </section>
+
+      <section class="section" id="setup">
+        <div class="section-tag">Setup / Repo and Environment</div>
+        <h2><span class="lang-en">Where to run the experiments</span><span class="lang-zh">实验从哪里开始</span></h2>
+        <p>
+          <span class="lang-en">If you already have the course repository locally, use it directly. If you need a fresh copy, you can clone <a href="https://github.com/horychen/ee275">horychen/ee275</a> via <code>https://github.com/horychen/ee275.git</code>. Environment notes are in the <a href="https://github.com/horychen/ee275/blob/master/README.md">README</a>.</span>
+          <span class="lang-zh">如果你已经在本地有课程仓库，直接使用即可。如果需要一份新副本，可以通过 <code>https://github.com/horychen/ee275.git</code> 克隆 <a href="https://github.com/horychen/ee275">horychen/ee275</a>。环境配置说明见 <a href="https://github.com/horychen/ee275/blob/master/README.md">README</a>。</span>
+        </p>
+        <pre><code>python simulation/demo_4th_order_ESO.py --time 1.5 --scenarios 4_ON --loads sine --omega_ob 100 --cmd_rpm 50</code></pre>
+        <p>
+          <span class="lang-en">The command above is only a convenient starting point. You may also work directly inside <code>simulation/tutorials_ep6_svpwm.py</code> if you want full control over which signals are logged and plotted.</span>
+          <span class="lang-zh">上面的命令只是一个方便的起点。如果你想完全控制记录信号和绘图方式，也可以直接在 <code>simulation/tutorials_ep6_svpwm.py</code> 里做实验。</span>
+        </p>
+      </section>
+
+      <section class="section" id="code-map">
+        <div class="section-tag">Code Map / Where the Observer Lives</div>
+        <h2><span class="lang-en">Read these places before editing anything</span><span class="lang-zh">动手前先看这些位置</span></h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th><span class="lang-en">File or object</span><span class="lang-zh">文件或对象</span></th>
+                <th><span class="lang-en">What to inspect</span><span class="lang-zh">看什么</span></th>
+                <th><span class="lang-en">Why it matters</span><span class="lang-zh">为什么重要</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>simulation/tutorials_ep6_svpwm.py</code></td>
+                <td><span class="lang-en"><code>DYNAMICS_SpeedObserver</code>, <code>CTRL.xS[...]</code>, <code>CTRL.ell1</code> ... <code>CTRL.ell4</code></span><span class="lang-zh"><code>DYNAMICS_SpeedObserver</code>、<code>CTRL.xS[...]</code>、<code>CTRL.ell1</code> 到 <code>CTRL.ell4</code></span></td>
+                <td><span class="lang-en">This is the actual observer state update used during simulation.</span><span class="lang-zh">这里就是仿真中真正执行的 observer 状态更新。</span></td>
+              </tr>
+              <tr>
+                <td><code>CTRL.xS[0:4]</code></td>
+                <td><span class="lang-en">estimated angle, speed, disturbance, disturbance-rate</span><span class="lang-zh">估计角度、估计速度、估计扰动、扰动变化率</span></td>
+                <td><span class="lang-en">These are the main signals you will compare against ground truth.</span><span class="lang-zh">这些就是你要和真实量进行对比的核心波形。</span></td>
+              </tr>
+              <tr>
+                <td><code>ACM.custom_load_type</code></td>
+                <td><span class="lang-en">step, ramp, sine, sweep load injection</span><span class="lang-zh">step、ramp、sine、sweep 负载注入</span></td>
+                <td><span class="lang-en">Use this to create disturbances with different time scales and frequencies.</span><span class="lang-zh">用它构造不同时间尺度和频率特性的扰动。</span></td>
+              </tr>
+              <tr>
+                <td><code>simulation/demo_4th_order_ESO.py</code></td>
+                <td><span class="lang-en">quick scenario runner, plotting, bandwidth parameter <code>omega_ob</code></span><span class="lang-zh">快速跑场景、绘图、调 <code>omega_ob</code></span></td>
+                <td><span class="lang-en">Fastest route if you want evidence first and code refactoring later.</span><span class="lang-zh">如果你想先拿到实验现象、后做细化，这是最快路径。</span></td>
+              </tr>
+              <tr>
+                <td><code>simulation/tuner.py</code></td>
+                <td><span class="lang-en">auto-tuning of PI loops</span><span class="lang-zh">PI 参数自动整定</span></td>
+                <td><span class="lang-en">Keeps the current and speed loops in a reasonable regime while you focus on the observer.</span><span class="lang-zh">让电流环和速度环保持在合理工作区间，方便你把注意力放到 observer 上。</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout callout--warn">
+          <span class="callout-title"><span class="lang-en">Important sign and unit note</span><span class="lang-zh">重要的符号和单位提醒</span></span>
+          <span class="lang-en"><code>CTRL.xS[1]</code> is the observer speed state. Depending on how you log data, it may need conversion from electrical speed to mechanical rpm. Also, <code>CTRL.xS[2]</code> is the estimated disturbance and often has the opposite sign of <code>ACM.TLoad</code>, so plotting <code>-CTRL.xS[2]</code> against <code>ACM.TLoad</code> is usually the meaningful comparison.</span>
+          <span class="lang-zh"><code>CTRL.xS[1]</code> 是 observer 的速度状态。根据你的取数方式，它可能需要从电角速度换算成机械 rpm。另一个关键点是 <code>CTRL.xS[2]</code> 表示估计扰动，通常与 <code>ACM.TLoad</code> 符号相反，所以实际比较时往往应画 <code>-CTRL.xS[2]</code> 与 <code>ACM.TLoad</code>。</span>
+        </div>
+      </section>
+
+      <section class="section" id="experiments">
+        <div class="section-tag">Experiments / Minimum Work</div>
+        <h2><span class="lang-en">Complete these four experiment blocks</span><span class="lang-zh">完成这四组实验</span></h2>
+        <div class="grid-2">
+          <div class="card">
+            <h4><span class="lang-en">Part A - Baseline speed estimation</span><span class="lang-zh">Part A - 基线速度估计</span></h4>
+            <p>
+              <span class="lang-en">Run the observer at a moderate constant speed command, for example 50 rpm. Compare actual speed with estimated speed. Confirm that the estimate is not only close in steady state, but also acceptable during transient load changes.</span>
+              <span class="lang-zh">在一个中等恒速指令下运行 observer，例如 50 rpm。比较真实速度和估计速度。不要只看稳态，要确认在负载变化的暂态中估计是否仍然可接受。</span>
+            </p>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">Part B - Load-torque reconstruction</span><span class="lang-zh">Part B - 负载转矩重建</span></h4>
+            <p>
+              <span class="lang-en">Inject a time-varying load, preferably sine or sweep. Compare actual load torque with the disturbance estimate. Report whether the observer captures amplitude, phase, and delay well enough.</span>
+              <span class="lang-zh">注入一个随时间变化的负载，优先推荐 sine 或 sweep。比较真实负载转矩与扰动估计，说明 observer 是否能把幅值、相位和延迟都跟上。</span>
+            </p>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">Part C - Bandwidth sweep</span><span class="lang-zh">Part C - 带宽扫描</span></h4>
+            <p>
+              <span class="lang-en">Choose at least three observer bandwidth values such as 50, 100, and 200 rad/s. Keep the rest of the setup fixed. Compare response speed, lag, and noise sensitivity.</span>
+              <span class="lang-zh">至少选择三个 observer 带宽值，例如 50、100、200 rad/s。其余设置保持不变。比较响应快慢、滞后程度和噪声敏感性。</span>
+            </p>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">Part D - Low-speed observability test</span><span class="lang-zh">Part D - 低速可观测性测试</span></h4>
+            <p>
+              <span class="lang-en">Use the same observer and disturbance type at two operating points: one medium speed and one low or near-zero speed. Explain how the quality of speed and load reconstruction changes and connect it to observability.</span>
+              <span class="lang-zh">在两个工况下使用同一个 observer 和同一种扰动：一个中速，一个低速或接近零速。解释速度和负载重建质量如何变化，并把现象和可观测性联系起来。</span>
+            </p>
+          </div>
+        </div>
+        <div class="callout callout--ok">
+          <span class="callout-title"><span class="lang-en">Recommended practical shortcut</span><span class="lang-zh">推荐的实践捷径</span></span>
+          <span class="lang-en">If you want to move quickly, use <code>simulation/demo_4th_order_ESO.py</code> to generate baseline figures first, then go back to <code>simulation/tutorials_ep6_svpwm.py</code> to verify where the signals are coming from.</span>
+          <span class="lang-zh">如果你想先快速拿到现象，先用 <code>simulation/demo_4th_order_ESO.py</code> 生成基线图，再回到 <code>simulation/tutorials_ep6_svpwm.py</code> 查清楚这些信号究竟从哪里来。</span>
+        </div>
+      </section>
+
+      <section class="section" id="figures">
+        <div class="section-tag">Required Figures / Final PDF</div>
+        <h2><span class="lang-en">The final PDF must contain these 4 figures</span><span class="lang-zh">最终 PDF 必须包含这 4 张图</span></h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th><span class="lang-en">Figure</span><span class="lang-zh">图</span></th>
+                <th><span class="lang-en">What to plot</span><span class="lang-zh">画什么</span></th>
+                <th><span class="lang-en">What to discuss</span><span class="lang-zh">要讨论什么</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Figure 1</strong></td>
+                <td><span class="lang-en">Actual speed vs estimated speed under a medium-speed operating point.</span><span class="lang-zh">中速工况下，真实速度与估计速度的对比图。</span></td>
+                <td><span class="lang-en">Steady-state accuracy, transient lag, and whether the estimate is smooth enough to be used for control.</span><span class="lang-zh">稳态精度、暂态滞后，以及估计是否平滑到足以用于控制。</span></td>
+              </tr>
+              <tr>
+                <td><strong>Figure 2</strong></td>
+                <td><span class="lang-en">Actual load torque vs estimated disturbance, preferably with a sine or sweep load.</span><span class="lang-zh">真实负载转矩与估计扰动的对比，最好使用 sine 或 sweep 负载。</span></td>
+                <td><span class="lang-en">Amplitude tracking, phase lag, and sign convention. If needed, compare <code>ACM.TLoad</code> with <code>-CTRL.xS[2]</code>.</span><span class="lang-zh">幅值跟踪、相位滞后和符号关系。如有需要，用 <code>ACM.TLoad</code> 与 <code>-CTRL.xS[2]</code> 比较。</span></td>
+              </tr>
+              <tr>
+                <td><strong>Figure 3</strong></td>
+                <td><span class="lang-en">Bandwidth comparison for at least three <code>omega_ob</code> values under the same test condition.</span><span class="lang-zh">同一测试条件下，至少三个 <code>omega_ob</code> 的带宽对比图。</span></td>
+                <td><span class="lang-en">Why larger bandwidth usually reduces lag but increases sensitivity to noise or ripple.</span><span class="lang-zh">为什么更大的带宽通常能减小滞后，但会增加对噪声或纹波的敏感性。</span></td>
+              </tr>
+              <tr>
+                <td><strong>Figure 4</strong></td>
+                <td><span class="lang-en">Same observer and disturbance, compared at medium speed and low or near-zero speed.</span><span class="lang-zh">同一个 observer、同一种扰动，在中速和低速或近零速下的对比图。</span></td>
+                <td><span class="lang-en">Use this figure to explain observability degradation at low speed.</span><span class="lang-zh">用这张图解释低速下的可观测性恶化。</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout callout--task">
+          <span class="callout-title"><span class="lang-en">Important requirement</span><span class="lang-zh">重要要求</span></span>
+          <span class="lang-en">These four figures are the minimum. Do not submit a PDF with screenshots only. Every figure must have a caption and at least 2-4 sentences of interpretation.</span>
+          <span class="lang-zh">这四张图是最低要求。不要只放截图。每张图都必须有图注，并附带至少 2-4 句解释。</span>
+        </div>
+      </section>
+
+      <section class="section" id="questions">
+        <div class="section-tag">Analysis Questions / What Your Report Must Answer</div>
+        <h2><span class="lang-en">Use the four figures to answer these questions</span><span class="lang-zh">基于四张图回答这些问题</span></h2>
+        <div class="q-grid">
+          <div class="q-card">
+            <div class="q-index">Q1</div>
+            <p><span class="lang-en">When the observer estimates speed well, what evidence tells you it is good enough for feedback control rather than just visually close?</span><span class="lang-zh">当 observer 的速度估计“看起来不错”时，什么证据能说明它真的足以进入反馈控制，而不只是波形看着接近？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q2</div>
+            <p><span class="lang-en">For load-torque reconstruction, which matters more in your experiment: amplitude error, phase lag, or noise? Why?</span><span class="lang-zh">在负载转矩重建实验里，幅值误差、相位滞后和噪声哪一个更关键？为什么？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q3</div>
+            <p><span class="lang-en">How does increasing <code>omega_ob</code> change <code>ell1</code> to <code>ell4</code>, and why does that affect both convergence speed and noise sensitivity?</span><span class="lang-zh">增大 <code>omega_ob</code> 会如何改变 <code>ell1</code> 到 <code>ell4</code>，以及为什么这会同时影响收敛速度和噪声敏感性？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q4</div>
+            <p><span class="lang-en">Why does the same observer usually look worse at low speed? Is this only because tuning is bad?</span><span class="lang-zh">为什么同一个 observer 在低速下通常表现更差？这只是调参不好吗？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q5</div>
+            <p><span class="lang-en">If you compare medium-speed and low-speed cases, which signals still remain reliable and which become ambiguous?</span><span class="lang-zh">比较中速和低速工况时，哪些信号仍然可靠，哪些信息开始变得含糊？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q6</div>
+            <p><span class="lang-en">What is the practical tradeoff when observer bandwidth is too high or too low?</span><span class="lang-zh">observer 带宽过高或过低，各自会带来什么实际代价？</span></p>
+          </div>
+        </div>
+        <div class="callout callout--rose">
+          <span class="callout-title"><span class="lang-en">Good reports do this</span><span class="lang-zh">好报告会这样写</span></span>
+          <span class="lang-en">Do not only say “the curves match well.” Say where they stop matching, how much lag appears, which operating point is hardest, and how this connects to the observer structure in the code.</span>
+          <span class="lang-zh">不要只写“曲线基本吻合”。要明确指出从哪里开始不吻合、滞后大概多大、哪个工况最难，以及这些现象如何与代码中的 observer 结构对应起来。</span>
+        </div>
+      </section>
+
+      <section class="section" id="report">
+        <div class="section-tag">Report / PDF Only</div>
+        <h2><span class="lang-en">Suggested PDF structure</span><span class="lang-zh">建议的 PDF 结构</span></h2>
+        <div class="grid-2">
+          <div class="card">
+            <h4><span class="lang-en">Recommended outline</span><span class="lang-zh">推荐提纲</span></h4>
+            <ol>
+              <li><span class="lang-en">Objective and test setup</span><span class="lang-zh">实验目标与设置</span></li>
+              <li><span class="lang-en">Observer signals and relevant code locations</span><span class="lang-zh">observer 信号与相关代码位置</span></li>
+              <li><span class="lang-en">Figure 1 to Figure 4</span><span class="lang-zh">图 1 到图 4</span></li>
+              <li><span class="lang-en">Answers to Q1-Q6</span><span class="lang-zh">Q1-Q6 的回答</span></li>
+              <li><span class="lang-en">Short conclusion: where the observer works and where it struggles</span><span class="lang-zh">简短结论：observer 在哪里好用、在哪里吃力</span></li>
+            </ol>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">Checklist before export</span><span class="lang-zh">导出 PDF 前检查</span></h4>
+            <div class="checklist">
+              <div class="check"><span class="lang-en">All 4 required figures are present.</span><span class="lang-zh">4 张必做图齐全。</span></div>
+              <div class="check"><span class="lang-en">Axes, units, and legends are readable.</span><span class="lang-zh">坐标轴、单位和图例清楚可读。</span></div>
+              <div class="check"><span class="lang-en">The report explains sign convention for load estimate if needed.</span><span class="lang-zh">如有需要，说明负载估计的符号关系。</span></div>
+              <div class="check"><span class="lang-en">The report explicitly discusses low-speed observability degradation.</span><span class="lang-zh">明确讨论低速可观测性恶化。</span></div>
+              <div class="check"><span class="lang-en">Bandwidth conclusions are supported by figures, not only intuition.</span><span class="lang-zh">带宽结论由图支撑，而不是只靠直觉。</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="footer-note"><span class="lang-en">Suggested filename: <code>codingProject4_name.pdf</code></span><span class="lang-zh">建议文件名：<code>codingProject4_姓名.pdf</code></span></p>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script>
+function setLang(lang) {
+  document.body.setAttribute('data-lang', lang);
+  var btnEn = document.getElementById('btn-en');
+  var btnZh = document.getElementById('btn-zh');
+  btnEn.classList.toggle('active', lang === 'en');
+  btnZh.classList.toggle('active', lang === 'zh');
+  try { localStorage.setItem('ee275-lang', lang); } catch (e) {}
+}
+(function(){
+  var lang = 'en';
+  try {
+    var saved = localStorage.getItem('ee275-lang');
+    if (saved === 'en' || saved === 'zh') lang = saved;
+  } catch (e) {}
+  setLang(lang);
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(entry){
+      if (entry.isIntersecting) entry.target.classList.add('visible');
+    });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.section').forEach(function(el){ io.observe(el); });
+})();
+</script>
+</body>
+</html>

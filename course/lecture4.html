@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Lecture 4 - Sensorless Control and Observer</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"
+  onerror="this.onerror=null;this.href='vendor/katex/katex.min.css';">
+<script>
+(function(){
+  var CDN = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/";
+  var LOCAL = "vendor/katex/";
+  var files = ["katex.min.js", "contrib/auto-render.min.js"];
+  var idx = 0, TIMEOUT = 3000;
+  function renderMath() {
+    if (window.renderMathInElement) {
+      renderMathInElement(document.body, {
+        delimiters: [
+          {left:"$$", right:"$$", display:true},
+          {left:"$", right:"$", display:false}
+        ]
+      });
+    }
+  }
+  function loadScript(src, ok, fail) {
+    var s = document.createElement("script");
+    var done = false;
+    var timer = setTimeout(function(){ if(!done){ done = true; s.onload = s.onerror = null; fail(); } }, TIMEOUT);
+    s.src = src;
+    s.onload = function(){ if(!done){ done = true; clearTimeout(timer); ok(); } };
+    s.onerror = function(){ if(!done){ done = true; clearTimeout(timer); fail(); } };
+    document.head.appendChild(s);
+  }
+  function loadChain(base, fallback) {
+    if (idx >= files.length) { renderMath(); return; }
+    loadScript(base + files[idx], function(){ idx++; loadChain(base, fallback); }, function(){ if (fallback) { idx = 0; loadChain(fallback, null); } });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){ loadChain(CDN, LOCAL); });
+  } else {
+    loadChain(CDN, LOCAL);
+  }
+})();
+</script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #081019;
+    --panel: rgba(14, 20, 33, 0.88);
+    --line: rgba(255,255,255,0.10);
+    --text: #edf3ff;
+    --soft: #b7c5db;
+    --muted: #7d8aa3;
+    --gold: #efc56b;
+    --teal: #7bded0;
+    --blue: #86a7ff;
+    --rose: #f1a6a0;
+    --shadow: 0 24px 80px rgba(0,0,0,0.35);
+    --font-display: "Palatino Linotype", Georgia, serif;
+    --font-body: Aptos, "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
+    --font-mono: "Cascadia Code", Consolas, monospace;
+  }
+  html { font-size: 16px; scroll-behavior: smooth; }
+  body {
+    min-height: 100vh;
+    font-family: var(--font-body);
+    color: var(--text);
+    background:
+      radial-gradient(circle at 16% 18%, rgba(123,222,208,0.14), transparent 28%),
+      radial-gradient(circle at 84% 12%, rgba(134,167,255,0.14), transparent 24%),
+      radial-gradient(circle at 50% 120%, rgba(239,197,107,0.10), transparent 34%),
+      linear-gradient(180deg, #060b12 0%, #09111b 52%, #060b12 100%);
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  body[data-lang="en"] .lang-zh { display: none !important; }
+  body[data-lang="zh"] .lang-en { display: none !important; }
+  .app { width: min(1140px, calc(100vw - 20px)); margin: 0 auto; padding: 14px 0 48px; }
+  .topbar { position: sticky; top: 8px; z-index: 30; display: flex; justify-content: flex-end; margin-bottom: 12px; }
+  .lang-switch { display: inline-flex; gap: 6px; padding: 6px; border: 1px solid var(--line); border-radius: 999px; background: rgba(10,14,22,0.84); backdrop-filter: blur(12px); box-shadow: var(--shadow); }
+  .lang-switch button { border: none; border-radius: 999px; min-width: 84px; padding: 9px 14px; font-size: 0.9rem; font-weight: 700; cursor: pointer; background: transparent; color: var(--soft); transition: 0.2s ease; }
+  .lang-switch button.active { background: linear-gradient(135deg, var(--gold), #ffe4ac); color: #1b1407; }
+  .lang-switch button:not(.active):hover { background: rgba(255,255,255,0.06); color: var(--text); }
+  .hero, .sidebar, .section { border: 1px solid var(--line); border-radius: 24px; background: var(--panel); backdrop-filter: blur(14px); box-shadow: var(--shadow); }
+  .hero { padding: 30px; margin-bottom: 14px; overflow: hidden; position: relative; }
+  .hero::after {
+    content: "";
+    position: absolute;
+    right: -30px;
+    bottom: -70px;
+    width: 220px;
+    height: 220px;
+    background: radial-gradient(circle, rgba(123,222,208,0.18), transparent 70%);
+    pointer-events: none;
+  }
+  .eyebrow, .section-tag, .side-title, .pill {
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+  }
+  .eyebrow { display: inline-flex; align-items: center; gap: 10px; color: var(--gold); font-size: 0.72rem; margin-bottom: 14px; }
+  .eyebrow::before, .section-tag::before { content: ""; width: 32px; height: 1px; background: linear-gradient(90deg, currentColor, transparent); }
+  .hero h1 { font-family: var(--font-display); font-size: clamp(2.1rem, 4vw, 3.6rem); line-height: 1.06; font-weight: 500; letter-spacing: -0.03em; margin-bottom: 14px; max-width: 920px; }
+  .hero h1 em { font-style: normal; color: var(--teal); }
+  .lead { max-width: 920px; color: var(--soft); line-height: 1.84; font-size: 1rem; }
+  .meta-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 22px; }
+  .meta-card { border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,0.03); padding: 13px 14px; }
+  .meta-label { display: block; color: var(--muted); font-size: 0.68rem; margin-bottom: 6px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.16em; }
+  .meta-value { line-height: 1.58; font-size: 0.95rem; }
+  .layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 14px; align-items: start; }
+  .sidebar { position: sticky; top: 72px; padding: 18px; }
+  .side-title { color: var(--gold); font-size: 0.75rem; margin-bottom: 10px; }
+  .nav-list { list-style: none; display: grid; gap: 8px; margin-bottom: 14px; }
+  .nav-list a { display: block; padding: 10px 12px; border-radius: 12px; color: var(--soft); text-decoration: none; border: 1px solid transparent; transition: 0.2s ease; }
+  .nav-list a:hover { color: var(--text); background: rgba(255,255,255,0.04); border-color: var(--line); transform: translateX(3px); }
+  .side-note { border-top: 1px solid var(--line); padding-top: 12px; color: var(--muted); font-size: 0.86rem; line-height: 1.75; }
+  .main { display: grid; gap: 14px; }
+  .section { padding: 24px; opacity: 0; transform: translateY(18px); transition: opacity 0.55s ease, transform 0.55s ease; }
+  .section.visible { opacity: 1; transform: translateY(0); }
+  .section-tag { display: inline-flex; align-items: center; gap: 10px; color: var(--teal); font-size: 0.7rem; margin-bottom: 12px; }
+  h2 { font-family: var(--font-display); font-size: 1.68rem; font-weight: 500; margin-bottom: 12px; }
+  h3 { font-size: 1.04rem; color: var(--gold); margin: 18px 0 10px; }
+  h4 { font-size: 1rem; margin-bottom: 8px; color: var(--text); }
+  p, li { color: var(--soft); line-height: 1.82; font-size: 0.97rem; }
+  strong { color: var(--text); }
+  em { color: var(--teal); }
+  ul, ol { padding-left: 1.2rem; margin: 10px 0 14px; }
+  li + li { margin-top: 6px; }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .grid-2, .grid-3, .q-grid, .concept-grid { display: grid; gap: 14px; margin-top: 16px; }
+  .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .q-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .concept-grid { grid-template-columns: 1.1fr 0.9fr; }
+  .card, .q-card, .callout, .eq-block, .matrix, .check { border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,0.03); }
+  .card, .q-card, .matrix { padding: 18px; }
+  .callout, .eq-block { padding: 16px 18px; margin: 16px 0; }
+  .callout--warn { background: rgba(239,197,107,0.08); border-color: rgba(239,197,107,0.24); }
+  .callout--ok { background: rgba(123,222,208,0.07); border-color: rgba(123,222,208,0.22); }
+  .callout--rose { background: rgba(241,166,160,0.07); border-color: rgba(241,166,160,0.22); }
+  .callout-title { display: block; color: var(--text); margin-bottom: 6px; font-weight: 700; }
+  .eq-block { background: #101823; overflow-x: auto; }
+  code {
+    font-family: var(--font-mono);
+    color: var(--teal);
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.06);
+    padding: 0.1rem 0.35rem;
+    border-radius: 8px;
+  }
+  .pill { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; color: var(--soft); font-size: 0.72rem; padding: 4px 9px; margin-right: 6px; margin-bottom: 6px; }
+  .matrix { display: grid; gap: 10px; }
+  .matrix-row { display: grid; grid-template-columns: 140px 1fr; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  .matrix-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .matrix-key { color: var(--gold); font-family: var(--font-mono); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.14em; }
+  .q-index { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: rgba(134,167,255,0.14); color: var(--blue); font-family: var(--font-mono); font-size: 0.82rem; margin-bottom: 10px; }
+  .checklist { display: grid; gap: 10px; margin-top: 12px; }
+  .check { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; }
+  .check::before { content: "•"; flex: none; font-weight: 700; color: var(--teal); margin-top: 1px; }
+  .footer-note { margin-top: 16px; color: var(--muted); font-size: 0.88rem; }
+  .katex { color: var(--text); }
+  @media (max-width: 980px) {
+    .meta-grid, .layout, .grid-3, .grid-2, .q-grid, .concept-grid { grid-template-columns: 1fr; }
+    .sidebar, .topbar { position: static; }
+  }
+  @media (max-width: 640px) {
+    .app { width: min(100vw - 14px, 1140px); padding-top: 10px; }
+    .hero, .sidebar, .section { padding: 20px; border-radius: 20px; }
+    .lang-switch { width: 100%; }
+    .lang-switch button { flex: 1; min-width: 0; }
+    h2 { font-size: 1.44rem; }
+    .lead, p, li { font-size: 0.95rem; }
+    .matrix-row { grid-template-columns: 1fr; gap: 6px; }
+  }
+</style>
+</head>
+<body data-lang="en">
+<div class="app">
+  <div class="topbar">
+    <div class="lang-switch" aria-label="Language switch">
+      <button id="btn-en" class="active" type="button" onclick="setLang('en')">English</button>
+      <button id="btn-zh" type="button" onclick="setLang('zh')">中文</button>
+    </div>
+  </div>
+
+  <header class="hero">
+    <div class="eyebrow">Lecture 4 / Sensorless Control and Observer</div>
+    <h1>
+      <span class="lang-en">Sensorless control is really an <em>observer problem</em></span>
+      <span class="lang-zh">Sensorless control 的主线，本质上是一个 <em>observer 问题</em></span>
+    </h1>
+    <p class="lead">
+      <span class="lang-en">This lecture reorganizes Chapter 4 around one practical question: when the controller needs speed, flux, or disturbance information that sensors do not directly provide, how do we reconstruct those states online? The answer is not “no sensor,” but <strong>measured signals + model-based prediction + innovation correction</strong>.</span>
+      <span class="lang-zh">这一讲不按 Chapter 4 的顺序硬讲，而是围绕一个工程问题重组内容：当控制器需要速度、磁链、扰动等信息，而传感器又不能直接提供时，我们怎样在线重建这些状态？答案不是“没有传感器”，而是 <strong>测量信号 + 模型预测 + 创新校正</strong>。</span>
+    </p>
+    <div class="meta-grid">
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Reading focus</span><span class="lang-zh">重点阅读</span></span>
+        <div class="meta-value">4.2 / 4.3 / 4.4 / 4.5 / 4.7 / 4.10</div>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Pairing</span><span class="lang-zh">配套内容</span></span>
+        <div class="meta-value"><a href="codingProject4.html">Coding Project 4</a></div>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Core idea</span><span class="lang-zh">核心概念</span></span>
+        <div class="meta-value"><span class="lang-en">Prediction + innovation</span><span class="lang-zh">预测 + 创新</span></div>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Key question</span><span class="lang-zh">关键问题</span></span>
+        <div class="meta-value"><span class="lang-en">What information is physically observable?</span><span class="lang-zh">系统里到底有哪些信息是可观的？</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="side-title"><span class="lang-en">Contents</span><span class="lang-zh">目录</span></div>
+      <ul class="nav-list">
+        <li><a href="#big-picture"><span class="lang-en">Big picture</span><span class="lang-zh">总体主线</span></a></li>
+        <li><a href="#limits"><span class="lang-en">What sensors miss</span><span class="lang-zh">传感器缺了什么</span></a></li>
+        <li><a href="#model"><span class="lang-en">Unified model</span><span class="lang-zh">统一模型</span></a></li>
+        <li><a href="#skeleton"><span class="lang-en">Observer skeleton</span><span class="lang-zh">观察器骨架</span></a></li>
+        <li><a href="#families"><span class="lang-en">Typical observers</span><span class="lang-zh">典型观察器</span></a></li>
+        <li><a href="#observability"><span class="lang-en">Observability</span><span class="lang-zh">可观测性</span></a></li>
+        <li><a href="#discussion"><span class="lang-en">Discussion prompts</span><span class="lang-zh">课堂思考</span></a></li>
+      </ul>
+      <div class="side-note">
+        <span class="lang-en">Do not treat Chapter 4 as a bag of formulas. Treat it as one story: what can be measured, what must be reconstructed, and what fails at low speed.</span>
+        <span class="lang-zh">不要把 Chapter 4 看成公式堆。把它看成一条主线：什么能测、什么要重建、为什么低速会失效。</span>
+      </div>
+    </aside>
+
+    <main class="main">
+      <section class="section" id="big-picture">
+        <div class="section-tag">Motivation / Big Picture</div>
+        <h2><span class="lang-en">Sensorless does not mean information-less</span><span class="lang-zh">Sensorless 不等于没有信息</span></h2>
+        <p>
+          <span class="lang-en">In Chapter 3, the controller wants quantities such as $i_{\alpha\beta}$, rotor speed $\Omega$, active-flux angle $\theta_d$, and sometimes disturbance or load torque. But real hardware gives us only a subset directly. Chapter 4 asks: <strong>how can we recover the missing states from the signals we do measure?</strong></span>
+          <span class="lang-zh">在 Chapter 3 里，控制器想用到 $i_{\alpha\beta}$、转速 $\Omega$、有功磁链角 $\theta_d$，有时还想知道扰动或负载转矩。但真实硬件只能直接给出其中一部分。Chapter 4 问的是：<strong>如何从可测信号中恢复那些不可直接测的状态？</strong></span>
+        </p>
+        <div class="concept-grid">
+          <div class="matrix">
+            <div class="matrix-row">
+              <div class="matrix-key"><span class="lang-en">Usually measured</span><span class="lang-zh">通常可测</span></div>
+              <div><span class="lang-en">Phase current, dc-bus voltage, encoder angle, command signals.</span><span class="lang-zh">相电流、母线电压、编码器角度、控制指令。</span></div>
+            </div>
+            <div class="matrix-row">
+              <div class="matrix-key"><span class="lang-en">Usually needed</span><span class="lang-zh">控制想要</span></div>
+              <div><span class="lang-en">Rotor speed, active-flux angle, stator flux, disturbance torque, disturbance EMF.</span><span class="lang-zh">转速、有功磁链角、定子磁链、负载扰动、扰动反电势。</span></div>
+            </div>
+            <div class="matrix-row">
+              <div class="matrix-key"><span class="lang-en">Observer job</span><span class="lang-zh">观察器任务</span></div>
+              <div><span class="lang-en">Combine physics, measured output, and error correction to reconstruct the missing states online.</span><span class="lang-zh">把系统模型、测量输出和误差校正组合起来，在线重建缺失状态。</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">One-sentence takeaway</span><span class="lang-zh">一句话结论</span></h4>
+            <p>
+              <span class="lang-en"><strong>Observer = predictor + corrector.</strong> The predictor uses the model; the corrector injects the mismatch between measured and estimated outputs.</span>
+              <span class="lang-zh"><strong>Observer = 预测器 + 校正器。</strong> 预测器来自模型，校正器来自“测量输出”和“估计输出”的不一致。</span>
+            </p>
+            <div style="margin-top:12px;">
+              <span class="pill">speed</span>
+              <span class="pill">flux</span>
+              <span class="pill">disturbance</span>
+              <span class="pill">sensorless</span>
+            </div>
+          </div>
+        </div>
+        <div class="callout callout--ok">
+          <span class="callout-title"><span class="lang-en">Why this matters for sensorless control</span><span class="lang-zh">这和 sensorless control 的关系</span></span>
+          <span class="lang-en">If speed is not directly measured, speed control does not disappear. It simply becomes a <em>control + observer</em> problem instead of a pure feedback problem.</span>
+          <span class="lang-zh">如果转速不能直接测量，速度闭环并不会消失，它只是从“纯反馈控制问题”变成了“控制器 + 观察器”的耦合问题。</span>
+        </div>
+      </section>
+
+      <section class="section" id="limits">
+        <div class="section-tag">Sensor Imperfection / Measurement Limits</div>
+        <h2><span class="lang-en">Why we cannot just differentiate or integrate blindly</span><span class="lang-zh">为什么不能简单微分或积分就完事</span></h2>
+        <div class="grid-2">
+          <div class="card">
+            <h4><span class="lang-en">Angle to speed: differentiation amplifies defects</span><span class="lang-zh">角度求速度：微分会放大缺陷</span></h4>
+            <p>
+              <span class="lang-en">Encoder angle is quantized. If you directly differentiate angle or pulse count, any quantization, jitter, or windowing choice enters the speed estimate. High bandwidth gives faster speed reconstruction but worse ripple and noise.</span>
+              <span class="lang-zh">编码器角度是量化量。若直接对角度或脉冲计数做微分，量化误差、抖动和窗口长度都会直接进入速度估计。带宽高一些，重建更快；但波动和噪声也更重。</span>
+            </p>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">Voltage/current to flux: integration drifts</span><span class="lang-zh">电压电流求磁链：积分会漂移</span></h4>
+            <p>
+              <span class="lang-en">Open-loop flux estimation uses $\psi_{\alpha\beta s}=\frac{1}{s}(u_{\alpha\beta s}-Ri_{\alpha\beta s})$. Any current offset or voltage bias is integrated forever, so even a tiny sensor drift can destroy the estimate.</span>
+              <span class="lang-zh">开环磁链估计依赖 $\psi_{\alpha\beta s}=\frac{1}{s}(u_{\alpha\beta s}-Ri_{\alpha\beta s})$。只要电流零漂或电压偏置不为零，积分器就会一直累计，哪怕偏差很小也会把磁链估计带跑。</span>
+            </p>
+          </div>
+        </div>
+        <div class="eq-block">$$\Omega_m \neq \frac{d\Theta_m}{dt}\ \text{in practice, and}\ \hat{\psi}=\frac{1}{s}(u-Ri)\ \text{is not robust by itself.}$$</div>
+        <div class="callout callout--warn">
+          <span class="callout-title"><span class="lang-en">Engineering tradeoff</span><span class="lang-zh">工程上的权衡</span></span>
+          <span class="lang-en">Every observer is balancing two enemies: <strong>missing bandwidth</strong> and <strong>measurement defects</strong>. This is why Chapter 4 spends time on prediction and innovation instead of direct signal processing only.</span>
+          <span class="lang-zh">每个观察器都在两类敌人之间做权衡：<strong>带宽不够</strong> 和 <strong>测量缺陷</strong>。所以 Chapter 4 才会强调预测与创新，而不是只做简单信号处理。</span>
+        </div>
+      </section>
+
+      <section class="section" id="model">
+        <div class="section-tag">Unified Formulation / Active Field Model</div>
+        <h2><span class="lang-en">A shared observer language for PMSM and IM</span><span class="lang-zh">用同一套语言描述 PMSM 和 IM</span></h2>
+        <p>
+          <span class="lang-en">Section 4.4 rewrites the machine with the <em>active-field-oriented model</em>. The key modeling choice is to use the active-flux angle $\theta_d$ rather than raw rotor angle as a main state. Then PMSM and induction motor can be discussed inside one observer framework.</span>
+          <span class="lang-zh">4.4 节把电机写成 <em>active-field-oriented model</em>。关键选择是把有功磁链角 $\theta_d$ 作为主要状态，而不是死盯机械转子角。这样 PMSM 和感应电机就能落在同一个观察器框架里讨论。</span>
+        </p>
+        <div class="eq-block">$$\begin{aligned}
+\dot{\theta}_d &= \omega_d = n_{pp}\Omega + \omega_{sl} \\
+\dot{\Omega} &= \frac{1}{J_s}(T_{em}-T_L) = \frac{1}{J_s}(n_{pp}\psi_A i_{qs} - T_L)
+\end{aligned}$$</div>
+        <div class="grid-2">
+          <div class="card">
+            <h4><span class="lang-en">Why this modeling step is valuable</span><span class="lang-zh">为什么这一步重要</span></h4>
+            <ul>
+              <li><span class="lang-en">The observer can aim at one common state set.</span><span class="lang-zh">观察器可以围绕一组统一状态来设计。</span></li>
+              <li><span class="lang-en">Prediction terms can come from voltage equations rather than only mechanics.</span><span class="lang-zh">预测项可以来自电压方程，而不只是机械方程。</span></li>
+              <li><span class="lang-en">The role of back-EMF and flux information becomes explicit.</span><span class="lang-zh">反电势与磁链信息在估计中的作用会更清晰。</span></li>
+            </ul>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">Specialization idea</span><span class="lang-zh">特化关系</span></h4>
+            <ul>
+              <li><span class="lang-en"><strong>PMSM:</strong> set $\omega_{sl}=0$.</span><span class="lang-zh"><strong>PMSM：</strong>令 $\omega_{sl}=0$。</span></li>
+              <li><span class="lang-en"><strong>IM:</strong> keep slip speed and rotor circuit relation.</span><span class="lang-zh"><strong>IM：</strong>保留 slip speed 和转子回路关系。</span></li>
+              <li><span class="lang-en">Same observer logic, different machine-specific parameters.</span><span class="lang-zh">同一观察器思路，不同电机对应不同参数化。</span></li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="skeleton">
+        <div class="section-tag">Observer Structure / Prediction + Innovation</div>
+        <h2><span class="lang-en">Every useful observer has the same skeleton</span><span class="lang-zh">几乎所有实用观察器都有同一个骨架</span></h2>
+        <div class="eq-block">$$\dot{\hat{x}} = f(\hat{x},u) + L\bigl(y-h(\hat{x})\bigr)$$</div>
+        <p>
+          <span class="lang-en">The first term says: “if my model were correct, how should the state evolve?” The second says: “how much should I correct because the predicted output does not match the measured one?” Chapter 4 repeatedly uses this structure in different disguises.</span>
+          <span class="lang-zh">第一项回答“如果模型完全正确，状态应该怎样演化？”；第二项回答“如果预测输出和测量输出不一致，我该纠正多少？”Chapter 4 里的各种观察器，本质上都在重复这个结构。</span>
+        </p>
+        <div class="grid-2">
+          <div class="card">
+            <h4><span class="lang-en">Warm-up example from sensor fusion</span><span class="lang-zh">先用传感器融合热身</span></h4>
+            <div class="eq-block">$$\dot{\hat{\Theta}} = \Omega_m + k_0(\Theta_m - \hat{\Theta})$$</div>
+            <p>
+              <span class="lang-en">Prediction comes from the gyroscope. Innovation comes from accelerometer angle mismatch. This is the cleanest prototype of “prediction + innovation.”</span>
+              <span class="lang-zh">预测项来自陀螺仪，创新项来自加速度计角度误差。这就是“预测 + 创新”的最直观原型。</span>
+            </p>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">Encoderless speed observer idea in Section 4.5</span><span class="lang-zh">4.5 节中的无编码器速度观察器思路</span></h4>
+            <div class="eq-block">$$\dot{\hat{\theta}}_d = \hat{\omega}_d + k_0 e_{d,ss}$$</div>
+            <p>
+              <span class="lang-en">The prediction term $\hat{\omega}_d$ is reconstructed from the q-axis voltage equation; the innovation term $e_{d,ss}$ is built from d-axis mismatch. In words: use one model relation to predict, and another model relation to correct.</span>
+              <span class="lang-zh">预测项 $\hat{\omega}_d$ 来自 q 轴电压方程，创新项 $e_{d,ss}$ 来自 d 轴不匹配。也就是：用一条模型关系做预测，用另一条模型关系做校正。</span>
+            </p>
+          </div>
+        </div>
+        <div class="callout callout--ok">
+          <span class="callout-title"><span class="lang-en">A powerful way to read Chapter 4</span><span class="lang-zh">读 Chapter 4 的高效方法</span></span>
+          <span class="lang-en">Whenever you see a new observer, ask only two questions first: <strong>what is the prediction term?</strong> and <strong>what output error is used as the innovation?</strong></span>
+          <span class="lang-zh">每看到一种新观察器，先只问两个问题：<strong>预测项来自哪里？</strong> 以及 <strong>创新项到底用的是什么输出误差？</strong></span>
+        </div>
+      </section>
+
+      <section class="section" id="families">
+        <div class="section-tag">Observer Families / Typical Designs</div>
+        <h2><span class="lang-en">Three observer families worth remembering</span><span class="lang-zh">至少记住这三类典型观察器</span></h2>
+        <div class="grid-3">
+          <div class="card">
+            <h4><span class="lang-en">Flux estimator</span><span class="lang-zh">磁链估计器</span></h4>
+            <p>
+              <span class="lang-en">Start with the open-loop stator-flux integrator, then add innovation. Section 4.7 shows that open-loop integration is informative but fragile, so it must be closed by a correction mechanism.</span>
+              <span class="lang-zh">从开环定子磁链积分器出发，再补上创新项。4.7 节说明：开环积分有信息，但很脆弱，所以一定要闭环纠正。</span>
+            </p>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">Sliding-mode EMF observer</span><span class="lang-zh">滑模扰动反电势观察器</span></h4>
+            <p>
+              <span class="lang-en">Use current error as the sliding surface. Once the current estimation error is driven to the manifold, the switching function reconstructs disturbance EMF. It is robust, but implementation details matter.</span>
+              <span class="lang-zh">把电流误差作为滑模面。一旦电流估计误差被压到滑模面上，切换项就能重建扰动反电势。它很鲁棒，但实现细节很关键。</span>
+            </p>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">Position-output speed/load observer</span><span class="lang-zh">位置输出型速度/负载观察器</span></h4>
+            <p>
+              <span class="lang-en">Use measured angle as output, then reconstruct speed and disturbance by a Luenberger-style observer. This route connects directly to our simulation code and Coding Project 4.</span>
+              <span class="lang-zh">用角度测量作为输出，再用 Luenberger 风格的观察器重建速度和扰动。这一路线与课程仿真代码和 Coding Project 4 直接对应。</span>
+            </p>
+          </div>
+        </div>
+        <h3><span class="lang-en">The position-output observer viewpoint</span><span class="lang-zh">位置输出观察器的直观视角</span></h3>
+        <div class="eq-block">$$\begin{aligned}
+\dot{\hat{\Theta}} &= \hat{\Omega} + k_0(\Theta - \hat{\Theta}) \\
+\dot{\hat{\Omega}} &= T_{em} + 0 + k_1(\Theta - \hat{\Theta})
+\end{aligned}$$</div>
+        <p>
+          <span class="lang-en">Even before estimating load torque explicitly, this structure already tells you something important: angle error contains information about speed error, and speed mismatch contains information about disturbance.</span>
+          <span class="lang-zh">哪怕还没有显式引入负载转矩估计，这个结构已经说明了一件事：角度误差里含有速度误差信息，而速度不匹配里又含有扰动信息。</span>
+        </p>
+      </section>
+
+      <section class="section" id="observability">
+        <div class="section-tag">Observability / Low-Speed Difficulty</div>
+        <h2><span class="lang-en">Why low-speed sensorless control is fundamentally hard</span><span class="lang-zh">为什么低速 sensorless control 在根子上就更难</span></h2>
+        <p>
+          <span class="lang-en">One of the most important teaching points of Chapter 4 is that low-speed difficulty is <strong>not only an algorithm problem</strong>. It is often an <strong>information problem</strong>. When speed is low, back-EMF and speed-related excitation are weak, so the measured voltages and currents carry less usable information about angle and speed.</span>
+          <span class="lang-zh">Chapter 4 最重要的教学点之一是：低速困难 <strong>不只是算法问题</strong>，很多时候更是一个 <strong>信息量问题</strong>。速度低时，反电势和与速度有关的激励都变弱，电压电流里能反映角度和速度的信息自然就少了。</span>
+        </p>
+        <div class="grid-2">
+          <div class="card">
+            <h4><span class="lang-en">What becomes weak at low speed</span><span class="lang-zh">低速时变弱的东西</span></h4>
+            <ul>
+              <li><span class="lang-en">Back-EMF magnitude</span><span class="lang-zh">反电势幅值</span></li>
+              <li><span class="lang-en">Current and voltage mismatch sensitivity to angle error</span><span class="lang-zh">电流电压不匹配对角度误差的敏感度</span></li>
+              <li><span class="lang-en">Signal-to-noise ratio of speed-related information</span><span class="lang-zh">速度相关信息的信噪比</span></li>
+            </ul>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">What this means for design</span><span class="lang-zh">这对设计意味着什么</span></h4>
+            <ul>
+              <li><span class="lang-en">Observer bandwidth cannot be increased without limit.</span><span class="lang-zh">观察器带宽不能无脑提高。</span></li>
+              <li><span class="lang-en">Noise, model error, and controller interaction become more visible.</span><span class="lang-zh">噪声、模型误差和控制器耦合会更明显。</span></li>
+              <li><span class="lang-en">Near zero speed, many methods need extra saliency or signal injection ideas.</span><span class="lang-zh">接近零速时，很多方法需要额外依赖凸极性或注入信号等机制。</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="callout callout--rose">
+          <span class="callout-title"><span class="lang-en">Observer-controller coupling</span><span class="lang-zh">观察器与控制器耦合</span></span>
+          <span class="lang-en">The observer is inside the control loop, not beside it. Changing observer bandwidth changes estimation lag and noise; that then changes current command, torque ripple, and closed-loop behavior. So “more aggressive observer” does not automatically mean “better control.”</span>
+          <span class="lang-zh">观察器不是摆在控制器旁边的装饰，它就在闭环里。改变观察器带宽会改变估计延迟和噪声，而这些又会反馈到电流指令、转矩波动和整体闭环表现上。因此“观察器更激进”并不自动等于“控制更好”。</span>
+        </div>
+      </section>
+
+      <section class="section" id="discussion">
+        <div class="section-tag">Discussion / Think in Class</div>
+        <h2><span class="lang-en">Questions students should be able to reason through</span><span class="lang-zh">学生应该能够独立思考的问题</span></h2>
+        <div class="q-grid">
+          <div class="q-card">
+            <div class="q-index">Q1</div>
+            <p><span class="lang-en">If current is measurable but speed is not, can the speed loop still be closed? What must be added to the control architecture?</span><span class="lang-zh">如果电流可测但转速不可测，速度环还能闭起来吗？控制结构里必须多出什么？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q2</div>
+            <p><span class="lang-en">Why is “differentiate encoder angle to get speed” often unacceptable at high precision or low speed?</span><span class="lang-zh">为什么“对编码器角度求导得到速度”在高精度或低速下常常不够好？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q3</div>
+            <p><span class="lang-en">Why does open-loop flux integration drift even if the formula is mathematically correct?</span><span class="lang-zh">为什么开环磁链积分即使公式本身没错，也依然会漂移？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q4</div>
+            <p><span class="lang-en">In an observer, which physical relation is used for prediction and which mismatch is used for innovation?</span><span class="lang-zh">在一个观察器里，哪条物理关系被拿来做预测，哪种不匹配被拿来做创新？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q5</div>
+            <p><span class="lang-en">Why is low-speed sensorless difficulty partly an observability issue rather than only a tuning issue?</span><span class="lang-zh">为什么低速 sensorless 的困难有一部分是可观测性问题，而不只是调参问题？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q6</div>
+            <p><span class="lang-en">Why can two observers with similar equations behave very differently once they are embedded in a closed-loop controller?</span><span class="lang-zh">为什么两个形式相近的观察器，一旦放进闭环控制器里，效果可能差很多？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q7</div>
+            <p><span class="lang-en">What extra quantity are you really trying to estimate when a position-output observer starts to reconstruct load torque?</span><span class="lang-zh">当位置输出观察器进一步重建负载转矩时，本质上增加了什么估计量？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q8</div>
+            <p><span class="lang-en">What experimental evidence would convince you that a speed estimate is “usable for control” rather than merely “looks close”?</span><span class="lang-zh">怎样的实验现象才能证明某个速度估计“不只是看起来接近”，而是真的“可用于控制”？</span></p>
+          </div>
+        </div>
+        <div class="checklist">
+          <div class="check"><span class="lang-en">Read Section 4.5 and identify the prediction term and innovation term explicitly.</span><span class="lang-zh">读 4.5 节，明确指出预测项和创新项各是什么。</span></div>
+          <div class="check"><span class="lang-en">Read Section 4.7 and explain why open-loop integration is informative but unsafe.</span><span class="lang-zh">读 4.7 节，解释为什么开环积分“有信息但不安全”。</span></div>
+          <div class="check"><span class="lang-en">Carry these questions into Coding Project 4 and answer them with figures, not only words.</span><span class="lang-zh">把这些问题带到 Coding Project 4 中，用图而不只是用文字回答。</span></div>
+        </div>
+        <p class="footer-note"><span class="lang-en">Suggested class message: Chapter 4 is not mainly about formulas; it is about how to create missing feedback information in a physically trustworthy way.</span><span class="lang-zh">建议课堂总结：Chapter 4 的重点不只是公式，而是怎样以物理上可信的方式创造出“缺失的反馈信息”。</span></p>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script>
+function setLang(lang) {
+  document.body.setAttribute('data-lang', lang);
+  var btnEn = document.getElementById('btn-en');
+  var btnZh = document.getElementById('btn-zh');
+  btnEn.classList.toggle('active', lang === 'en');
+  btnZh.classList.toggle('active', lang === 'zh');
+  try { localStorage.setItem('ee275-lang', lang); } catch (e) {}
+}
+(function(){
+  var lang = 'en';
+  try {
+    var saved = localStorage.getItem('ee275-lang');
+    if (saved === 'en' || saved === 'zh') lang = saved;
+  } catch (e) {}
+  setLang(lang);
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(entry){
+      if (entry.isIntersecting) entry.target.classList.add('visible');
+    });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.section').forEach(function(el){ io.observe(el); });
+})();
+</script>
+</body>
+</html>

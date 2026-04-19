@@ -17,6 +17,10 @@ call "%DST%\html-to-dir.bat"
 popd
 
 echo.
+echo Copying published landing page...
+copy /Y "%SRC%\index-public.html" "%DST%\index.html"
+
+echo.
 echo Committing and pushing to GitHub...
 pushd "C:\Users\lenovo\Codes\horychen.github.io"
 git add -A

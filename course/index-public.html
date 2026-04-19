@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>EE275 Motor Control Course</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #070b12;
+    --panel: rgba(16, 22, 35, 0.9);
+    --line: rgba(255,255,255,0.10);
+    --text: #edf3ff;
+    --soft: #b9c6db;
+    --muted: #7e8aa1;
+    --gold: #efc46a;
+    --teal: #7addcf;
+    --blue: #86a7ff;
+    --shadow: 0 24px 80px rgba(0,0,0,0.35);
+    --font-display: "Palatino Linotype", Georgia, serif;
+    --font-body: Aptos, "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
+    --font-mono: "Cascadia Code", Consolas, monospace;
+  }
+  html { font-size: 16px; scroll-behavior: smooth; }
+  body {
+    min-height: 100vh;
+    font-family: var(--font-body);
+    color: var(--text);
+    background:
+      radial-gradient(circle at 15% 16%, rgba(134,167,255,0.16), transparent 28%),
+      radial-gradient(circle at 84% 10%, rgba(122,221,207,0.12), transparent 24%),
+      radial-gradient(circle at 50% 120%, rgba(239,196,106,0.10), transparent 34%),
+      linear-gradient(180deg, #05080e 0%, #0a1018 52%, #05080e 100%);
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  .app { width: min(1120px, calc(100vw - 20px)); margin: 0 auto; padding: 18px 0 44px; }
+  .hero, .section {
+    border: 1px solid var(--line);
+    border-radius: 24px;
+    background: var(--panel);
+    backdrop-filter: blur(14px);
+    box-shadow: var(--shadow);
+  }
+  .hero { padding: 30px; margin-bottom: 14px; }
+  .eyebrow, .section-tag, .pill {
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+  }
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--gold);
+    font-size: 0.72rem;
+    margin-bottom: 14px;
+  }
+  .eyebrow::before, .section-tag::before {
+    content: "";
+    width: 32px;
+    height: 1px;
+    background: linear-gradient(90deg, currentColor, transparent);
+  }
+  .hero h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2.2rem, 4vw, 3.8rem);
+    line-height: 1.06;
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    margin-bottom: 14px;
+  }
+  .hero h1 em { font-style: normal; color: var(--teal); }
+  .lead {
+    max-width: 880px;
+    color: var(--soft);
+    line-height: 1.85;
+    font-size: 1rem;
+  }
+  .pill-row { margin-top: 18px; }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--soft);
+    font-size: 0.72rem;
+    padding: 4px 9px;
+    margin-right: 6px;
+    margin-bottom: 6px;
+  }
+  .section { padding: 24px; margin-bottom: 14px; }
+  .section-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--teal);
+    font-size: 0.7rem;
+    margin-bottom: 12px;
+  }
+  h2 {
+    font-family: var(--font-display);
+    font-size: 1.65rem;
+    font-weight: 500;
+    margin-bottom: 12px;
+  }
+  p { color: var(--soft); line-height: 1.82; font-size: 0.97rem; }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 16px;
+  }
+  .card {
+    display: block;
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: rgba(255,255,255,0.03);
+    text-decoration: none;
+    transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+  }
+  .card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(239,196,106,0.42);
+    background: rgba(255,255,255,0.05);
+  }
+  .card-label {
+    font-family: var(--font-mono);
+    color: var(--gold);
+    font-size: 0.7rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .card-title {
+    color: var(--text);
+    font-size: 1.02rem;
+    font-weight: 700;
+    line-height: 1.45;
+    margin-bottom: 8px;
+  }
+  .card-desc {
+    color: var(--soft);
+    font-size: 0.92rem;
+    line-height: 1.72;
+  }
+  .latest {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 16px;
+  }
+  .latest .card { background: rgba(122,221,207,0.06); }
+  @media (max-width: 980px) {
+    .cards, .latest { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 640px) {
+    .app { width: min(100vw - 14px, 1120px); padding-top: 12px; }
+    .hero, .section { padding: 20px; border-radius: 20px; }
+    h2 { font-size: 1.42rem; }
+    .lead, p, .card-desc { font-size: 0.95rem; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="hero">
+    <div class="eyebrow">EE275 / Motor Control</div>
+    <h1>Course pages for <em>lecture</em>, homework, and coding projects</h1>
+    <p class="lead">This published landing page collects the deployed HTML pages for the motor-control course. Use the latest section for the current class, or jump directly into earlier lecture and project materials below.</p>
+    <div class="pill-row">
+      <span class="pill">lecture</span>
+      <span class="pill">observer</span>
+      <span class="pill">sensorless</span>
+      <span class="pill">coding project</span>
+    </div>
+  </header>
+
+  <section class="section">
+    <div class="section-tag">Latest</div>
+    <h2>Current class content</h2>
+    <p>The newest content for the observer and sensorless-control lesson is linked here first.</p>
+    <div class="latest">
+      <a class="card" href="lecture4/">
+        <div class="card-label">Lecture 4</div>
+        <div class="card-title">Sensorless Control and Observer</div>
+        <div class="card-desc">Theory-focused page on prediction + innovation, unified observer framing, typical observer families, and low-speed observability.</div>
+      </a>
+      <a class="card" href="codingProject4/">
+        <div class="card-label">Coding Project 4</div>
+        <div class="card-title">Sensorless Speed and Load-Torque Observer</div>
+        <div class="card-desc">Practice-focused page covering speed estimation, disturbance reconstruction, bandwidth comparison, and low-speed tests.</div>
+      </a>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-tag">Lecture and Homework</div>
+    <h2>Core course materials</h2>
+    <div class="cards">
+      <a class="card" href="lecture1/">
+        <div class="card-label">Lecture 1</div>
+        <div class="card-title">Introduction and course setup</div>
+        <div class="card-desc">First lecture page and onboarding material.</div>
+      </a>
+      <a class="card" href="lecture2/">
+        <div class="card-label">Lecture 2</div>
+        <div class="card-title">Control structure and tuning basics</div>
+        <div class="card-desc">Follow-up lecture on motor-control loop design foundations.</div>
+      </a>
+      <a class="card" href="lecture3/">
+        <div class="card-label">Lecture 3</div>
+        <div class="card-title">Observer, feedforward, and tradeoffs</div>
+        <div class="card-desc">Observer/feedforward preparation before the sensorless lesson.</div>
+      </a>
+      <a class="card" href="homework1/">
+        <div class="card-label">Homework 1</div>
+        <div class="card-title">Homework 1</div>
+        <div class="card-desc">First homework page for the course.</div>
+      </a>
+      <a class="card" href="homework2/">
+        <div class="card-label">Homework 2</div>
+        <div class="card-title">Homework 2</div>
+        <div class="card-desc">Second homework page for the course.</div>
+      </a>
+      <a class="card" href="homework2_solution/">
+        <div class="card-label">Solution</div>
+        <div class="card-title">Homework 2 Solution</div>
+        <div class="card-desc">Published solution page for Homework 2.</div>
+      </a>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-tag">Coding Projects</div>
+    <h2>Simulation-based assignments</h2>
+    <div class="cards">
+      <a class="card" href="codingProject1/">
+        <div class="card-label">Project 1</div>
+        <div class="card-title">Frequency sweep in motor control</div>
+        <div class="card-desc">Current-loop and speed-loop frequency-response investigation.</div>
+      </a>
+      <a class="card" href="codingProject2/">
+        <div class="card-label">Project 2</div>
+        <div class="card-title">Loop tuning and bandwidth</div>
+        <div class="card-desc">Study current-loop bandwidth and controller tuning effects.</div>
+      </a>
+      <a class="card" href="codingProject23/">
+        <div class="card-label">Project 2 &amp; 3</div>
+        <div class="card-title">Combined observer and tuning work</div>
+        <div class="card-desc">Earlier integrated assignment content already published on the site.</div>
+      </a>
+      <a class="card" href="codingProject3/">
+        <div class="card-label">Project 3</div>
+        <div class="card-title">Higher-order observer and feedforward</div>
+        <div class="card-desc">Observe time-varying disturbances and compare observer orders.</div>
+      </a>
+      <a class="card" href="codingProject4/">
+        <div class="card-label">Project 4</div>
+        <div class="card-title">Sensorless speed and load-torque observer</div>
+        <div class="card-desc">New practice page for observer verification and low-speed analysis.</div>
+      </a>
+      <a class="card" href="https://github.com/Acous1/ACMSimPy">
+        <div class="card-label">Repository</div>
+        <div class="card-title">ACMSimPy GitHub</div>
+        <div class="card-desc">Source code and simulation context for the course artifacts.</div>
+      </a>
+    </div>
+  </section>
+</div>
+</body>
+</html>
