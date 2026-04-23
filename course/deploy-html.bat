@@ -11,6 +11,11 @@ for %%F in ("%SRC%\lecture*.html" "%SRC%\homework*.html" "%SRC%\codingProject*.h
 )
 
 echo.
+echo Cleaning stale published landing page artifacts...
+if exist "%DST%\index.html" del /Q "%DST%\index.html"
+if exist "%DST%\index" rmdir /S /Q "%DST%\index"
+
+echo.
 echo Running html-to-dir.bat...
 pushd "%DST%"
 call "%DST%\html-to-dir.bat"
