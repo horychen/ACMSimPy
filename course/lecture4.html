@@ -270,6 +270,11 @@
           </div>
         </div>
         <div class="callout callout--ok">
+          <span class="callout-title"><span class="lang-en">Bridge from Chapters 1-3: flux has an angle</span><span class="lang-zh">和前 1-3 讲的连接：磁链本身有角度</span></span>
+          <span class="lang-en">The flux vector $\psi_{\alpha\beta}$ is not only a magnitude; its direction defines a field-oriented angle. The Park/dq angle used earlier is the angle that rotates the stator $\alpha\beta$ frame onto the chosen magnetic-field direction.</span>
+          <span class="lang-zh">磁链向量 $\psi_{\alpha\beta}$ 不只是一个幅值，它在平面里的方向也定义了一个“磁场定向角”。前面讲 Park/dq 变换时用的角度，本质上就是把定子 $\alpha\beta$ 坐标系转到某个磁场方向上。</span>
+        </div>
+        <div class="callout callout--ok">
           <span class="callout-title"><span class="lang-en">Why this matters for sensorless control</span><span class="lang-zh">这和 sensorless control 的关系</span></span>
           <span class="lang-en">If speed is not directly measured, speed control does not disappear. It simply becomes a <em>control + observer</em> problem instead of a pure feedback problem.</span>
           <span class="lang-zh">如果转速不能直接测量，速度闭环并不会消失，它只是从“纯反馈控制问题”变成了“控制器 + 观察器”的耦合问题。</span>
@@ -310,6 +315,11 @@
           <span class="lang-en">Section 4.4 rewrites the machine with the <em>active-field-oriented model</em>. The key modeling choice is to use the active-flux angle $\theta_d$ rather than raw rotor angle as a main state. Then PMSM and induction motor can be discussed inside one observer framework.</span>
           <span class="lang-zh">4.4 节把电机写成 <em>active-field-oriented model</em>。关键选择是把有功磁链角 $\theta_d$ 作为主要状态，而不是死盯机械转子角。这样 PMSM 和感应电机就能落在同一个观察器框架里讨论。</span>
         </p>
+        <div class="callout callout--warn">
+          <span class="callout-title"><span class="lang-en">Do not treat $\theta_d$ as a new unrelated angle</span><span class="lang-zh">不要把 $\theta_d$ 看成一个全新的角度</span></span>
+          <span class="lang-en">Chapter 2 defined active flux $\psi_A$ as the torque-producing field magnitude. Chapter 4 adds its direction: $\theta_d=\operatorname{atan2}(\psi_{A\beta},\psi_{A\alpha})$. In a PMSM, this angle is locked to the electrical rotor angle, $\theta_d=\theta_e=n_{pp}\theta_m$ (mod $2\pi$). In an induction motor, the same field angle moves ahead of the rotor by slip: $\dot{\theta}_d=n_{pp}\Omega+\omega_{sl}$.</span>
+          <span class="lang-zh">Chapter 2 里 $\psi_A$ 是有功磁链的幅值，也就是产生转矩的那部分磁场强度。Chapter 4 只是进一步关心它的方向：$\theta_d=\operatorname{atan2}(\psi_{A\beta},\psi_{A\alpha})$。对 PMSM，这个角度锁定在电气转子角上，$\theta_d=\theta_e=n_{pp}\theta_m$（模 $2\pi$）；对感应电机，同一个磁场角会因为滑差跑在转子前面：$\dot{\theta}_d=n_{pp}\Omega+\omega_{sl}$。</span>
+        </div>
         <div class="eq-block">$$\begin{aligned}
 \dot{\theta}_d &= \omega_d = n_{pp}\Omega + \omega_{sl} \\
 \dot{\Omega} &= \frac{1}{J_s}(T_{em}-T_L) = \frac{1}{J_s}(n_{pp}\psi_A i_{qs} - T_L)
