@@ -37,6 +37,7 @@ plt.style.use('ggplot')
             ('cmd_uab', float64[:]),
             ('cmd_rpm', float64),
             ('index_separate_speed_estimation', int32),
+            ('bool_use_sensorless_theta', int32),
             ('use_disturbance_feedforward_rejection', int32),
             ('bool_apply_decoupling_voltages_to_current_regulation', int32),
             ('bool_apply_speed_closed_loop_control', int32),
@@ -125,6 +126,7 @@ class The_Motor_Controller:
         self.cmd_uab = np.zeros(2, dtype=np.float64)
         self.cmd_rpm = 0.0
         self.index_separate_speed_estimation = 0
+        self.bool_use_sensorless_theta = 0  # 0: Park uses encoder angle; 1: Park uses observer's vartheta_d
         self.use_disturbance_feedforward_rejection = 0
         self.bool_apply_decoupling_voltages_to_current_regulation = False
         self.bool_apply_speed_closed_loop_control = True
@@ -769,6 +771,16 @@ def DSP(ACM, CTRL, reg_speed, reg_id, reg_iq):
             CTRL.total_disrubance_feedforward = CTRL.xS[2] + CTRL.ell2*CTRL.speed_observer_output_error
 
     """ (Optional) Do Park transformation again using the position estimate from the speed observer """
+    if CTRL.bool_use_sensorless_theta == 1 and CTRL.index_separate_speed_estimation == 1:
+        CTRL.theta_d = CTRL.vartheta_d
+        CTRL.cosT = np.cos(CTRL.theta_d)
+        CTRL.sinT = np.sin(CTRL.theta_d)
+        # Re-do Park transformation with sensorless angle
+        CTRL.idq[0] = CTRL.iab[0] * CTRL.cosT + CTRL.iab[1] * CTRL.sinT
+        CTRL.idq[1] = CTRL.iab[0] *-CTRL.sinT + CTRL.iab[1] * CTRL.cosT
+        # Re-compute torque with new id/iq
+        CTRL.KA = (CTRL.Ld - CTRL.Lq) * CTRL.idq[0] + CTRL.KE
+        CTRL.Tem = 1.5 * CTRL.npp * CTRL.idq[1] * CTRL.KA
 
     """ Speed and Current Controller (two cascaded closed loops) """
     FOC(CTRL, reg_speed, reg_id, reg_iq)
