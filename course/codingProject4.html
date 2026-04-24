@@ -108,6 +108,23 @@
   .meta-label { display: block; color: var(--muted); font-size: 0.68rem; margin-bottom: 6px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.16em; }
   .meta-value { line-height: 1.58; font-size: 0.95rem; }
   .layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 14px; align-items: start; }
+  .layout > *,
+  .main,
+  .sidebar,
+  .section,
+  .grid-2,
+  .grid-3,
+  .q-grid,
+  .card,
+  .q-card,
+  .callout,
+  .eq-block,
+  pre,
+  .check,
+  .table-wrap {
+    min-width: 0;
+    max-width: 100%;
+  }
   .sidebar { position: sticky; top: 72px; padding: 18px; }
   .side-title { color: var(--gold); font-size: 0.75rem; margin-bottom: 10px; }
   .nav-list { list-style: none; display: grid; gap: 8px; margin-bottom: 14px; }
@@ -140,7 +157,9 @@
   .callout--task { background: rgba(155,223,147,0.07); border-color: rgba(155,223,147,0.22); }
   .callout--rose { background: rgba(239,170,162,0.07); border-color: rgba(239,170,162,0.22); }
   .callout-title { display: block; color: var(--text); margin-bottom: 6px; font-weight: 700; }
-  .eq-block, pre { background: #101723; overflow-x: auto; }
+  .eq-block, pre { background: #101723; overflow-x: auto; -webkit-overflow-scrolling: touch; touch-action: pan-x; }
+  .table-wrap { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; touch-action: pan-x; }
+  .katex-display { overflow-x: auto; overflow-y: hidden; padding-bottom: 2px; }
   pre code, code {
     font-family: var(--font-mono);
     font-size: 0.9rem;
@@ -168,6 +187,7 @@
   @media (max-width: 980px) {
     .meta-grid, .layout, .grid-3, .grid-2, .q-grid { grid-template-columns: 1fr; }
     .sidebar, .topbar { position: static; }
+    .section { opacity: 1; transform: none; }
   }
   @media (max-width: 640px) {
     .app { width: min(100vw - 14px, 1140px); padding-top: 10px; }
@@ -177,7 +197,7 @@
     h2 { font-size: 1.44rem; }
     .lead, p, li { font-size: 0.95rem; }
     .table-wrap { overflow-x: auto; }
-    table { min-width: 560px; }
+    table { min-width: 480px; }
   }
 </style>
 </head>
