@@ -203,7 +203,7 @@
     <div class="meta-grid">
       <div class="meta-card">
         <span class="meta-label"><span class="lang-en">Core script</span><span class="lang-zh">核心脚本</span></span>
-        <div class="meta-value"><code>simulation/demo_sensorless_active_flux.py</code></div>
+        <div class="meta-value"><a href="https://github.com/horychen/ee275/blob/master/demo_eso.py" target="_blank" rel="noopener noreferrer"><code>demo_eso.py</code></a></div>
       </div>
       <div class="meta-card">
         <span class="meta-label"><span class="lang-en">Support scripts</span><span class="lang-zh">辅助脚本</span></span>
@@ -401,8 +401,13 @@
           <span class="lang-en">The demo script runs two observers (Active Flux + open-loop) in parallel on the same motor simulation and saves comparison plots automatically:</span>
           <span class="lang-zh">Demo 脚本在同一个电机仿真上并行运行两个观测器（Active Flux + 开环），自动保存对比图：</span>
         </p>
-        <pre><code>cd simulation
-python demo_sensorless_active_flux.py</code></pre>
+        <pre><code>git clone https://github.com/horychen/ee275.git
+cd ee275
+python demo_eso.py</code></pre>
+        <p>
+          <span class="lang-en">Direct GitHub link: <a href="https://github.com/horychen/ee275/blob/master/demo_eso.py" target="_blank" rel="noopener noreferrer"><code>demo_eso.py</code></a></span>
+          <span class="lang-zh">GitHub 链接：<a href="https://github.com/horychen/ee275/blob/master/demo_eso.py" target="_blank" rel="noopener noreferrer"><code>demo_eso.py</code></a></span>
+        </p>
         <p>
           <span class="lang-en">The script deliberately introduces <strong>parameter mismatch</strong> to simulate real-world conditions:</span>
           <span class="lang-zh">脚本故意引入<strong>参数失配</strong>来模拟真实工况：</span>
@@ -443,7 +448,7 @@ python demo_sensorless_active_flux.py</code></pre>
             </thead>
             <tbody>
               <tr>
-                <td><code>demo_sensorless_active_flux.py</code></td>
+                <td><a href="https://github.com/horychen/ee275/blob/master/demo_eso.py" target="_blank" rel="noopener noreferrer"><code>demo_eso.py</code></a></td>
                 <td><span class="lang-en"><code>run_sensorless_demo()</code> — the main simulation loop with both observers</span><span class="lang-zh"><code>run_sensorless_demo()</code> — 包含两个观测器的主仿真循环</span></td>
                 <td><span class="lang-en">Contains the complete prediction + innovation structure. <strong>Start here.</strong></span><span class="lang-zh">包含完整的 prediction + innovation 结构。<strong>从这里开始。</strong></span></td>
               </tr>
