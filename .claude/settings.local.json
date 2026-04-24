@@ -13,7 +13,12 @@
       "Bash(mkdir -p C:/Users/lenovo/Codes/ACMSimPy/course/vendor/katex/contrib && mkdir -p C:/Users/lenovo/Codes/ACMSimPy/course/vendor/katex/fonts)",
       "Bash(cd C:/Users/lenovo/Codes/ACMSimPy/course && cmd //c deploy-html.bat)",
       "Bash(cmd //c \"C:\\\\\\\\Users\\\\\\\\lenovo\\\\\\\\Codes\\\\\\\\ACMSimPy\\\\\\\\course\\\\\\\\deploy-html.bat\")",
-      "Bash(pdflatex -interaction=nonstopmode ee275_final_2026.tex)"
+      "Bash(pdflatex -interaction=nonstopmode ee275_final_2026.tex)",
+      "Bash(git pull:*)",
+      "Bash(cp C:/Users/lenovo/Codes/ACMSimPy/course/homework2.html C:/Users/lenovo/Codes/horychen.github.io/public/motor-html/)",
+      "Read(//c/Users/lenovo/Codes/horychen.github.io/public/motor-html/**)",
+      "Bash(mkdir -p homework2)",
+      "Bash(mv homework2.html homework2/index.html)"
     ]
   }
 }
