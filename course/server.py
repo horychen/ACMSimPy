@@ -1,13 +1,17 @@
 """
 Electric Motor Control - Course Server
 Run: python server.py
-  - Survey:     http://<ip>:8000/lecture1.html   (students)
+  - Home:       http://<ip>:8000/index.html      (students)
+  - Lecture 1:  http://<ip>:8000/lecture1.html   (students)
   - Lecture 2:  http://<ip>:8000/lecture2.html   (students)
   - Lecture 3:  http://<ip>:8000/lecture3.html   (students)
+  - Lecture 4:  http://<ip>:8000/lecture4.html   (students)
   - Homework 1: http://<ip>:8000/homework1.html  (students)
-  - Project 1:  http://<ip>:8000/codingProject1.html (students)
-  - Project 2:  http://<ip>:8000/codingProject2.html (students)
-  - Project 3:  http://<ip>:8000/codingProject3.html (students)
+  - Homework 2: http://<ip>:8000/homework2.html  (students)
+  - Project 1:  http://<ip>:8000/codingProject1.html  (students)
+  - Project 2:  http://<ip>:8000/codingProject2.html  (students)
+  - Project 3:  http://<ip>:8000/codingProject3.html  (students)
+  - Project 4:  http://<ip>:8000/codingProject4.html  (students)
   - Live:       http://<ip>:8000/live.html       (students)
   - Teacher:    http://localhost:8000/teacher.html
 """
@@ -26,6 +30,25 @@ RESPONSES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "respon
 LIVE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "live_responses")
 QUIZ_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quiz_responses")
 HOMEWORK_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "homework_submissions")
+
+COURSE_PAGES = [
+    ("Home", "index.html"),
+    ("Lecture 1", "lecture1.html"),
+    ("Lecture 2", "lecture2.html"),
+    ("Lecture 3", "lecture3.html"),
+    ("Lecture 4", "lecture4.html"),
+    ("Homework 1", "homework1.html"),
+    ("Homework 2", "homework2.html"),
+    ("Homework 2 Solution", "homework2_solution.html"),
+    ("Coding Project 1", "codingProject1.html"),
+    ("Coding Project 2", "codingProject2.html"),
+    ("Coding Project 23", "codingProject23.html"),
+    ("Coding Project 3", "codingProject3.html"),
+    ("Coding Project 4", "codingProject4.html"),
+    ("Live Q&A", "live.html"),
+    ("Teacher Panel", "teacher.html"),
+    ("Q&A Demo", "qa-demo.html"),
+]
 
 # --- In-memory live Q&A state ---
 live_state = {
@@ -393,21 +416,15 @@ if __name__ == "__main__":
     print("  Electric Motor Control - Course Server")
     print("=" * 56)
     print()
-    print(f"  Survey     (students): http://{ip}:{PORT}/lecture1.html")
-    print(f"  Lecture 2  (students): http://{ip}:{PORT}/lecture2.html")
-    print(f"  Lecture 3  (students): http://{ip}:{PORT}/lecture3.html")
-    print(f"  Homework 1 (students): http://{ip}:{PORT}/homework1.html")
-    print(f"  Project 1  (students): http://{ip}:{PORT}/codingProject1.html")
-    print(f"  Project 2  (students): http://{ip}:{PORT}/codingProject2.html")
-    print(f"  Project 3  (students): http://{ip}:{PORT}/codingProject3.html")
-    print(f"  Live       (students): http://{ip}:{PORT}/live.html")
-    print(f"  Teacher panel:         http://localhost:{PORT}/teacher.html")
+    for label, page in COURSE_PAGES:
+        base = "localhost" if page == "teacher.html" else ip
+        print(f"  {label:<18} http://{base}:{PORT}/{page}")
     print()
 
     try:
         import qrcode
         qr = qrcode.QRCode(box_size=1, border=1)
-        qr.add_data(f"http://{ip}:{PORT}/lecture2.html")
+        qr.add_data(f"http://{ip}:{PORT}/index.html")
         qr.make(fit=True)
         qr.print_ascii(invert=True)
         print()

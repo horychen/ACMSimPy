@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Coding Project 4 - Sensorless Speed and Load-Torque Observer</title>
+<title>Coding Project 4 - Sensorless Position Estimation via Active Flux Observer</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"
   onerror="this.onerror=null;this.href='vendor/katex/katex.min.css';">
 <script>
@@ -191,31 +191,31 @@
   </div>
 
   <header class="hero">
-    <div class="eyebrow">Coding Project 4 / Sensorless Speed and Load-Torque Observer</div>
+    <div class="eyebrow">Coding Project 4 / Sensorless Position Estimation via Active Flux</div>
     <h1>
-      <span class="lang-en">Can an <em>observer</em> replace the missing speed sensor well enough for control?</span>
-      <span class="lang-zh">一个 <em>observer</em> 能不能把缺失的速度传感器“补”到足够好？</span>
+      <span class="lang-en">Can we estimate the rotor <em>position</em> from flux, and derive <em>speed</em> from that position?</span>
+      <span class="lang-zh">能否从磁链估计转子<em>位置</em>，再从位置推导出<em>转速</em>？</span>
     </h1>
     <p class="lead">
-      <span class="lang-en">This project turns Chapter 4 into evidence. You will use the observer already embedded in the simulation to reconstruct speed and load torque, vary the observer bandwidth, compare medium-speed and low-speed operation, and decide when the estimate is good enough for control instead of only “looking similar.”</span>
-      <span class="lang-zh">这个项目的目标是把 Chapter 4 变成可验证的证据。你将使用仿真里已经写好的 observer 来重建速度和负载转矩，改变 observer 带宽，对比中速与低速工况，并判断这个估计是否真的“足够用于控制”，而不仅仅是“看起来差不多”。</span>
+      <span class="lang-en">This project asks you to build and compare two voltage-model-based flux observers for rotor position estimation: a <strong>pure open-loop integrator</strong> (which will drift) and an <strong>Active Flux observer with PI correction</strong> (which stays accurate). You will see how the observer fits the universal <em>prediction + innovation</em> framework, understand why open-loop integration fails in practice, and learn how speed is obtained from the estimated position angle.</span>
+      <span class="lang-zh">本项目要求你构建并对比两种基于电压模型的磁链观测器来估计转子位置：一个<strong>纯开环积分器</strong>（会漂移）和一个<strong>带 PI 校正的 Active Flux 观测器</strong>（能保持精度）。你将理解观测器如何符合通用的 <em>prediction + innovation</em> 框架，理解开环积分为何在实际中失效，以及转速是如何从估计的位置角度中获得的。</span>
     </p>
     <div class="meta-grid">
       <div class="meta-card">
-        <span class="meta-label"><span class="lang-en">Core scripts</span><span class="lang-zh">核心脚本</span></span>
-        <div class="meta-value"><code>simulation/tutorials_ep6_svpwm.py</code><br><code>simulation/demo_4th_order_ESO.py</code></div>
+        <span class="meta-label"><span class="lang-en">Core script</span><span class="lang-zh">核心脚本</span></span>
+        <div class="meta-value"><code>simulation/demo_sensorless_active_flux.py</code></div>
       </div>
       <div class="meta-card">
-        <span class="meta-label"><span class="lang-en">Support script</span><span class="lang-zh">辅助脚本</span></span>
-        <div class="meta-value"><code>simulation/tuner.py</code></div>
+        <span class="meta-label"><span class="lang-en">Support scripts</span><span class="lang-zh">辅助脚本</span></span>
+        <div class="meta-value"><code>tutorials_ep6_svpwm.py</code><br><code>tuner.py</code></div>
       </div>
       <div class="meta-card">
         <span class="meta-label"><span class="lang-en">Report format</span><span class="lang-zh">报告格式</span></span>
         <div class="meta-value">PDF / 4 required figures</div>
       </div>
       <div class="meta-card">
-        <span class="meta-label"><span class="lang-en">Main variable</span><span class="lang-zh">关键参数</span></span>
-        <div class="meta-value"><code>omega_ob</code> and <code>ell1</code> ... <code>ell4</code></div>
+        <span class="meta-label"><span class="lang-en">Key parameters</span><span class="lang-zh">关键参数</span></span>
+        <div class="meta-value"><code>af_Kp</code>, <code>af_Ki</code>, <code>R_mismatch_factor</code></div>
       </div>
     </div>
   </header>
@@ -224,6 +224,7 @@
     <aside class="sidebar">
       <div class="side-title"><span class="lang-en">Contents</span><span class="lang-zh">目录</span></div>
       <ul class="nav-list">
+        <li><a href="#background"><span class="lang-en">Background theory</span><span class="lang-zh">背景理论</span></a></li>
         <li><a href="#goal"><span class="lang-en">Goal</span><span class="lang-zh">目标</span></a></li>
         <li><a href="#setup"><span class="lang-en">Setup</span><span class="lang-zh">环境与资源</span></a></li>
         <li><a href="#code-map"><span class="lang-en">Code map</span><span class="lang-zh">代码地图</span></a></li>
@@ -233,147 +234,299 @@
         <li><a href="#report"><span class="lang-en">Report requirements</span><span class="lang-zh">报告要求</span></a></li>
       </ul>
       <div class="side-note">
-        <span class="lang-en">Use the built-in observer first. You are not asked to invent a new observer from scratch; you are asked to understand, instrument, and verify the one in the codebase.</span>
-        <span class="lang-zh">先用代码里已经存在的 observer。这个项目不是让你从零发明一个新 observer，而是让你读懂、加仪表、并验证现有实现。</span>
+        <span class="lang-en">The demo script runs two observers <strong>in parallel</strong> on the same sensored-FOC-controlled motor. This lets you compare both methods objectively against the encoder truth.</span>
+        <span class="lang-zh">Demo 脚本在同一个有传感器 FOC 控制的电机上<strong>并行运行</strong>两个观测器。这样你可以用编码器真值客观地对比两种方法。</span>
       </div>
     </aside>
 
     <main class="main">
+      <!-- ======================== BACKGROUND ======================== -->
+      <section class="section" id="background">
+        <div class="section-tag">Background Theory / Observer = Prediction + Innovation</div>
+        <h2><span class="lang-en">From flux to position to speed: the sensorless chain</span><span class="lang-zh">从磁链到位置到转速：无传感器的推导链</span></h2>
+
+        <h3><span class="lang-en">Step 1 — Voltage model gives stator flux (Prediction)</span><span class="lang-zh">第一步 — 电压模型给出定子磁链（Prediction）</span></h3>
+        <p>
+          <span class="lang-en">The stator voltage equation of a PMSM in the stationary $\alpha\beta$ frame can be rearranged as:</span>
+          <span class="lang-zh">PMSM 在静止 $\alpha\beta$ 坐标系下的定子电压方程可以改写为：</span>
+        </p>
+        <div class="eq-block">
+          $$\frac{d\hat{\boldsymbol{\psi}}_s}{dt} = \mathbf{u}_s - R \, \mathbf{i}_s$$
+        </div>
+        <p>
+          <span class="lang-en">This is a pure <strong>prediction</strong>: given the measured voltage $\mathbf{u}_s$ and current $\mathbf{i}_s$, integrate to get the stator flux. This is the <em>open-loop integrator</em>. Its problem: any error in $R$, any voltage offset, or any initial condition error will accumulate over time indefinitely.</span>
+          <span class="lang-zh">这是一个纯<strong>预测（prediction）</strong>：利用测量的电压 $\mathbf{u}_s$ 和电流 $\mathbf{i}_s$ 进行积分，得到定子磁链。这就是<em>开环积分器</em>。它的问题：$R$ 的任何估计误差、任何电压偏置、或初值误差都会无限期累积。</span>
+        </p>
+
+        <h3><span class="lang-en">Step 2 — Active flux extracts rotor position</span><span class="lang-zh">第二步 — Active flux 提取转子位置</span></h3>
+        <p>
+          <span class="lang-en">For an SPMSM ($L_d = L_q = L$), the <strong>active flux</strong> is defined as:</span>
+          <span class="lang-zh">对于表贴式 PMSM（$L_d = L_q = L$），<strong>有功磁链（active flux）</strong>定义为：</span>
+        </p>
+        <div class="eq-block">
+          $$\hat{\boldsymbol{\psi}}_{\text{AF}} = \hat{\boldsymbol{\psi}}_s - L \, \mathbf{i}_s$$
+        </div>
+        <p>
+          <span class="lang-en">In steady state, the active flux equals the PM flux linkage vector $\psi_{\text{PM}}$, whose direction is the rotor position:</span>
+          <span class="lang-zh">稳态下，active flux 等于永磁磁链向量 $\psi_{\text{PM}}$，其方向就是转子位置：</span>
+        </p>
+        <div class="eq-block">
+          $$\hat{\theta}_r = \text{atan2}\!\left(\hat{\psi}_{\text{AF},\beta},\;\hat{\psi}_{\text{AF},\alpha}\right)$$
+        </div>
+
+        <h3><span class="lang-en">Step 3 — Speed from position differentiation</span><span class="lang-zh">第三步 — 位置微分得到转速</span></h3>
+        <p>
+          <span class="lang-en">Once you have the estimated electrical angle $\hat{\theta}_r$ at each control step, the electrical angular velocity is obtained by differentiating and low-pass filtering:</span>
+          <span class="lang-zh">一旦在每个控制周期获得了估计电角度 $\hat{\theta}_r$，电角速度就可以通过微分加低通滤波获得：</span>
+        </p>
+        <div class="eq-block">
+          $$\hat{\omega}_e = \text{LPF}\!\left(\frac{\Delta\hat{\theta}_r}{\Delta t}\right), \qquad \hat{n}_{\text{rpm}} = \frac{\hat{\omega}_e}{2\pi \cdot n_{pp}} \times 60$$
+        </div>
+        <p>
+          <span class="lang-en">This is a <strong>derived quantity</strong>: the speed is not estimated by the observer directly — it is computed from the estimated position. The quality of the speed estimate depends entirely on the quality of the position estimate.</span>
+          <span class="lang-zh">这是一个<strong>派生量</strong>：转速不是观测器直接估计的——而是从估计位置计算出来的。转速估计的质量完全取决于位置估计的质量。</span>
+        </p>
+
+        <h3><span class="lang-en">Step 4 — PI correction is the Innovation</span><span class="lang-zh">第四步 — PI 校正就是 Innovation</span></h3>
+        <div class="callout callout--warn">
+          <span class="callout-title"><span class="lang-en">Key insight: every observer = prediction + innovation</span><span class="lang-zh">核心洞察：所有观测器 = prediction + innovation</span></span>
+          <span class="lang-en">The open-loop integrator only has prediction — no innovation. The active flux observer adds a <strong>PI correction</strong> term that acts as the innovation: it compares the estimated active flux <em>amplitude</em> $|\hat{\boldsymbol{\psi}}_{\text{AF}}|$ against the known PM flux constant $\psi_{\text{PM}}$, and uses the error to correct the integration.</span>
+          <span class="lang-zh">开环积分器只有 prediction —— 没有 innovation。Active flux 观测器增加了一个 <strong>PI 校正</strong>项作为 innovation：它将估计的 active flux <em>幅值</em> $|\hat{\boldsymbol{\psi}}_{\text{AF}}|$ 与已知的永磁磁链常数 $\psi_{\text{PM}}$ 比较，用误差来校正积分。</span>
+        </div>
+        <p>
+          <span class="lang-en">Although $\boldsymbol{\psi}_s$ cannot be measured directly, we know its amplitude constraint: $|\boldsymbol{\psi}_{\text{AF}}| = \psi_{\text{PM}}$. This known constant serves as an <strong>"indirect measurement"</strong>:</span>
+          <span class="lang-zh">虽然 $\boldsymbol{\psi}_s$ 不能直接测量，但我们知道一个幅值约束：$|\boldsymbol{\psi}_{\text{AF}}| = \psi_{\text{PM}}$。这个已知常数充当了<strong>"间接测量"</strong>：</span>
+        </p>
+        <div class="eq-block">
+          $$\underbrace{\frac{d\hat{\boldsymbol{\psi}}_s}{dt} = \mathbf{u}_s - R\,\mathbf{i}_s}_{\text{prediction}} \;+\; \underbrace{\left[K_p\,e + K_i\!\int\!e\,dt\right] \cdot \hat{\mathbf{n}}_{\text{AF}}}_{\text{innovation (PI correction)}}$$
+        </div>
+        <p>
+          <span class="lang-en">where $e = \psi_{\text{PM}} - |\hat{\boldsymbol{\psi}}_{\text{AF}}|$ is the amplitude error, and $\hat{\mathbf{n}}_{\text{AF}}$ is the unit vector along $\hat{\boldsymbol{\psi}}_{\text{AF}}$.</span>
+          <span class="lang-zh">其中 $e = \psi_{\text{PM}} - |\hat{\boldsymbol{\psi}}_{\text{AF}}|$ 是幅值误差，$\hat{\mathbf{n}}_{\text{AF}}$ 是 $\hat{\boldsymbol{\psi}}_{\text{AF}}$ 方向的单位向量。</span>
+        </p>
+        <div class="grid-2">
+          <div class="card">
+            <h4><span class="lang-en">P term — why?</span><span class="lang-zh">P 项 — 为什么需要？</span></h4>
+            <p>
+              <span class="lang-en">Provides immediate restoring force when the flux amplitude drifts from $\psi_{\text{PM}}$. Like a spring: the farther it drifts, the harder it pulls back.</span>
+              <span class="lang-zh">当磁链幅值偏离 $\psi_{\text{PM}}$ 时，立刻提供恢复力。就像弹簧：偏得越远，拉力越大。</span>
+            </p>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">I term — why?</span><span class="lang-zh">I 项 — 为什么需要？</span></h4>
+            <p>
+              <span class="lang-en">Eliminates steady-state drift caused by constant errors (wrong $R$, voltage offsets). Without it, P alone leaves a residual error. This is exactly analogous to the integral action in a speed PI regulator that eliminates speed static error.</span>
+              <span class="lang-zh">消除由恒定误差（$R$ 不准、电压偏置）导致的稳态漂移。没有它，仅靠 P 项会留下残差。这和速度 PI 调节器中积分项消除静差的原理完全一样。</span>
+            </p>
+          </div>
+        </div>
+
+        <h3><span class="lang-en">Summary: the sensorless estimation chain</span><span class="lang-zh">总结：无传感器估计链</span></h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th><span class="lang-en">Stage</span><span class="lang-zh">阶段</span></th>
+                <th><span class="lang-en">What is computed</span><span class="lang-zh">计算什么</span></th>
+                <th><span class="lang-en">Equation / method</span><span class="lang-zh">方程/方法</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>1. Flux integration</strong></td>
+                <td><span class="lang-en">Stator flux $\hat{\boldsymbol{\psi}}_s$</span><span class="lang-zh">定子磁链 $\hat{\boldsymbol{\psi}}_s$</span></td>
+                <td>$d\hat{\boldsymbol{\psi}}_s/dt = \mathbf{u}_s - R\mathbf{i}_s + \text{correction}$</td>
+              </tr>
+              <tr>
+                <td><strong>2. Active flux</strong></td>
+                <td>$\hat{\boldsymbol{\psi}}_{\text{AF}}$</td>
+                <td>$\hat{\boldsymbol{\psi}}_s - L_q \, \mathbf{i}_s$</td>
+              </tr>
+              <tr>
+                <td><strong>3. Position</strong></td>
+                <td><span class="lang-en">Rotor angle $\hat{\theta}_r$</span><span class="lang-zh">转子角度 $\hat{\theta}_r$</span></td>
+                <td>$\text{atan2}(\hat{\psi}_{\text{AF},\beta},\, \hat{\psi}_{\text{AF},\alpha})$</td>
+              </tr>
+              <tr>
+                <td><strong>4. Speed</strong></td>
+                <td>$\hat{\omega}_r$</td>
+                <td><span class="lang-en">$\text{LPF}(\Delta\hat{\theta}_r / \Delta t)$</span><span class="lang-zh">$\text{LPF}(\Delta\hat{\theta}_r / \Delta t)$</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ======================== GOAL ======================== -->
       <section class="section" id="goal">
         <div class="section-tag">Project Goal / What You Must Show</div>
-        <h2><span class="lang-en">Turn the observer into measurable evidence</span><span class="lang-zh">把 observer 变成可验证的证据</span></h2>
+        <h2><span class="lang-en">Show why open-loop integration fails and how PI correction saves it</span><span class="lang-zh">说明开环积分为何失败，PI 校正如何挽救</span></h2>
         <p>
-          <span class="lang-en">Your final report should answer one main question: <strong>without directly measuring mechanical speed, can the observer reconstruct speed and load torque accurately enough to support motor control?</strong></span>
-          <span class="lang-zh">你的最终报告要回答一个主问题：<strong>在不直接测量机械转速的前提下，observer 能否足够准确地重建速度和负载转矩，从而支撑电机控制？</strong></span>
+          <span class="lang-en">Your final report should demonstrate through simulation evidence that:</span>
+          <span class="lang-zh">你的最终报告需要通过仿真证据说明：</span>
         </p>
         <div class="grid-2">
           <div class="card">
             <h4><span class="lang-en">You must investigate</span><span class="lang-zh">你必须研究</span></h4>
             <ul>
-              <li><span class="lang-en">speed estimation accuracy</span><span class="lang-zh">速度估计精度</span></li>
-              <li><span class="lang-en">load-torque or disturbance reconstruction quality</span><span class="lang-zh">负载转矩或扰动重建质量</span></li>
-              <li><span class="lang-en">effect of observer bandwidth</span><span class="lang-zh">观察器带宽影响</span></li>
-              <li><span class="lang-en">low-speed observability degradation</span><span class="lang-zh">低速可观测性恶化</span></li>
+              <li><span class="lang-en">position estimation accuracy: Active Flux observer vs open-loop integrator</span><span class="lang-zh">位置估计精度：Active Flux 观测器 vs 开环积分器</span></li>
+              <li><span class="lang-en">speed estimation quality derived from estimated position</span><span class="lang-zh">从估计位置推导的转速估计质量</span></li>
+              <li><span class="lang-en">effect of parameter mismatch ($R$ error, voltage offset) on both methods</span><span class="lang-zh">参数失配（$R$ 误差、电压偏置）对两种方法的影响</span></li>
+              <li><span class="lang-en">flux trajectory in $\alpha\beta$ plane: circle vs drift</span><span class="lang-zh">$\alpha\beta$ 平面磁链轨迹：圆形 vs 漂移</span></li>
+              <li><span class="lang-en">role of PI gains ($K_p$, $K_i$) in the observer</span><span class="lang-zh">观测器中 PI 增益（$K_p$, $K_i$）的作用</span></li>
             </ul>
           </div>
           <div class="card">
-            <h4><span class="lang-en">You are not required to</span><span class="lang-zh">你不必做</span></h4>
+            <h4><span class="lang-en">Conceptual understanding required</span><span class="lang-zh">需要理解的概念</span></h4>
             <ul>
-              <li><span class="lang-en">derive every proof in Chapter 4</span><span class="lang-zh">把 Chapter 4 的证明全部推完</span></li>
-              <li><span class="lang-en">design a brand-new observer structure</span><span class="lang-zh">从头设计一个全新的 observer</span></li>
-              <li><span class="lang-en">build an online submission page</span><span class="lang-zh">做在线提交页面</span></li>
+              <li><span class="lang-en">Why every observer is prediction + innovation</span><span class="lang-zh">为什么所有观测器都是 prediction + innovation</span></li>
+              <li><span class="lang-en">What serves as the "indirect measurement" when flux is unmeasured</span><span class="lang-zh">当磁链不可测时，什么充当了"间接测量"</span></li>
+              <li><span class="lang-en">How speed is a <em>derived</em> quantity from position, not a direct estimate</span><span class="lang-zh">转速是如何从位置<em>派生</em>出来的，而非直接估计</span></li>
+              <li><span class="lang-en">Why DC drift is the fundamental problem of pure integration</span><span class="lang-zh">为什么直流漂移是纯积分的根本问题</span></li>
             </ul>
           </div>
         </div>
         <div class="callout callout--task">
           <span class="callout-title"><span class="lang-en">Core deliverable</span><span class="lang-zh">核心交付物</span></span>
-          <span class="lang-en">Use figures and short quantitative commentary to convince the reader that you understand <em>when</em> the observer works, <em>why</em> it works, and <em>where</em> it starts to fail.</span>
-          <span class="lang-zh">你要用图和简洁的定量分析，让读者相信你真正理解了 observer <em>什么时候有效</em>、<em>为什么有效</em>、以及 <em>从哪里开始失效</em>。</span>
+          <span class="lang-en">Use figures and short quantitative analysis to convince the reader that you understand <em>why</em> the open-loop integrator drifts, <em>how</em> the PI correction prevents drift, and <em>how</em> speed is obtained from the estimated position angle.</span>
+          <span class="lang-zh">用图和简洁的定量分析，让读者相信你真正理解了开环积分器<em>为什么</em>会漂移、PI 校正<em>如何</em>防止漂移、以及转速<em>如何</em>从估计位置角度中获得。</span>
         </div>
       </section>
 
+      <!-- ======================== SETUP ======================== -->
       <section class="section" id="setup">
-        <div class="section-tag">Setup / Repo and Environment</div>
-        <h2><span class="lang-en">Where to run the experiments</span><span class="lang-zh">实验从哪里开始</span></h2>
+        <div class="section-tag">Setup / Run the Demo</div>
+        <h2><span class="lang-en">How to run the experiment</span><span class="lang-zh">如何运行实验</span></h2>
         <p>
-          <span class="lang-en">If you already have the course repository locally, use it directly. If you need a fresh copy, you can clone <a href="https://github.com/horychen/ee275">horychen/ee275</a> via <code>https://github.com/horychen/ee275.git</code>. Environment notes are in the <a href="https://github.com/horychen/ee275/blob/master/README.md">README</a>.</span>
-          <span class="lang-zh">如果你已经在本地有课程仓库，直接使用即可。如果需要一份新副本，可以通过 <code>https://github.com/horychen/ee275.git</code> 克隆 <a href="https://github.com/horychen/ee275">horychen/ee275</a>。环境配置说明见 <a href="https://github.com/horychen/ee275/blob/master/README.md">README</a>。</span>
+          <span class="lang-en">The demo script runs two observers (Active Flux + open-loop) in parallel on the same motor simulation and saves comparison plots automatically:</span>
+          <span class="lang-zh">Demo 脚本在同一个电机仿真上并行运行两个观测器（Active Flux + 开环），自动保存对比图：</span>
         </p>
-        <pre><code>python simulation/demo_4th_order_ESO.py --time 1.5 --scenarios 4_ON --loads sine --omega_ob 100 --cmd_rpm 50</code></pre>
+        <pre><code>cd simulation
+python demo_sensorless_active_flux.py</code></pre>
         <p>
-          <span class="lang-en">The command above is only a convenient starting point. You may also work directly inside <code>simulation/tutorials_ep6_svpwm.py</code> if you want full control over which signals are logged and plotted.</span>
-          <span class="lang-zh">上面的命令只是一个方便的起点。如果你想完全控制记录信号和绘图方式，也可以直接在 <code>simulation/tutorials_ep6_svpwm.py</code> 里做实验。</span>
+          <span class="lang-en">The script deliberately introduces <strong>parameter mismatch</strong> to simulate real-world conditions:</span>
+          <span class="lang-zh">脚本故意引入<strong>参数失配</strong>来模拟真实工况：</span>
         </p>
+        <div class="grid-3">
+          <div class="card">
+            <h4>$R$ mismatch</h4>
+            <p><span class="lang-en">Observer uses $R_{\text{obs}} = 1.5 \times R_{\text{true}}$ (50% overestimation — simulates temperature drift)</span><span class="lang-zh">观测器使用 $R_{\text{obs}} = 1.5 \times R_{\text{true}}$（高估 50%——模拟温度漂移）</span></p>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">Voltage offset</span><span class="lang-zh">电压偏置</span></h4>
+            <p><span class="lang-en">$\alpha$: +20 mV, $\beta$: −15 mV (simulates inverter deadzone / ADC offset)</span><span class="lang-zh">$\alpha$: +20 mV, $\beta$: −15 mV（模拟逆变器死区/ADC 偏移）</span></p>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">Speed profile</span><span class="lang-zh">转速命令</span></h4>
+            <p><span class="lang-en">Ramp → hold → load step → reversal, over 2 seconds</span><span class="lang-zh">斜坡 → 保持 → 加载 → 反转，共 2 秒</span></p>
+          </div>
+        </div>
+        <div class="callout callout--ok">
+          <span class="callout-title"><span class="lang-en">Important design note</span><span class="lang-zh">重要设计说明</span></span>
+          <span class="lang-en">The motor is always controlled by the <strong>true encoder</strong> (sensored FOC). The two observers run in open loop alongside, so you can objectively evaluate their accuracy without instability from feeding back a bad estimate.</span>
+          <span class="lang-zh">电机始终由<strong>真实编码器</strong>控制（有传感器 FOC）。两个观测器是并行开环运行的，这样你可以客观地评估它们的精度，而不用担心反馈不良估计导致不稳定。</span>
+        </div>
       </section>
 
+      <!-- ======================== CODE MAP ======================== -->
       <section class="section" id="code-map">
         <div class="section-tag">Code Map / Where the Observer Lives</div>
-        <h2><span class="lang-en">Read these places before editing anything</span><span class="lang-zh">动手前先看这些位置</span></h2>
+        <h2><span class="lang-en">Read these places before editing</span><span class="lang-zh">动手前先看这些位置</span></h2>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
-                <th><span class="lang-en">File or object</span><span class="lang-zh">文件或对象</span></th>
+                <th><span class="lang-en">File / function</span><span class="lang-zh">文件/函数</span></th>
                 <th><span class="lang-en">What to inspect</span><span class="lang-zh">看什么</span></th>
-                <th><span class="lang-en">Why it matters</span><span class="lang-zh">为什么重要</span></th>
+                <th><span class="lang-en">Relation to theory</span><span class="lang-zh">与理论的对应</span></th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td><code>simulation/tutorials_ep6_svpwm.py</code></td>
-                <td><span class="lang-en"><code>DYNAMICS_SpeedObserver</code>, <code>CTRL.xS[...]</code>, <code>CTRL.ell1</code> ... <code>CTRL.ell4</code></span><span class="lang-zh"><code>DYNAMICS_SpeedObserver</code>、<code>CTRL.xS[...]</code>、<code>CTRL.ell1</code> 到 <code>CTRL.ell4</code></span></td>
-                <td><span class="lang-en">This is the actual observer state update used during simulation.</span><span class="lang-zh">这里就是仿真中真正执行的 observer 状态更新。</span></td>
+                <td><code>demo_sensorless_active_flux.py</code></td>
+                <td><span class="lang-en"><code>run_sensorless_demo()</code> — the main simulation loop with both observers</span><span class="lang-zh"><code>run_sensorless_demo()</code> — 包含两个观测器的主仿真循环</span></td>
+                <td><span class="lang-en">Contains the complete prediction + innovation structure. <strong>Start here.</strong></span><span class="lang-zh">包含完整的 prediction + innovation 结构。<strong>从这里开始。</strong></span></td>
               </tr>
               <tr>
-                <td><code>CTRL.xS[0:4]</code></td>
-                <td><span class="lang-en">estimated angle, speed, disturbance, disturbance-rate</span><span class="lang-zh">估计角度、估计速度、估计扰动、扰动变化率</span></td>
-                <td><span class="lang-en">These are the main signals you will compare against ground truth.</span><span class="lang-zh">这些就是你要和真实量进行对比的核心波形。</span></td>
+                <td><span class="lang-en">Observer (A)<br>Active Flux</span><span class="lang-zh">观测器 (A)<br>Active Flux</span></td>
+                <td><span class="lang-en">Lines with <code>af_psi_s</code>, <code>af_corr_int</code>, <code>psi_af_error</code></span><span class="lang-zh">搜索 <code>af_psi_s</code>、<code>af_corr_int</code>、<code>psi_af_error</code></span></td>
+                <td><span class="lang-en"><strong>Prediction</strong>: flux integration. <strong>Innovation</strong>: PI on $|\hat{\psi}_{\text{AF}}| - \psi_{\text{PM}}$</span><span class="lang-zh"><strong>Prediction</strong>：磁链积分。<strong>Innovation</strong>：PI 作用于 $|\hat{\psi}_{\text{AF}}| - \psi_{\text{PM}}$</span></td>
               </tr>
               <tr>
-                <td><code>ACM.custom_load_type</code></td>
-                <td><span class="lang-en">step, ramp, sine, sweep load injection</span><span class="lang-zh">step、ramp、sine、sweep 负载注入</span></td>
-                <td><span class="lang-en">Use this to create disturbances with different time scales and frequencies.</span><span class="lang-zh">用它构造不同时间尺度和频率特性的扰动。</span></td>
+                <td><span class="lang-en">Observer (B)<br>Open-loop int.</span><span class="lang-zh">观测器 (B)<br>开环积分器</span></td>
+                <td><span class="lang-en">Lines with <code>ol_psi_s</code></span><span class="lang-zh">搜索 <code>ol_psi_s</code></span></td>
+                <td><span class="lang-en"><strong>Prediction only</strong> — no innovation. Same wrong $R$, same voltage offsets, but no correction.</span><span class="lang-zh"><strong>只有 Prediction</strong>——没有 innovation。同样的 $R$ 错误、同样的电压偏置，但没有修正。</span></td>
               </tr>
               <tr>
-                <td><code>simulation/demo_4th_order_ESO.py</code></td>
-                <td><span class="lang-en">quick scenario runner, plotting, bandwidth parameter <code>omega_ob</code></span><span class="lang-zh">快速跑场景、绘图、调 <code>omega_ob</code></span></td>
-                <td><span class="lang-en">Fastest route if you want evidence first and code refactoring later.</span><span class="lang-zh">如果你想先拿到实验现象、后做细化，这是最快路径。</span></td>
+                <td><span class="lang-en">Speed estimation</span><span class="lang-zh">转速估计</span></td>
+                <td><span class="lang-en"><code>d_theta_af</code>, <code>lpf_alpha</code></span><span class="lang-zh"><code>d_theta_af</code>、<code>lpf_alpha</code></span></td>
+                <td><span class="lang-en">$\hat{\omega} = \text{LPF}(\Delta\hat{\theta}/\Delta t)$ — speed is <strong>derived from position</strong>, not estimated independently.</span><span class="lang-zh">$\hat{\omega} = \text{LPF}(\Delta\hat{\theta}/\Delta t)$ — 转速是从位置<strong>派生</strong>的，不是独立估计的。</span></td>
               </tr>
               <tr>
-                <td><code>simulation/tuner.py</code></td>
-                <td><span class="lang-en">auto-tuning of PI loops</span><span class="lang-zh">PI 参数自动整定</span></td>
-                <td><span class="lang-en">Keeps the current and speed loops in a reasonable regime while you focus on the observer.</span><span class="lang-zh">让电流环和速度环保持在合理工作区间，方便你把注意力放到 observer 上。</span></td>
+                <td><code>tutorials_ep6_svpwm.py</code></td>
+                <td><span class="lang-en">Motor model, FOC loop, <code>ACMSimPyIncremental</code></span><span class="lang-zh">电机模型、FOC 循环、<code>ACMSimPyIncremental</code></span></td>
+                <td><span class="lang-en">Provides the plant simulation. You don't need to modify this file.</span><span class="lang-zh">提供被控对象仿真。你不需要修改这个文件。</span></td>
               </tr>
             </tbody>
           </table>
         </div>
         <div class="callout callout--warn">
-          <span class="callout-title"><span class="lang-en">Important sign and unit note</span><span class="lang-zh">重要的符号和单位提醒</span></span>
-          <span class="lang-en"><code>CTRL.xS[1]</code> is the observer speed state. Depending on how you log data, it may need conversion from electrical speed to mechanical rpm. Also, <code>CTRL.xS[2]</code> is the estimated disturbance and often has the opposite sign of <code>ACM.TLoad</code>, so plotting <code>-CTRL.xS[2]</code> against <code>ACM.TLoad</code> is usually the meaningful comparison.</span>
-          <span class="lang-zh"><code>CTRL.xS[1]</code> 是 observer 的速度状态。根据你的取数方式，它可能需要从电角速度换算成机械 rpm。另一个关键点是 <code>CTRL.xS[2]</code> 表示估计扰动，通常与 <code>ACM.TLoad</code> 符号相反，所以实际比较时往往应画 <code>-CTRL.xS[2]</code> 与 <code>ACM.TLoad</code>。</span>
+          <span class="callout-title"><span class="lang-en">Where does "position → speed" happen in code?</span><span class="lang-zh">代码中"位置 → 转速"在哪里？</span></span>
+          <span class="lang-en">Search for <code>d_theta_af</code> in the demo script. You will see: <code>raw_omega_af = d_theta_af / CL_TS</code> followed by a first-order LPF. This is exactly the chain: <strong>flux → active flux → angle → differentiate → filter → speed</strong>. The speed is not a state of the observer — it is computed after the position is obtained.</span>
+          <span class="lang-zh">在 demo 脚本中搜索 <code>d_theta_af</code>。你会看到：<code>raw_omega_af = d_theta_af / CL_TS</code>，后面跟一个一阶低通滤波。这正是推导链：<strong>磁链 → active flux → 角度 → 微分 → 滤波 → 转速</strong>。转速不是观测器的状态——而是在获得位置之后计算出来的。</span>
         </div>
       </section>
 
+      <!-- ======================== EXPERIMENTS ======================== -->
       <section class="section" id="experiments">
         <div class="section-tag">Experiments / Minimum Work</div>
         <h2><span class="lang-en">Complete these four experiment blocks</span><span class="lang-zh">完成这四组实验</span></h2>
         <div class="grid-2">
           <div class="card">
-            <h4><span class="lang-en">Part A - Baseline speed estimation</span><span class="lang-zh">Part A - 基线速度估计</span></h4>
+            <h4><span class="lang-en">Part A — Baseline comparison at medium speed</span><span class="lang-zh">Part A — 中速基线对比</span></h4>
             <p>
-              <span class="lang-en">Run the observer at a moderate constant speed command, for example 50 rpm. Compare actual speed with estimated speed. Confirm that the estimate is not only close in steady state, but also acceptable during transient load changes.</span>
-              <span class="lang-zh">在一个中等恒速指令下运行 observer，例如 50 rpm。比较真实速度和估计速度。不要只看稳态，要确认在负载变化的暂态中估计是否仍然可接受。</span>
+              <span class="lang-en">Run the default demo (200 rpm with ramp, hold, load, reversal). Compare the angle estimates from both observers against the encoder truth. Report the RMS angle error for each method. Observe the flux trajectories in the $\alpha\beta$ plane.</span>
+              <span class="lang-zh">运行默认 demo（200 rpm，包含斜坡、保持、加载、反转）。比较两个观测器的角度估计与编码器真值。报告每种方法的 RMS 角度误差。观察 $\alpha\beta$ 平面的磁链轨迹。</span>
             </p>
           </div>
           <div class="card">
-            <h4><span class="lang-en">Part B - Load-torque reconstruction</span><span class="lang-zh">Part B - 负载转矩重建</span></h4>
+            <h4><span class="lang-en">Part B — Effect of R mismatch</span><span class="lang-zh">Part B — R 失配的影响</span></h4>
             <p>
-              <span class="lang-en">Inject a time-varying load, preferably sine or sweep. Compare actual load torque with the disturbance estimate. Report whether the observer captures amplitude, phase, and delay well enough.</span>
-              <span class="lang-zh">注入一个随时间变化的负载，优先推荐 sine 或 sweep。比较真实负载转矩与扰动估计，说明 observer 是否能把幅值、相位和延迟都跟上。</span>
+              <span class="lang-en">Vary <code>R_mismatch_factor</code> (e.g., 1.0, 1.5, 2.0). With factor=1.0, both observers should work well. As the factor increases, show how the open-loop integrator degrades rapidly while the Active Flux observer still maintains accuracy thanks to the PI correction.</span>
+              <span class="lang-zh">改变 <code>R_mismatch_factor</code>（例如 1.0, 1.5, 2.0）。factor=1.0 时两种方法都应该表现不错。随着 factor 增大，展示开环积分器如何迅速恶化，而 Active Flux 观测器由于 PI 校正仍然保持精度。</span>
             </p>
           </div>
           <div class="card">
-            <h4><span class="lang-en">Part C - Bandwidth sweep</span><span class="lang-zh">Part C - 带宽扫描</span></h4>
+            <h4><span class="lang-en">Part C — PI gain tuning</span><span class="lang-zh">Part C — PI 增益调节</span></h4>
             <p>
-              <span class="lang-en">Choose at least three observer bandwidth values such as 50, 100, and 200 rad/s. Keep the rest of the setup fixed. Compare response speed, lag, and noise sensitivity.</span>
-              <span class="lang-zh">至少选择三个 observer 带宽值，例如 50、100、200 rad/s。其余设置保持不变。比较响应快慢、滞后程度和噪声敏感性。</span>
+              <span class="lang-en">Vary the observer PI gains (<code>af_Kp</code>, <code>af_Ki</code>). Try at least three settings: (small, small), (default), and (large, large). Observe the tradeoff: too small → slow correction, residual drift; too large → oscillation or noise amplification.</span>
+              <span class="lang-zh">改变观测器 PI 增益（<code>af_Kp</code>, <code>af_Ki</code>）。至少尝试三种设置：（小, 小）、（默认）、（大, 大）。观察折中：太小 → 修正慢、残差漂移；太大 → 振荡或噪声放大。</span>
             </p>
           </div>
           <div class="card">
-            <h4><span class="lang-en">Part D - Low-speed observability test</span><span class="lang-zh">Part D - 低速可观测性测试</span></h4>
+            <h4><span class="lang-en">Part D — Speed estimation analysis</span><span class="lang-zh">Part D — 转速估计分析</span></h4>
             <p>
-              <span class="lang-en">Use the same observer and disturbance type at two operating points: one medium speed and one low or near-zero speed. Explain how the quality of speed and load reconstruction changes and connect it to observability.</span>
-              <span class="lang-zh">在两个工况下使用同一个 observer 和同一种扰动：一个中速，一个低速或接近零速。解释速度和负载重建质量如何变化，并把现象和可观测性联系起来。</span>
+              <span class="lang-en">Focus on the speed estimation subplot. Explain how the estimated speed is derived from the angle estimate via differentiation + LPF. Discuss: at what operating conditions does the speed estimate degrade? Try running at a lower speed command (e.g., 30 rpm) and compare the quality.</span>
+              <span class="lang-zh">关注转速估计子图。解释估计转速如何通过角度微分 + 低通滤波得到。讨论：在什么工况下转速估计会变差？尝试更低的速度命令（如 30 rpm），比较估计质量。</span>
             </p>
           </div>
         </div>
         <div class="callout callout--ok">
-          <span class="callout-title"><span class="lang-en">Recommended practical shortcut</span><span class="lang-zh">推荐的实践捷径</span></span>
-          <span class="lang-en">If you want to move quickly, use <code>simulation/demo_4th_order_ESO.py</code> to generate baseline figures first, then go back to <code>simulation/tutorials_ep6_svpwm.py</code> to verify where the signals are coming from.</span>
-          <span class="lang-zh">如果你想先快速拿到现象，先用 <code>simulation/demo_4th_order_ESO.py</code> 生成基线图，再回到 <code>simulation/tutorials_ep6_svpwm.py</code> 查清楚这些信号究竟从哪里来。</span>
+          <span class="callout-title"><span class="lang-en">How to modify the demo parameters</span><span class="lang-zh">如何修改 demo 参数</span></span>
+          <span class="lang-en">All tunable parameters are passed as arguments to <code>run_sensorless_demo()</code> at the bottom of the script. You can directly edit the values in the <code>if __name__ == '__main__'</code> block:</span>
+          <span class="lang-zh">所有可调参数都在脚本底部的 <code>run_sensorless_demo()</code> 调用中。你可以直接在 <code>if __name__ == '__main__'</code> 块中修改：</span>
         </div>
+<pre><code>results = run_sensorless_demo(
+    d,
+    af_Kp=500.0,               # ← try 50, 500, 5000
+    af_Ki=5000.0,              # ← try 500, 5000, 50000
+    R_mismatch_factor=1.5,     # ← try 1.0, 1.5, 2.0, 3.0
+    voltage_offset_alpha=0.02, # ← try 0, 0.02, 0.1
+    voltage_offset_beta=-0.015,
+)</code></pre>
       </section>
 
+      <!-- ======================== FIGURES ======================== -->
       <section class="section" id="figures">
         <div class="section-tag">Required Figures / Final PDF</div>
         <h2><span class="lang-en">The final PDF must contain these 4 figures</span><span class="lang-zh">最终 PDF 必须包含这 4 张图</span></h2>
@@ -389,70 +542,90 @@
             <tbody>
               <tr>
                 <td><strong>Figure 1</strong></td>
-                <td><span class="lang-en">Actual speed vs estimated speed under a medium-speed operating point.</span><span class="lang-zh">中速工况下，真实速度与估计速度的对比图。</span></td>
-                <td><span class="lang-en">Steady-state accuracy, transient lag, and whether the estimate is smooth enough to be used for control.</span><span class="lang-zh">稳态精度、暂态滞后，以及估计是否平滑到足以用于控制。</span></td>
+                <td><span class="lang-en">Angle estimation comparison: encoder truth vs Active Flux estimate vs open-loop estimate (time domain). Include the angle error subplot.</span><span class="lang-zh">角度估计对比：编码器真值 vs Active Flux 估计 vs 开环估计（时域）。包含角度误差子图。</span></td>
+                <td><span class="lang-en">Quantify RMS angle error for both methods. Explain why the open-loop integrator error grows over time while the Active Flux error stays bounded.</span><span class="lang-zh">量化两种方法的 RMS 角度误差。解释为什么开环积分器误差随时间增长而 Active Flux 误差保持有界。</span></td>
               </tr>
               <tr>
                 <td><strong>Figure 2</strong></td>
-                <td><span class="lang-en">Actual load torque vs estimated disturbance, preferably with a sine or sweep load.</span><span class="lang-zh">真实负载转矩与估计扰动的对比，最好使用 sine 或 sweep 负载。</span></td>
-                <td><span class="lang-en">Amplitude tracking, phase lag, and sign convention. If needed, compare <code>ACM.TLoad</code> with <code>-CTRL.xS[2]</code>.</span><span class="lang-zh">幅值跟踪、相位滞后和符号关系。如有需要，用 <code>ACM.TLoad</code> 与 <code>-CTRL.xS[2]</code> 比较。</span></td>
+                <td><span class="lang-en">Flux trajectories in the $\alpha\beta$ plane for both observers: Active Flux (should be a clean circle) vs open-loop (should show DC offset / spiral).</span><span class="lang-zh">两个观测器在 $\alpha\beta$ 平面的磁链轨迹：Active Flux（应为圆形）vs 开环（应显示直流偏移/螺旋）。</span></td>
+                <td><span class="lang-en">Use this figure to explain the "indirect measurement" concept: the PI correction maintains the circle radius at $\psi_{\text{PM}}$, while the open-loop integrator's circle drifts away from the origin.</span><span class="lang-zh">用此图解释"间接测量"概念：PI 校正维持圆半径为 $\psi_{\text{PM}}$，而开环积分器的圆从原点偏移。</span></td>
               </tr>
               <tr>
                 <td><strong>Figure 3</strong></td>
-                <td><span class="lang-en">Bandwidth comparison for at least three <code>omega_ob</code> values under the same test condition.</span><span class="lang-zh">同一测试条件下，至少三个 <code>omega_ob</code> 的带宽对比图。</span></td>
-                <td><span class="lang-en">Why larger bandwidth usually reduces lag but increases sensitivity to noise or ripple.</span><span class="lang-zh">为什么更大的带宽通常能减小滞后，但会增加对噪声或纹波的敏感性。</span></td>
+                <td><span class="lang-en">Speed estimation comparison: true speed vs Active Flux-derived speed vs open-loop-derived speed. Include the speed command.</span><span class="lang-zh">转速估计对比：真实转速 vs Active Flux 推导转速 vs 开环推导转速。包含速度指令。</span></td>
+                <td><span class="lang-en">Explain how speed is obtained from position via differentiation + LPF. Discuss the delay introduced by the LPF and how it affects the accuracy during transients (ramp, reversal).</span><span class="lang-zh">解释转速如何通过位置微分 + 低通滤波获得。讨论低通滤波引入的延迟及其在暂态（斜坡、反转）中对精度的影响。</span></td>
               </tr>
               <tr>
                 <td><strong>Figure 4</strong></td>
-                <td><span class="lang-en">Same observer and disturbance, compared at medium speed and low or near-zero speed.</span><span class="lang-zh">同一个 observer、同一种扰动，在中速和低速或近零速下的对比图。</span></td>
-                <td><span class="lang-en">Use this figure to explain observability degradation at low speed.</span><span class="lang-zh">用这张图解释低速下的可观测性恶化。</span></td>
+                <td><span class="lang-en">Effect of R mismatch: show angle error comparison for at least two different <code>R_mismatch_factor</code> values (e.g., 1.0 and 2.0).</span><span class="lang-zh">R 失配的影响：展示至少两个不同 <code>R_mismatch_factor</code>（如 1.0 和 2.0）下的角度误差对比。</span></td>
+                <td><span class="lang-en">Demonstrate that the Active Flux observer remains robust to R error while the open-loop integrator's performance degrades proportionally. Connect this to the role of PI integral action in compensating for steady-state drift.</span><span class="lang-zh">说明 Active Flux 观测器对 R 误差保持鲁棒性，而开环积分器的性能成比例恶化。将这一现象与 PI 积分项补偿稳态漂移的作用联系起来。</span></td>
               </tr>
             </tbody>
           </table>
         </div>
         <div class="callout callout--task">
           <span class="callout-title"><span class="lang-en">Important requirement</span><span class="lang-zh">重要要求</span></span>
-          <span class="lang-en">These four figures are the minimum. Do not submit a PDF with screenshots only. Every figure must have a caption and at least 2-4 sentences of interpretation.</span>
-          <span class="lang-zh">这四张图是最低要求。不要只放截图。每张图都必须有图注，并附带至少 2-4 句解释。</span>
+          <span class="lang-en">These four figures are the minimum. Every figure must have a caption and at least 2–4 sentences of interpretation. <strong>Do not submit screenshots only.</strong></span>
+          <span class="lang-zh">这四张图是最低要求。每张图都必须有图注，并附带至少 2–4 句解释。<strong>不要只提交截图。</strong></span>
         </div>
       </section>
 
+      <!-- ======================== QUESTIONS ======================== -->
       <section class="section" id="questions">
         <div class="section-tag">Analysis Questions / What Your Report Must Answer</div>
-        <h2><span class="lang-en">Use the four figures to answer these questions</span><span class="lang-zh">基于四张图回答这些问题</span></h2>
+        <h2><span class="lang-en">Use your figures to answer these questions</span><span class="lang-zh">基于你的图回答这些问题</span></h2>
         <div class="q-grid">
           <div class="q-card">
             <div class="q-index">Q1</div>
-            <p><span class="lang-en">When the observer estimates speed well, what evidence tells you it is good enough for feedback control rather than just visually close?</span><span class="lang-zh">当 observer 的速度估计“看起来不错”时，什么证据能说明它真的足以进入反馈控制，而不只是波形看着接近？</span></p>
+            <p>
+              <span class="lang-en">An observer can always be decomposed as <strong>prediction + innovation</strong>. In the active flux observer, the flux state $\boldsymbol{\psi}_s$ is not directly measurable. How is the innovation implemented? What serves as the "indirect measurement"?</span>
+              <span class="lang-zh">观测器永远可以分解为 <strong>prediction + innovation</strong>。在 active flux 观测器中，磁链状态 $\boldsymbol{\psi}_s$ 不可直接测量。Innovation 是如何实现的？什么充当了"间接测量"？</span>
+            </p>
           </div>
           <div class="q-card">
             <div class="q-index">Q2</div>
-            <p><span class="lang-en">For load-torque reconstruction, which matters more in your experiment: amplitude error, phase lag, or noise? Why?</span><span class="lang-zh">在负载转矩重建实验里，幅值误差、相位滞后和噪声哪一个更关键？为什么？</span></p>
+            <p>
+              <span class="lang-en">The PI correction term has a P part and an I part. What does each do physically? What happens if you remove the I term entirely (set <code>af_Ki=0</code>)? What happens if you remove the P term (set <code>af_Kp=0</code>)?</span>
+              <span class="lang-zh">PI 校正项有 P 和 I 两部分。每部分在物理上做什么？如果完全去掉 I 项（设 <code>af_Ki=0</code>）会怎样？如果去掉 P 项（设 <code>af_Kp=0</code>）呢？</span>
+            </p>
           </div>
           <div class="q-card">
             <div class="q-index">Q3</div>
-            <p><span class="lang-en">How does increasing <code>omega_ob</code> change <code>ell1</code> to <code>ell4</code>, and why does that affect both convergence speed and noise sensitivity?</span><span class="lang-zh">增大 <code>omega_ob</code> 会如何改变 <code>ell1</code> 到 <code>ell4</code>，以及为什么这会同时影响收敛速度和噪声敏感性？</span></p>
+            <p>
+              <span class="lang-en">The speed estimate is not a state of the observer. How is it obtained? In the code, find the line where speed is computed from position. Explain why a low-pass filter is needed and what happens if the filter time constant <code>lpf_tau</code> is too large or too small.</span>
+              <span class="lang-zh">转速估计不是观测器的状态。它是怎么获得的？在代码中找到从位置计算转速的那行代码。解释为什么需要低通滤波，以及滤波时间常数 <code>lpf_tau</code> 太大或太小会怎样。</span>
+            </p>
           </div>
           <div class="q-card">
             <div class="q-index">Q4</div>
-            <p><span class="lang-en">Why does the same observer usually look worse at low speed? Is this only because tuning is bad?</span><span class="lang-zh">为什么同一个 observer 在低速下通常表现更差？这只是调参不好吗？</span></p>
+            <p>
+              <span class="lang-en">Look at the $\alpha\beta$ flux trajectory plots. Why does the Active Flux observer maintain a circle while the open-loop integrator does not? Connect this to the physics of the correction term.</span>
+              <span class="lang-zh">看 $\alpha\beta$ 磁链轨迹图。为什么 Active Flux 观测器保持圆形而开环积分器不行？将这与校正项的物理含义联系起来。</span>
+            </p>
           </div>
           <div class="q-card">
             <div class="q-index">Q5</div>
-            <p><span class="lang-en">If you compare medium-speed and low-speed cases, which signals still remain reliable and which become ambiguous?</span><span class="lang-zh">比较中速和低速工况时，哪些信号仍然可靠，哪些信息开始变得含糊？</span></p>
+            <p>
+              <span class="lang-en">Why does the open-loop integrator fail in practice even when the motor model is "correct"? What real-world error sources cause the DC drift? (Hint: think about $R$, voltage measurement, inverter dead time, ADC offset.)</span>
+              <span class="lang-zh">为什么开环积分器即使在电机模型"正确"时也会在实际中失效？哪些真实世界的误差源导致了直流漂移？（提示：考虑 $R$、电压测量、逆变器死区、ADC 偏移。）</span>
+            </p>
           </div>
           <div class="q-card">
             <div class="q-index">Q6</div>
-            <p><span class="lang-en">What is the practical tradeoff when observer bandwidth is too high or too low?</span><span class="lang-zh">observer 带宽过高或过低，各自会带来什么实际代价？</span></p>
+            <p>
+              <span class="lang-en">At very low speed, the back-EMF becomes very small. How does this affect the quality of the flux-based position estimate? Run the demo at 30 rpm or lower and compare with the 200 rpm case. Why is low-speed sensorless control fundamentally more challenging?</span>
+              <span class="lang-zh">在极低转速下，反电动势变得很小。这对基于磁链的位置估计精度有什么影响？在 30 rpm 或更低转速下运行 demo 并与 200 rpm 情况对比。为什么低速无传感器控制从根本上更具挑战性？</span>
+            </p>
           </div>
         </div>
         <div class="callout callout--rose">
           <span class="callout-title"><span class="lang-en">Good reports do this</span><span class="lang-zh">好报告会这样写</span></span>
-          <span class="lang-en">Do not only say “the curves match well.” Say where they stop matching, how much lag appears, which operating point is hardest, and how this connects to the observer structure in the code.</span>
-          <span class="lang-zh">不要只写“曲线基本吻合”。要明确指出从哪里开始不吻合、滞后大概多大、哪个工况最难，以及这些现象如何与代码中的 observer 结构对应起来。</span>
+          <span class="lang-en">Do not only write "the Active Flux observer works better." Explain <em>why</em> it works — what signal provides the correction, what the P and I terms each contribute, and where the method starts to struggle (hint: low speed, large R error). Connect every observation to the prediction + innovation structure.</span>
+          <span class="lang-zh">不要只写"Active Flux 观测器更好"。要解释<em>为什么</em>它有效——什么信号提供了修正，P 和 I 项各起什么作用，以及该方法从哪里开始吃力（提示：低速、大 R 误差）。将每一个现象都与 prediction + innovation 结构对应起来。</span>
         </div>
       </section>
 
+      <!-- ======================== REPORT ======================== -->
       <section class="section" id="report">
         <div class="section-tag">Report / PDF Only</div>
         <h2><span class="lang-en">Suggested PDF structure</span><span class="lang-zh">建议的 PDF 结构</span></h2>
@@ -460,21 +633,22 @@
           <div class="card">
             <h4><span class="lang-en">Recommended outline</span><span class="lang-zh">推荐提纲</span></h4>
             <ol>
-              <li><span class="lang-en">Objective and test setup</span><span class="lang-zh">实验目标与设置</span></li>
-              <li><span class="lang-en">Observer signals and relevant code locations</span><span class="lang-zh">observer 信号与相关代码位置</span></li>
-              <li><span class="lang-en">Figure 1 to Figure 4</span><span class="lang-zh">图 1 到图 4</span></li>
-              <li><span class="lang-en">Answers to Q1-Q6</span><span class="lang-zh">Q1-Q6 的回答</span></li>
-              <li><span class="lang-en">Short conclusion: where the observer works and where it struggles</span><span class="lang-zh">简短结论：observer 在哪里好用、在哪里吃力</span></li>
+              <li><span class="lang-en">Introduction and theory: voltage model, active flux, position → speed chain</span><span class="lang-zh">引言与理论：电压模型、active flux、位置 → 转速推导链</span></li>
+              <li><span class="lang-en">Observer structure: prediction + innovation, PI correction explained</span><span class="lang-zh">观测器结构：prediction + innovation，PI 校正说明</span></li>
+              <li><span class="lang-en">Figure 1–4 with interpretation</span><span class="lang-zh">图 1–4 及分析</span></li>
+              <li><span class="lang-en">Answers to Q1–Q6</span><span class="lang-zh">Q1–Q6 的回答</span></li>
+              <li><span class="lang-en">Conclusion: when Active Flux works, where it struggles, and what the open-loop integrator teaches us about the necessity of innovation</span><span class="lang-zh">结论：Active Flux 什么时候好用、在哪里吃力，以及开环积分器如何告诉我们 innovation 的必要性</span></li>
             </ol>
           </div>
           <div class="card">
             <h4><span class="lang-en">Checklist before export</span><span class="lang-zh">导出 PDF 前检查</span></h4>
             <div class="checklist">
-              <div class="check"><span class="lang-en">All 4 required figures are present.</span><span class="lang-zh">4 张必做图齐全。</span></div>
+              <div class="check"><span class="lang-en">All 4 required figures are present with captions.</span><span class="lang-zh">4 张必做图齐全，有图注。</span></div>
               <div class="check"><span class="lang-en">Axes, units, and legends are readable.</span><span class="lang-zh">坐标轴、单位和图例清楚可读。</span></div>
-              <div class="check"><span class="lang-en">The report explains sign convention for load estimate if needed.</span><span class="lang-zh">如有需要，说明负载估计的符号关系。</span></div>
-              <div class="check"><span class="lang-en">The report explicitly discusses low-speed observability degradation.</span><span class="lang-zh">明确讨论低速可观测性恶化。</span></div>
-              <div class="check"><span class="lang-en">Bandwidth conclusions are supported by figures, not only intuition.</span><span class="lang-zh">带宽结论由图支撑，而不是只靠直觉。</span></div>
+              <div class="check"><span class="lang-en">The prediction + innovation decomposition is clearly explained.</span><span class="lang-zh">prediction + innovation 分解有清楚的说明。</span></div>
+              <div class="check"><span class="lang-en">The "position → speed" derivation chain is explained with code reference.</span><span class="lang-zh">"位置 → 转速"推导链有代码对应说明。</span></div>
+              <div class="check"><span class="lang-en">RMS angle error numbers are reported for at least two scenarios.</span><span class="lang-zh">至少两个场景报告了 RMS 角度误差数值。</span></div>
+              <div class="check"><span class="lang-en">The report discusses why open-loop integration fails and how PI correction fixes it.</span><span class="lang-zh">报告讨论了开环积分为何失败以及 PI 校正如何修复。</span></div>
             </div>
           </div>
         </div>
