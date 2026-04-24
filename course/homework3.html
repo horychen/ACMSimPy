@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Homework 3 — Sensorless Observer, Inverter, and SVPWM</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"
+  onerror="this.onerror=null;this.href='vendor/katex/katex.min.css';">
+<script>
+// KaTeX loader: CDN with fallback to local vendor/
+(function(){
+  var CDN = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/";
+  var LOCAL = "vendor/katex/";
+  var files = ["katex.min.js", "contrib/auto-render.min.js"];
+  var idx = 0;
+  var TIMEOUT = 3000;
+
+  function renderMath() {
+    if (window.renderMathInElement) {
+      renderMathInElement(document.body, {
+        delimiters: [{left:"$$",right:"$$",display:true},{left:"$",right:"$",display:false}]
+      });
+    }
+  }
+
+  function loadScript(src, onSuccess, onFail) {
+    var s = document.createElement("script");
+    var done = false;
+    var timer = setTimeout(function() {
+      if (!done) { done = true; s.onload = s.onerror = null; onFail(); }
+    }, TIMEOUT);
+    s.src = src;
+    s.onload = function() { if (!done) { done = true; clearTimeout(timer); onSuccess(); } };
+    s.onerror = function() { if (!done) { done = true; clearTimeout(timer); onFail(); } };
+    document.head.appendChild(s);
+  }
+
+  function loadChain(base, fallback) {
+    if (idx >= files.length) { renderMath(); return; }
+    loadScript(base + files[idx],
+      function() { idx++; loadChain(base, fallback); },
+      function() { if (fallback) { idx = 0; loadChain(fallback, null); } }
+    );
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){ loadChain(CDN, LOCAL); });
+  } else {
+    loadChain(CDN, LOCAL);
+  }
+})();
+</script>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-deep: #0a0a0b;
+    --bg-card: #131315;
+    --bg-input: #1a1a1e;
+    --bg-hover: #222228;
+    --amber: #d4a043;
+    --amber-soft: #d4a04322;
+    --amber-glow: #d4a04344;
+    --text-primary: #e8e4dc;
+    --text-secondary: #8a8680;
+    --text-muted: #5a5650;
+    --border: #2a2a2e;
+    --border-focus: #d4a04366;
+    --green: #4a9;
+    --red: #c55;
+    --font-display: Georgia, 'Noto Serif SC', serif;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+    --font-mono: 'Courier New', monospace;
+  }
+
+  html { font-size: 16px; scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  body[data-lang="en"] .lang-zh { display: none !important; }
+  body[data-lang="zh"] .lang-en { display: none !important; }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0; opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    pointer-events: none;
+  }
+
+  body::after {
+    content: '';
+    position: fixed; top: -40%; right: -20%;
+    width: 70vw; height: 70vw;
+    background: radial-gradient(circle, var(--amber-soft) 0%, transparent 70%);
+    pointer-events: none; z-index: 0;
+  }
+
+  .app {
+    position: relative; z-index: 1;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 2rem 1.2rem 4rem;
+  }
+  .topbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 1rem;
+  }
+  .lang-switch {
+    display: inline-flex;
+    gap: 0.35rem;
+    padding: 0.25rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg-card);
+  }
+  .lang-switch button {
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-secondary);
+    padding: 0.45rem 0.9rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: 0.2s ease;
+  }
+  .lang-switch button.active {
+    background: var(--amber);
+    color: var(--bg-deep);
+  }
+  .lang-switch button:not(.active):hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+    opacity: 0; animation: fadeUp 0.8s ease forwards;
+  }
+  .header__label {
+    font-family: var(--font-mono);
+    font-size: 0.65rem; font-weight: 300;
+    letter-spacing: 0.3em; text-transform: uppercase;
+    color: var(--amber); margin-bottom: 0.8rem;
+  }
+  .header__title {
+    font-family: var(--font-display);
+    font-size: 1.7rem; font-weight: 400;
+    line-height: 1.3; color: var(--text-primary);
+    margin-bottom: 0.5rem;
+  }
+  .header__title em { font-style: italic; color: var(--amber); }
+  .header__sub {
+    font-size: 0.85rem; font-weight: 300;
+    color: var(--text-secondary); line-height: 1.6;
+  }
+
+  .meta-bar {
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+    opacity: 0; animation: fadeUp 0.8s ease 0.15s forwards;
+  }
+
+  .content-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.8rem 1.4rem;
+    margin-bottom: 1.5rem;
+    opacity: 0; transform: translateY(24px);
+    transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .content-section.visible { opacity: 1; transform: translateY(0); }
+
+  .content-section__tag {
+    font-family: var(--font-mono);
+    font-size: 0.6rem; font-weight: 300;
+    letter-spacing: 0.2em;
+    color: var(--amber); text-transform: uppercase;
+    margin-bottom: 1rem;
+  }
+
+  h2 {
+    font-family: var(--font-display);
+    font-size: 1.25rem; font-weight: 400;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+  }
+
+  h3 {
+    font-size: 1rem; font-weight: 500;
+    color: var(--amber);
+    margin: 1.4rem 0 0.6rem;
+  }
+
+  p, li {
+    font-size: 0.9rem;
+    line-height: 1.75;
+    color: var(--text-secondary);
+    margin-bottom: 0.6rem;
+  }
+
+  ul, ol { padding-left: 1.4rem; margin-bottom: 0.8rem; }
+  ol > li { margin-bottom: 0.5rem; }
+
+  .eq-block {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    margin: 1rem 0;
+    overflow-x: auto;
+    text-align: center;
+  }
+
+  .highlight-box {
+    background: var(--amber-soft);
+    border-left: 3px solid var(--amber);
+    border-radius: 0 10px 10px 0;
+    padding: 1rem 1.2rem;
+    margin: 1rem 0;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    line-height: 1.7;
+  }
+
+  .task-box {
+    background: #1a2a1a;
+    border: 1px solid #2a4a2a;
+    border-left: 3px solid var(--green);
+    border-radius: 0 10px 10px 0;
+    padding: 1rem 1.2rem;
+    margin: 1rem 0;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    line-height: 1.7;
+  }
+  .task-box strong { color: var(--green); }
+
+  .sub-q {
+    counter-increment: subq;
+    padding-left: 0.2rem;
+    margin-bottom: 1rem;
+  }
+  .sub-q::before {
+    content: "(" counter(subq, lower-alpha) ") ";
+    color: var(--amber);
+    font-weight: 500;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @media (max-width: 640px) {
+    .topbar { justify-content: center; }
+    .lang-switch { width: 100%; }
+    .lang-switch button { flex: 1; min-width: 0; }
+  }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .katex { color: var(--text-primary); }
+</style>
+</head>
+<body data-lang="zh">
+
+<div class="app">
+  <div class="topbar">
+    <div class="lang-switch" aria-label="Language switch">
+      <button id="btn-zh" class="active" type="button" onclick="setLang('zh')">中文</button>
+      <button id="btn-en" type="button" onclick="setLang('en')">English</button>
+    </div>
+  </div>
+
+  <header class="header">
+    <div class="header__label">
+      <span class="lang-zh">第三次作业</span>
+      <span class="lang-en">Homework 3</span>
+    </div>
+    <h1 class="header__title">
+      <span class="lang-zh">从 <em>Sensorless Observer</em> 到 <em>Inverter / SVPWM</em></span>
+      <span class="lang-en">From <em>Sensorless Observer</em> to <em>Inverter / SVPWM</em></span>
+    </h1>
+    <p class="header__sub">
+      <span class="lang-zh">围绕 Lecture 4 与本次三部分内容：预测与创新、三相三线逆变器、以及 SVPWM 的电压利用率逻辑。</span>
+      <span class="lang-en">Centered on Lecture 4 and the three parts of this homework: prediction plus innovation, the three-phase three-wire inverter, and the voltage-utilization logic behind SVPWM.</span>
+    </p>
+  </header>
+
+  <div class="meta-bar">
+    <span>
+      <span class="lang-zh">相关内容：Lecture 4 + Inverter / SVPWM</span>
+      <span class="lang-en">Related: Lecture 4 + Inverter / SVPWM</span>
+    </span>
+    <span>
+      <span class="lang-zh">重点阅读：4.5 / 4.7 / 4.9 / 4.10 / 5.2 / 5.3.1–5.3.4</span>
+      <span class="lang-en">Reading focus: 4.5 / 4.7 / 4.9 / 4.10 / 5.2 / 5.3.1–5.3.4</span>
+    </span>
+    <span>
+      <span class="lang-zh">截止时间：待定</span>
+      <span class="lang-en">Due: TBD</span>
+    </span>
+  </div>
+
+  <section class="content-section lang-zh" id="intro">
+    <div class="content-section__tag">Overview / 总述</div>
+    <h2>作业目标 / Objective</h2>
+
+    <p>Lecture 4 的主线是：当控制器需要速度、角度、磁链、扰动这些传感器不能直接提供的信息时，必须依靠 <strong>observer</strong> 去重建缺失状态。后面两部分的主线则是：即便控制律在 $\alpha\beta$ 或 $dq$ 坐标系里已经写好，真正能施加到电机上的仍然是逆变器所允许的开关电压，因此控制器必须继续向下走一层，完成从电压参考到占空比的映射。</p>
+
+    <div class="eq-block">
+      $$\dot{\hat{x}} = f(\hat{x},u) + L\bigl(y-h(\hat{x})\bigr), \qquad
+      u_{xG}=S_xV_{dc},\; x\in\{a,b,c\}$$
+    </div>
+
+    <p><strong>本次作业要求你把这两条线接起来：</strong> 先用 Lecture 4 的语言解释 sensorless observer 的预测项、创新项、扩展状态和低速可观测性；再用后两部分的语言说明三相三线逆变器、SPWM 的利用率限制，以及为什么零序注入会导向 SVPWM。</p>
+
+    <div class="highlight-box">
+      <strong>建议完成方式：</strong><br>
+      Part 1 不要只背公式，要明确“哪条物理关系做预测，哪种输出误差做校正”；Part 2 和 Part 3 不要只写调制结果，要明确“为什么三相三线系统里真正被约束的是线电压与 span，而不是某一个相对中性点的任意电压”。
+    </div>
+  </section>
+
+  <section class="content-section lang-zh" id="part1">
+    <div class="content-section__tag">Part 1 / 第一部分 (30 分)</div>
+    <h2>Sensorless Observer / 无传感器观察器</h2>
+
+    <h3>1.1 预测 + 创新的观察器骨架 / The Prediction + Innovation Skeleton</h3>
+
+    <div class="eq-block">
+      $$\dot{\hat{x}} = f(\hat{x},u) + L\bigl(y-h(\hat{x})\bigr), \qquad
+      \dot{\hat{\theta}}_d = \hat{\omega}_d + k_0 e_{d,ss}$$
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 1.1</strong>
+      <div class="sub-q">解释为什么 sensorless control 不是“没有信息”，而是“<em>可测信息不足以直接形成闭环</em>”的问题。请至少列出 3 个通常可测信号，以及 3 个需要观察器重建的量。</div>
+      <div class="sub-q">结合通式 $\dot{\hat{x}} = f(\hat{x},u) + L(y-h(\hat{x}))$，解释预测项 $f(\hat{x},u)$ 与创新项 $L(y-h(\hat{x}))$ 的物理意义，并说明为什么二者缺一不可。</div>
+      <div class="sub-q">对于 Lecture 4 给出的无编码器速度观察器想法
+        $$\dot{\hat{\theta}}_d=\hat{\omega}_d+k_0e_{d,ss},$$
+        请明确指出：哪个量是预测项，哪个量是创新项；$\hat{\omega}_d$ 主要来自哪条模型关系，$e_{d,ss}$ 又来自哪种模型不匹配。</div>
+    </div>
+
+    <h3>1.2 观察器扩展状态、可观测性与低速困难 / Extended States, Observability, and Low-Speed Difficulty</h3>
+
+    <div class="eq-block">
+      $$\begin{aligned}
+      \dot{\hat{\Theta}} &= \hat{\Omega} + k_0(\Theta-\hat{\Theta}) \\
+      \dot{\hat{\Omega}} &= T_{em} + k_1(\Theta-\hat{\Theta})
+      \end{aligned}$$
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 1.2</strong>
+      <div class="sub-q">Lecture 4 提到三类典型观察器：flux estimator、sliding-mode EMF observer、position-output speed/load observer。请分别说明：它们使用什么测量输出、主要重建什么隐藏量、以及它们各自最容易暴露的实现风险是什么。</div>
+      <div class="sub-q">从上面的二阶位置输出观察器出发，增加一个扰动状态 $\hat d$，使速度方程能够表示负载转矩或建模误差。写出你设计的三状态观察器，并说明如果扰动更接近“斜坡型”而不是“常值型”，为什么还需要再增加一个扩展状态。</div>
+      <div class="sub-q">解释为什么低速 sensorless control 的困难，本质上有一部分是“信息/可观测性问题”；并结合“直接对角度求导得到速度”与 observer bandwidth 的讨论，说明低速时为什么更容易暴露噪声、滞后与闭环耦合问题。</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>关键结论：</strong>
+      Part 1 不是“多学几种观测器公式”这么简单。你真正要掌握的是：<em>什么信息来自模型预测，什么信息来自测量误差校正，以及为什么低速时可用于校正的信息会天然变少。</em>
+    </div>
+  </section>
+
+  <section class="content-section lang-zh" id="part2">
+    <div class="content-section__tag">Part 2 / 第二部分 (30 分)</div>
+    <h2>Part 2 — Inverter / 三相三线逆变器</h2>
+
+    <h3>2.1 从占空比到端电压 / From Duty Ratio to Terminal Voltage</h3>
+
+    <div class="eq-block">
+      $$u_{aG}=S_aV_{dc}, \qquad u_{bG}=S_bV_{dc}, \qquad u_{cG}=S_cV_{dc}, \qquad S_x\in[0,1]$$
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 2.1</strong>
+      <div class="sub-q">定义 $S_a,S_b,S_c$、$V_{dc}$、下标 $G$ 的物理意义，并解释教材中 “volt-second equivalence” 在这里到底意味着什么。</div>
+      <div class="sub-q">说明为什么在三相三线、星形连接且中性点开路的系统中，端电压 $u_{xG}$ 与相电压 $u_{xn}$ 不是同一个概念。这里的“中性点漂移 / common-mode” 是如何出现的？</div>
+      <div class="sub-q">从 $u_{xG}=S_xV_{dc}$ 出发，推导线电压 $u_{ab},u_{bc},u_{ca}$ 与占空比的关系，并证明 $u_{ab}+u_{bc}+u_{ca}=0$。</div>
+    </div>
+
+    <h3>2.2 三相三线约束、控制桥接与带宽限制 / Constraints, Control Bridging, and Bandwidth Limits</h3>
+
+    <div class="eq-block">
+      $$u_{xn}=u_{xG}+u_{Gn}, \qquad
+      u = Ri + L\frac{di}{dt} + e, \qquad x\in\{a,b,c\}$$
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 2.2</strong>
+      <div class="sub-q">前面部分的控制律通常输出的是 $\alpha\beta$ 或 $dq$ 坐标系里的电压参考。请解释为什么 Part 2 必须继续往下走一层，建立从 $u^*_{\alpha\beta}$ 到 $S_a,S_b,S_c$ 的桥接关系；并证明若三相相电压命令同时加上同一个零序 / 中性轴电压分量，所有线电压保持不变。</div>
+      <div class="sub-q">解释为什么“三相三线 + 中性点开路”的约束意味着三相相电压并非三个独立自由度，而只能等效为两个自由度加一个公共偏置。</div>
+      <div class="sub-q">根据 5.1.6 的结论，结合
+        $$u = Ri + L\frac{di}{dt} + e$$
+        说明为什么最高电流带宽由 dc-bus voltage 决定；并进一步讨论当转速升高、反电势变大时，为什么更容易出现饱和、anti-windup 问题和动态性能恶化。</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>本部分的主线：</strong>
+      逆变器不是“把参考电压原样搬到电机端子”的理想执行器。它只提供由开关、母线电压和拓扑决定的有限电压集合，因此控制器真正面对的是一个 <em>受限输入系统</em>。
+    </div>
+  </section>
+
+  <section class="content-section lang-zh" id="part3">
+    <div class="content-section__tag">Part 3 / 第三部分 (40 分)</div>
+    <h2>Part 3 — SVPWM / SPWM、零序注入与电压利用率</h2>
+
+    <h3>3.1 SPWM 的利用率上限 / The Utilization Limit of SPWM</h3>
+
+    <div class="eq-block">
+      $$\max(u_{ab})=\frac{\sqrt{3}}{2}V_{dc}=0.866\,V_{dc}, \qquad
+      \eta_{Vdc}=\frac{\max(u_{an},u_{bn},u_{cn})-\min(u_{an},u_{bn},u_{cn})}{2}$$
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 3.1</strong>
+      <div class="sub-q">解释为什么直接使用正弦参考的 SPWM，虽然实现自然，但并没有把三相三线逆变器的 dc bus capability 用满。</div>
+      <div class="sub-q">从
+        $$\max(u_{ab})=\frac{\sqrt{3}}{2}V_{dc}$$
+        出发，说明 SPWM 的电压利用率上限代表什么物理意义，并解释为什么它低于线电压所允许的理论上限 $V_{dc}$。</div>
+      <div class="sub-q">教材用 span
+        $$\eta_{Vdc}=\frac{\max(u_{an},u_{bn},u_{cn})-\min(u_{an},u_{bn},u_{cn})}{2}$$
+        来可视化直流母线利用率。请解释为什么“同一时刻三相相电压的最大值与最小值之间的距离”能够准确反映利用率问题。</div>
+    </div>
+
+    <h3>3.2 中点、零序注入与 SVPWM / Midpoint, Zero-Sequence Injection, and SVPWM</h3>
+
+    <div class="eq-block">
+      $$u_{\text{mid}}=\frac{\max(u_{an},u_{bn},u_{cn})+\min(u_{an},u_{bn},u_{cn})}{2}, \qquad
+      u_{ZSM}=-u_{\text{mid}}$$
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 3.2</strong>
+      <div class="sub-q">用教材中 Fig. 27 / Fig. 28 的语言解释 “black dots” 与 “red dots” 分别表示什么，以及为什么把 red dots 压到 0 V 会为 span 腾出更多空间。随后推导中点公式
+        $$u_{\text{mid}}=\frac{\max(u_{an},u_{bn},u_{cn})+\min(u_{an},u_{bn},u_{cn})}{2}$$
+        以及相应的零序注入
+        $$u_{ZSM}=-u_{\text{mid}}.$$
+        说明这个注入项本质上是在做什么几何移动。</div>
+      <div class="sub-q">解释为什么零序注入会改变相对中性点的波形，却不会改变任何线电压波形。你的回答必须同时包含“公式证明”与“物理解释”两部分。</div>
+      <div class="sub-q">根据教材给出的结果，推导
+        $$\frac{V_{SVPWM}}{V_{SPWM}}=\frac{2}{\sqrt{3}}\approx1.1547,$$
+        并说明这意味着相对于 SPWM，SVPWM 的电压可用幅值提高了多少。接着写出一个从 $u^*_{\alpha\beta}$ 到 $S_a^*,S_b^*,S_c^*$ 的步骤链，至少包含：inverse Clarke、phase command、zero-sequence injection、dc-bus normalization、duty saturation 这 5 个环节。</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>本部分真正要理解的不是“再记一个调制公式”，而是：</strong><br>
+      SVPWM 的核心并不是神秘的空间矢量名词，而是一个非常直接的操作：<em>利用零序自由度重新摆放三相相电压，使三相 span 在不改变线电压目标的前提下尽可能贴近 dc bus 极限。</em>
+    </div>
+  </section>
+
+  <section class="content-section lang-en" id="english-version">
+    <div class="content-section__tag">English Version</div>
+    <h2>Homework 3 in English</h2>
+
+    <p>Lecture 4 asks one central question: when the controller needs speed, angle, flux, or disturbance information that sensors do not provide directly, how can that missing feedback information be reconstructed online? The later parts ask another: once the control law has already produced a voltage reference in $\alpha\beta$ or $dq$, how is that reference turned into something the three-phase inverter can actually apply?</p>
+
+    <div class="eq-block">
+      $$\dot{\hat{x}} = f(\hat{x},u) + L\bigl(y-h(\hat{x})\bigr), \qquad
+      u_{xG}=S_xV_{dc},\; x\in\{a,b,c\}$$
+    </div>
+
+    <p><strong>This homework asks you to connect those two stories.</strong> Part 1 focuses on the observer viewpoint of Lecture 4: prediction, innovation, extended states, and low-speed observability. Part 2 focuses on the three-phase three-wire inverter. Part 3 focuses on why zero-sequence injection leads to SVPWM and better dc-bus utilization.</p>
+
+    <div class="highlight-box">
+      <strong>How to approach this homework:</strong><br>
+      In Part 1, always ask what physical relation provides the prediction term and what output mismatch provides the innovation term. In Parts 2 and 3, always ask what is truly constrained in a three-wire inverter: the available switching states, the line voltages, and the span of the three phase commands.
+    </div>
+
+    <h3>Part 1. Sensorless Observer</h3>
+
+    <h3>1.1 The Prediction + Innovation Skeleton</h3>
+
+    <div class="eq-block">
+      $$\dot{\hat{x}} = f(\hat{x},u) + L\bigl(y-h(\hat{x})\bigr), \qquad
+      \dot{\hat{\theta}}_d = \hat{\omega}_d + k_0 e_{d,ss}$$
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 1.1</strong>
+      <div class="sub-q">Explain why sensorless control is not a problem of “having no information,” but rather a problem of <em>insufficient directly measured feedback information</em>. List at least three signals that are usually measured and three quantities that must be reconstructed by an observer.</div>
+      <div class="sub-q">Using the generic observer form $\dot{\hat{x}} = f(\hat{x},u) + L(y-h(\hat{x}))$, explain the physical meaning of the prediction term and the innovation term, and explain why both are necessary.</div>
+      <div class="sub-q">For the encoderless observer idea
+        $$\dot{\hat{\theta}}_d=\hat{\omega}_d+k_0e_{d,ss},$$
+        identify explicitly which term is the prediction term and which is the innovation term. State what model relation mainly generates $\hat{\omega}_d$ and what mismatch generates $e_{d,ss}$.</div>
+    </div>
+
+    <h3>1.2 Extended States, Observability, and Low-Speed Difficulty</h3>
+
+    <div class="eq-block">
+      $$\begin{aligned}
+      \dot{\hat{\Theta}} &= \hat{\Omega} + k_0(\Theta-\hat{\Theta}) \\
+      \dot{\hat{\Omega}} &= T_{em} + k_1(\Theta-\hat{\Theta})
+      \end{aligned}$$
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 1.2</strong>
+      <div class="sub-q">Lecture 4 highlights three typical observer families: flux estimator, sliding-mode EMF observer, and position-output speed/load observer. For each one, state what measured output it uses, what hidden quantity it reconstructs, and what practical implementation risk is most visible.</div>
+      <div class="sub-q">Starting from the second-order position-output observer above, add one disturbance state $\hat d$ so that the speed equation can represent load torque or modeling error. Write the resulting three-state observer, and explain why one more state such as $\hat p_d$ becomes useful when the disturbance is closer to a ramp than a constant.</div>
+      <div class="sub-q">Explain why the low-speed difficulty of sensorless control is partly an information/observability problem. Then connect this to the “differentiate angle to get speed” idea and to aggressive observer bandwidth: why do low-speed operation, noise, lag, and closed-loop coupling become more problematic together?</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>Main takeaway:</strong>
+      Part 1 is not mainly about memorizing observer formulas. It is about understanding what information comes from model prediction, what information comes from mismatch-based correction, and why low-speed operation naturally reduces the information available for correction.
+    </div>
+
+    <h3>Part 2. Inverter</h3>
+
+    <h3>2.1 From Duty Ratio to Terminal Voltage</h3>
+
+    <div class="eq-block">
+      $$u_{aG}=S_aV_{dc}, \qquad u_{bG}=S_bV_{dc}, \qquad u_{cG}=S_cV_{dc}, \qquad S_x\in[0,1]$$
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 2.1</strong>
+      <div class="sub-q">Define the physical meaning of $S_a,S_b,S_c$, $V_{dc}$, the subscript $G$, and the phrase “volt-second equivalence.”</div>
+      <div class="sub-q">Explain why terminal voltage $u_{xG}$ and phase voltage $u_{xn}$ are not the same quantity in a three-phase three-wire star-connected system with open neutral. How does neutral/common-mode motion appear?</div>
+      <div class="sub-q">Starting from $u_{xG}=S_xV_{dc}$, derive the line voltages $u_{ab},u_{bc},u_{ca}$ in terms of duty ratios, and show that $u_{ab}+u_{bc}+u_{ca}=0$.</div>
+    </div>
+
+    <h3>2.2 Constraints, Control Bridging, and Bandwidth Limits</h3>
+
+    <div class="eq-block">
+      $$u_{xn}=u_{xG}+u_{Gn}, \qquad
+      u = Ri + L\frac{di}{dt} + e, \qquad x\in\{a,b,c\}$$
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 2.2</strong>
+      <div class="sub-q">Earlier parts usually produce a voltage reference in $\alpha\beta$ or $dq$. Explain why Part 2 must continue one layer lower and build a bridge from $u^*_{\alpha\beta}$ to switching variables $S_a,S_b,S_c$. Then prove algebraically that adding the same zero-sequence / common-mode voltage to all three phase commands does not change any line voltage.</div>
+      <div class="sub-q">Explain why the three-phase three-wire open-neutral constraint means that the three phase voltages do not form three independent degrees of freedom, but only two degrees of freedom plus one common offset.</div>
+      <div class="sub-q">Using the conclusion of Section 5.1.6 together with
+        $$u = Ri + L\frac{di}{dt} + e,$$
+        explain why maximum current-loop bandwidth is limited by dc-bus voltage. Then discuss why higher speed and larger back-EMF make saturation, anti-windup problems, and dynamic-performance degradation more likely.</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>Main takeaway:</strong>
+      The inverter is not an ideal actuator that simply copies your reference voltage. It only offers a limited switching-based voltage set determined by topology and dc-bus voltage, so the controller is fundamentally dealing with a constrained-input system.
+    </div>
+
+    <h3>Part 3. SVPWM</h3>
+
+    <h3>3.1 The Utilization Limit of SPWM</h3>
+
+    <div class="eq-block">
+      $$\max(u_{ab})=\frac{\sqrt{3}}{2}V_{dc}=0.866\,V_{dc}, \qquad
+      \eta_{Vdc}=\frac{\max(u_{an},u_{bn},u_{cn})-\min(u_{an},u_{bn},u_{cn})}{2}$$
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 3.1</strong>
+      <div class="sub-q">Explain why straightforward SPWM based on sinusoidal phase commands does not fully use the dc-bus capability of the three-phase three-wire inverter.</div>
+      <div class="sub-q">Starting from
+        $$\max(u_{ab})=\frac{\sqrt{3}}{2}V_{dc},$$
+        explain the physical meaning of the SPWM utilization limit and why it is below the theoretical line-voltage ceiling $V_{dc}$.</div>
+      <div class="sub-q">The textbook visualizes dc-bus utilization using the span
+        $$\eta_{Vdc}=\frac{\max(u_{an},u_{bn},u_{cn})-\min(u_{an},u_{bn},u_{cn})}{2}.$$
+        Explain why the distance between the largest and smallest phase commands at the same instant is the right quantity to examine.</div>
+    </div>
+
+    <h3>3.2 Midpoint, Zero-Sequence Injection, and SVPWM</h3>
+
+    <div class="eq-block">
+      $$u_{\text{mid}}=\frac{\max(u_{an},u_{bn},u_{cn})+\min(u_{an},u_{bn},u_{cn})}{2}, \qquad
+      u_{ZSM}=-u_{\text{mid}}$$
+    </div>
+
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Task 3.2</strong>
+      <div class="sub-q">Using the language of Fig. 27 and Fig. 28, explain what the “black dots” and “red dots” represent, and why clamping the red dots to 0 V creates more room for the span. Then derive the midpoint expression
+        $$u_{\text{mid}}=\frac{\max(u_{an},u_{bn},u_{cn})+\min(u_{an},u_{bn},u_{cn})}{2}$$
+        and the injected zero-sequence voltage
+        $$u_{ZSM}=-u_{\text{mid}}.$$
+        Explain what geometric shift is being applied to the three phase commands.</div>
+      <div class="sub-q">Explain why zero-sequence injection changes phase-to-neutral waveforms but does not change any line-voltage waveform. Your answer must contain both an algebraic proof and a physical explanation.</div>
+      <div class="sub-q">Derive
+        $$\frac{V_{SVPWM}}{V_{SPWM}}=\frac{2}{\sqrt{3}}\approx1.1547,$$
+        and explain how much usable voltage amplitude is gained by SVPWM relative to SPWM. Then write a step-by-step signal path from $u^*_{\alpha\beta}$ to $S_a^*,S_b^*,S_c^*$, including inverse Clarke, phase commands, zero-sequence injection, dc-bus normalization, and duty saturation.</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>Main takeaway:</strong><br>
+      The core of SVPWM here is not the label “space vector” by itself. The real idea is very concrete: <em>use the zero-sequence degree of freedom to reposition the three phase commands so that their span gets as close as possible to the dc-bus limits without changing the desired line voltage.</em>
+    </div>
+  </section>
+
+  <section class="content-section" id="submission-note">
+    <div class="content-section__tag">
+      <span class="lang-zh">提交说明</span>
+      <span class="lang-en">Submission Notice</span>
+    </div>
+    <h2>
+      <span class="lang-zh">提交方式</span>
+      <span class="lang-en">How to Submit</span>
+    </h2>
+
+    <div class="highlight-box">
+      <strong>
+        <span class="lang-zh">请按课程通知提交 Markdown。</span>
+        <span class="lang-en">Please submit your work as a Markdown document according to the course announcement.</span>
+      </strong><br>
+      <span class="lang-zh">本页面不提供在线上传。</span>
+      <span class="lang-en">This page does not provide online upload.</span>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function() {
+  var io = new IntersectionObserver(function(entries) {
+    entries.forEach(function(e) {
+      if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.05, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.content-section').forEach(function(s) { io.observe(s); });
+})();
+
+function setLang(lang) {
+  document.body.setAttribute('data-lang', lang);
+  document.documentElement.setAttribute('lang', lang === 'zh' ? 'zh-CN' : 'en');
+  document.getElementById('btn-zh').classList.toggle('active', lang === 'zh');
+  document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+  document.title = lang === 'zh'
+    ? '作业 3 — Sensorless Observer、Inverter 与 SVPWM'
+    : 'Homework 3 — Sensorless Observer, Inverter, and SVPWM';
+  try { localStorage.setItem('homework3-lang', lang); } catch (e) {}
+}
+
+(function() {
+  var lang = 'zh';
+  try {
+    var saved = localStorage.getItem('homework3-lang');
+    if (saved === 'zh' || saved === 'en') lang = saved;
+  } catch (e) {}
+  setLang(lang);
+})();
+</script>
+
+</body>
+</html>
