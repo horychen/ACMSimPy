@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Homework 3 Solution — EE275 Electric Motor and Motion Control (2025)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"
+  onerror="this.onerror=null;this.href='vendor/katex/katex.min.css';">
+<script>
+// KaTeX loader: CDN with 3s timeout, fallback to local vendor/
+(function(){
+  var CDN = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/";
+  var LOCAL = "vendor/katex/";
+  var files = ["katex.min.js", "contrib/auto-render.min.js"];
+  var idx = 0;
+  var TIMEOUT = 3000;
+
+  function renderMath() {
+    if (window.renderMathInElement) {
+      renderMathInElement(document.body, {
+        delimiters: [{left:"$$",right:"$$",display:true},{left:"$",right:"$",display:false}]
+      });
+    }
+  }
+
+  function loadScript(src, onSuccess, onFail) {
+    var s = document.createElement("script");
+    var done = false;
+    var timer = setTimeout(function() {
+      if (!done) { done = true; s.onload = s.onerror = null; onFail(); }
+    }, TIMEOUT);
+    s.src = src;
+    s.onload = function() { if (!done) { done = true; clearTimeout(timer); onSuccess(); } };
+    s.onerror = function() { if (!done) { done = true; clearTimeout(timer); onFail(); } };
+    document.head.appendChild(s);
+  }
+
+  function loadChain(base, fallback) {
+    if (idx >= files.length) { renderMath(); return; }
+    loadScript(base + files[idx],
+      function() { idx++; loadChain(base, fallback); },
+      function() { if (fallback) { idx = 0; loadChain(fallback, null); } }
+    );
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){ loadChain(CDN, LOCAL); });
+  } else {
+    loadChain(CDN, LOCAL);
+  }
+})();
+</script>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-deep: #0a0a0b;
+    --bg-card: #131315;
+    --bg-input: #1a1a1e;
+    --bg-hover: #222228;
+    --amber: #d4a043;
+    --amber-soft: #d4a04322;
+    --amber-glow: #d4a04344;
+    --text-primary: #e8e4dc;
+    --text-secondary: #8a8680;
+    --text-muted: #5a5650;
+    --border: #2a2a2e;
+    --border-focus: #d4a04366;
+    --green: #4a9;
+    --red: #c55;
+    --font-display: Georgia, 'Noto Serif SC', serif;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+    --font-mono: 'Courier New', monospace;
+  }
+
+  html { font-size: 16px; scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0; opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    pointer-events: none;
+  }
+
+  body::after {
+    content: '';
+    position: fixed; top: -40%; right: -20%;
+    width: 70vw; height: 70vw;
+    background: radial-gradient(circle, var(--amber-soft) 0%, transparent 70%);
+    pointer-events: none; z-index: 0;
+  }
+
+  .app {
+    position: relative; z-index: 1;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 2rem 1.2rem 4rem;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+    opacity: 0; animation: fadeUp 0.8s ease forwards;
+  }
+  .header__label {
+    font-family: var(--font-mono);
+    font-size: 0.65rem; font-weight: 300;
+    letter-spacing: 0.3em; text-transform: uppercase;
+    color: var(--amber); margin-bottom: 0.8rem;
+  }
+  .header__title {
+    font-family: var(--font-display);
+    font-size: 1.7rem; font-weight: 400;
+    line-height: 1.3; color: var(--text-primary);
+    margin-bottom: 0.5rem;
+  }
+  .header__title em { font-style: italic; color: var(--amber); }
+  .header__sub {
+    font-size: 0.85rem; font-weight: 300;
+    color: var(--text-secondary); line-height: 1.6;
+  }
+
+  .meta-bar {
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+    opacity: 0; animation: fadeUp 0.8s ease 0.15s forwards;
+  }
+
+  .content-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.8rem 1.4rem;
+    margin-bottom: 1.5rem;
+    opacity: 0; transform: translateY(24px);
+    transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .content-section.visible { opacity: 1; transform: translateY(0); }
+
+  .content-section__tag {
+    font-family: var(--font-mono);
+    font-size: 0.6rem; font-weight: 300;
+    letter-spacing: 0.2em;
+    color: var(--amber); text-transform: uppercase;
+    margin-bottom: 1rem;
+  }
+
+  h2 {
+    font-family: var(--font-display);
+    font-size: 1.25rem; font-weight: 400;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+  }
+
+  h3 {
+    font-size: 1rem; font-weight: 500;
+    color: var(--amber);
+    margin: 1.4rem 0 0.6rem;
+  }
+
+  p, li {
+    font-size: 0.9rem;
+    line-height: 1.75;
+    color: var(--text-secondary);
+    margin-bottom: 0.6rem;
+  }
+
+  ul, ol { padding-left: 1.4rem; margin-bottom: 0.8rem; }
+  ol > li { margin-bottom: 0.5rem; }
+
+  .eq-block {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    margin: 1rem 0;
+    overflow-x: auto;
+    text-align: center;
+  }
+
+  .highlight-box {
+    background: var(--amber-soft);
+    border-left: 3px solid var(--amber);
+    border-radius: 0 10px 10px 0;
+    padding: 1rem 1.2rem;
+    margin: 1rem 0;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    line-height: 1.7;
+  }
+
+  .task-box {
+    background: #1a2a1a;
+    border: 1px solid #2a4a2a;
+    border-left: 3px solid var(--green);
+    border-radius: 0 10px 10px 0;
+    padding: 1rem 1.2rem;
+    margin: 1rem 0;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    line-height: 1.7;
+  }
+  .task-box strong { color: var(--green); }
+
+  .sub-q {
+    counter-increment: subq;
+    padding-left: 0.2rem;
+    margin-bottom: 1rem;
+  }
+  .sub-q::before {
+    content: "(" counter(subq, lower-alpha) ") ";
+    color: var(--amber);
+    font-weight: 500;
+  }
+
+  pre {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    margin: 1rem 0;
+    overflow-x: auto;
+  }
+  pre code, code {
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .katex { color: var(--text-primary); }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <header class="header">
+    <div class="header__label">Homework 3 Solution / 第三次作业参考解答</div>
+    <h1 class="header__title">From <em>Sensorless Observer</em> to <em>Inverter / SVPWM</em></h1>
+    <p class="header__sub">@Chen - EE275 Electric Motor and Motion Control (2025)</p>
+  </header>
+
+  <div class="meta-bar">
+    <span>Related: Lecture 4 + Inverter / SVPWM</span>
+    <span>Type: Reference Solution</span>
+  </div>
+
+  <section class="content-section" id="intro">
+    <div class="content-section__tag">Overview / 总述</div>
+    <h2>解答说明 / Notes</h2>
+
+    <p>这份参考解答对应 <code>homework3.html</code>。它的目标不是给出唯一标准写法，而是把这次作业真正想考的主线串起来：Part 1 讲 observer 的预测、创新、扩展状态和低速可观测性；Part 2 讲三相三线逆变器如何把电压参考变成端电压；Part 3 讲为什么三相三线系统允许零序自由度，以及为什么这会自然导向 SVPWM。</p>
+
+    <div class="highlight-box">
+      <strong>主线 / Main thread:</strong><br>
+      这次作业的关键不是背公式，而是回答三个问题：缺失反馈信息如何被 observer 重建；三相三线拓扑到底约束了什么；以及零序注入为什么能在不改变线电压目标的前提下提高 dc-bus 利用率。
+    </div>
+  </section>
+
+  <section class="content-section" id="part1">
+    <div class="content-section__tag">Part 1 / 第一部分 (30 分)</div>
+    <h2>Sensorless Observer / 无传感器观察器</h2>
+
+    <h3>Task 1.1 参考解答</h3>
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Solution 1.1</strong>
+      <div class="sub-q">Sensorless control 不是“完全没有信息”，而是“没有足够的<strong>直接可用于闭环</strong>的信息”。通常可测的量至少包括：
+        <ul>
+          <li>两相或三相电流，等效写成 $i_{\alpha\beta}$ 或 $i_{dq}$。</li>
+          <li>直流母线电压 $V_{dc}$，以及由 PWM / 开关状态推得的端电压信息。</li>
+          <li>电压命令、占空比、相电压或线电压等可施加输入信息。</li>
+        </ul>
+        但闭环真正需要、却往往不能直接测得的量包括：
+        <ul>
+          <li>电角度 / active-flux angle，如 $\theta_d$。</li>
+          <li>电角速度或机械速度，如 $\omega_d$、$\Omega$。</li>
+          <li>磁链、反电势、负载转矩、总扰动、滑差等隐藏状态。</li>
+        </ul>
+        所以 sensorless 的本质是：<strong>把可测输入输出和机器模型结合起来，在线重建缺失反馈量</strong>。</div>
+
+      <div class="sub-q">通式
+        <div class="eq-block">
+          $$\dot{\hat{x}} = f(\hat{x},u) + L\bigl(y-h(\hat{x})\bigr)$$
+        </div>
+        里，第一项 $f(\hat{x},u)$ 是预测项，回答“如果模型完全正确、而且当前估计状态也正确，状态下一步应该怎样演化”；第二项 $L(y-h(\hat{x}))$ 是创新项，回答“测量输出与预测输出不一致时，应该把估计往哪里拉回去”。两者缺一不可：
+        <ul>
+          <li>只有预测、没有创新：会变成开环积分或开环模型，任何参数失配、偏置、漂移都会长期累积。</li>
+          <li>只有创新、没有预测：会退化成对测量噪声的直接放大，既没有物理连续性，也没有动态结构。</li>
+        </ul>
+        因而 observer 的本质就是“<strong>模型内插 + 误差校正</strong>”。</div>
+
+      <div class="sub-q">对于
+        <div class="eq-block">
+          $$\dot{\hat{\theta}}_d=\hat{\omega}_d+k_0e_{d,ss},$$
+        </div>
+        其中 $\hat{\omega}_d$ 是预测项，$k_0e_{d,ss}$ 是创新项。Lecture 4 的语言是：
+        <ul>
+          <li>$\hat{\omega}_d$ 主要来自 q 轴电压方程或其等价的反电势 / active-flux 关系，所以它回答“磁场角应该以多快的速度转动”。</li>
+          <li>$e_{d,ss}$ 来自 d 轴不匹配，也就是“按当前角度和模型预测出来的 d 轴量，与真实测量之间还有多少残差”。</li>
+        </ul>
+        换句话说：<strong>一条模型关系负责推进角度，一条正交方向的不匹配负责纠正角度</strong>。这正是 prediction + innovation 的最典型结构。</div>
+    </div>
+
+    <h3>Task 1.2 参考解答</h3>
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Solution 1.2</strong>
+      <div class="sub-q">Lecture 4 提到的三类 observer 可以按“测什么、估什么、最怕什么”来记：
+        <ul>
+          <li><strong>Flux estimator</strong>：通常用电压与电流作为输出信息，重建定子磁链 / active flux / 角度；最明显风险是开环积分漂移，对 $R$ 误差、电压偏置和电流零漂极其敏感。</li>
+          <li><strong>Sliding-mode EMF observer</strong>：通常用电流误差作为滑模面，重建反电势 / 扰动电压，再从中得到角度和速度；最明显风险是切换抖振、滤波延迟以及离散实现细节导致的噪声问题。</li>
+          <li><strong>Position-output speed/load observer</strong>：用测得的角度作为输出，重建速度与扰动 / 负载；最明显风险是角度量化误差、微分放噪声，以及带宽过高时闭环耦合变差。</li>
+        </ul>
+        这三类方法形式不同，但骨架相同：都是用某条物理模型做预测，再用某种输出误差做校正。</div>
+
+      <div class="sub-q">从二阶位置输出 observer 出发，加入一个扰动状态 $\hat d$，可写成三状态形式
+        <div class="eq-block">
+          $$\begin{aligned}
+          e_\Theta &= \Theta-\hat{\Theta},\\
+          \dot{\hat{\Theta}} &= \hat{\Omega} + \ell_1 e_\Theta,\\
+          \dot{\hat{\Omega}} &= T_{em} + \hat d + \ell_2 e_\Theta,\\
+          \dot{\hat d} &= \ell_3 e_\Theta.
+          \end{aligned}$$
+        </div>
+        这里 $\hat d$ 可以统一表示负载转矩、摩擦项、建模误差或其它总扰动。若扰动更接近“常值”，三阶结构足够；若扰动更接近“斜坡型”，就应进一步加一个状态 $\hat p_d$：
+        <div class="eq-block">
+          $$\dot{\hat d}=\hat p_d+\ell_3 e_\Theta,\qquad \dot{\hat p}_d=\ell_4 e_\Theta.$$
+        </div>
+        物理含义是：系统不再假设扰动本身近似常数，而是假设“扰动变化率”更接近常数，因此内部模型多了一阶。</div>
+
+      <div class="sub-q">低速 sensorless control 的困难，一部分根源确实是可观测性问题，而不只是调参问题。因为速度低时：
+        <ul>
+          <li>反电势幅值变小，速度相关激励变弱。</li>
+          <li>电压 / 电流不匹配对角度误差的敏感度变低。</li>
+          <li>可用于创新项校正的有效信息更少，信噪比更差。</li>
+        </ul>
+        这时如果“直接对角度求导得到速度”，量化误差、抖动和采样窗口缺陷会被微分直接放大；如果靠提高 observer bandwidth 来硬抢动态，又会把噪声和模型误差一起放大。更麻烦的是 observer 还嵌在闭环里：估计滞后会改写电流指令，噪声会变成转矩波动，最终表现成低速下的噪声、滞后和闭环耦合同时恶化。</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>Part 1 小结：</strong>
+      Observer 真正要回答的不是“我能不能写出一个估计公式”，而是：哪一部分信息来自模型推进，哪一部分信息来自测量残差校正，以及低速时为什么后者天生变弱。
+    </div>
+  </section>
+
+  <section class="content-section" id="part2">
+    <div class="content-section__tag">Part 2 / 第二部分 (30 分)</div>
+    <h2>Inverter / 三相三线逆变器</h2>
+
+    <h3>Task 2.1 参考解答</h3>
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Solution 2.1</strong>
+      <div class="sub-q">在
+        <div class="eq-block">
+          $$u_{aG}=S_aV_{dc},\qquad u_{bG}=S_bV_{dc},\qquad u_{cG}=S_cV_{dc}$$
+        </div>
+        中：
+        <ul>
+          <li>$S_a,S_b,S_c$ 表示三相桥臂的平均开关函数或占空比，连续平均模型里属于 $[0,1]$。</li>
+          <li>$V_{dc}$ 是直流母线电压。</li>
+          <li>下标 $G$ 表示直流负端 / 参考地。</li>
+        </ul>
+        “volt-second equivalence” 的含义是：虽然开关器件每个 PWM 周期里只在 0 和 $V_{dc}$ 之间跳变，但对电机绕组这种电感负载而言，真正重要的是一个周期内的平均电压或电压时间积分。也就是
+        <div class="eq-block">
+          $$\int_0^{T_s}u_{xG}(t)\,dt = S_xV_{dc}T_s,$$
+        </div>
+        所以占空比 $S_x$ 可以等效成平均端电压。</div>
+
+      <div class="sub-q">在三相三线、星形连接且中性点开路时，端电压 $u_{xG}$ 与相电压 $u_{xn}$ 不是同一概念，因为相电压是“端子对电机中性点”的电压，而端电压是“端子对直流负端”的电压。两者关系是
+        <div class="eq-block">
+          $$u_{xn}=u_{xG}-u_{nG}.$$
+        </div>
+        又因为三相相电压满足
+        <div class="eq-block">
+          $$u_{an}+u_{bn}+u_{cn}=0,$$
+        </div>
+        所以
+        <div class="eq-block">
+          $$u_{nG}=\frac{u_{aG}+u_{bG}+u_{cG}}{3}
+          =\frac{S_a+S_b+S_c}{3}V_{dc}.$$
+        </div>
+        这说明中性点是漂浮的，它会随着三相端电势的共同偏置而移动，这就是 neutral drift / common-mode motion。于是同一个三相线电压目标，可以对应很多组不同的相对地端电压。</div>
+
+      <div class="sub-q">线电压由端电压相减得到：
+        <div class="eq-block">
+          $$u_{ab}=u_{aG}-u_{bG}=(S_a-S_b)V_{dc},$$
+          $$u_{bc}=u_{bG}-u_{cG}=(S_b-S_c)V_{dc},$$
+          $$u_{ca}=u_{cG}-u_{aG}=(S_c-S_a)V_{dc}.$$
+        </div>
+        所以
+        <div class="eq-block">
+          $$u_{ab}+u_{bc}+u_{ca}
+          =(S_a-S_b+S_b-S_c+S_c-S_a)V_{dc}=0.$$
+        </div>
+        这正说明三相三线系统真正独立的是“差分电压”，不是三个绝对端电位。</div>
+    </div>
+
+    <h3>Task 2.2 参考解答</h3>
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Solution 2.2</strong>
+      <div class="sub-q">控制律在 $\alpha\beta$ 或 $dq$ 里给出的只是“希望电机看到的电压矢量”，但硬件真正能执行的是三相桥臂占空比 $S_a,S_b,S_c$。因此必须继续向下建立桥接关系，否则控制器输出和逆变器输入根本不在同一层。典型映射是：
+        <div class="eq-block">
+          $$\begin{bmatrix}u_a^*\\u_b^*\\u_c^*\end{bmatrix}
+          =
+          \begin{bmatrix}
+          1 & 0\\
+          -1/2 & \sqrt{3}/2\\
+          -1/2 & -\sqrt{3}/2
+          \end{bmatrix}
+          \begin{bmatrix}u_\alpha^*\\u_\beta^*\end{bmatrix}
+          +u_0\begin{bmatrix}1\\1\\1\end{bmatrix}.$$
+        </div>
+        若三相同时加上同一个零序分量 $u_0$，则
+        <div class="eq-block">
+          $$\tilde u_{ab}=(u_a^*+u_0)-(u_b^*+u_0)=u_a^*-u_b^*=u_{ab}^*,$$
+          $$\tilde u_{bc}=u_{bc}^*,\qquad \tilde u_{ca}=u_{ca}^*.$$
+        </div>
+        因而所有线电压都不变。也就是说，零序自由度只改“整体摆放位置”，不改三相差分目标。</div>
+
+      <div class="sub-q">“三相三线 + 中性点开路”意味着三相相电压并不是三个独立自由度，而是
+        <div class="eq-block">
+          $$[u_a,u_b,u_c]^T = [u_a,u_b,u_c]^T_{\text{diff}} + u_0[1,1,1]^T.$$
+        </div>
+        其中差分部分只有两个独立自由度，因为三相线电压满足一条约束
+        <div class="eq-block">
+          $$u_{ab}+u_{bc}+u_{ca}=0.$$
+        </div>
+        从线性代数角度看，向量 $[1,1,1]^T$ 落在零空间里：沿这个方向平移不会改变任意两相之差。所以三相三线系统的本质是“<strong>二维控制目标 + 一维公共偏置</strong>”。</div>
+
+      <div class="sub-q">由
+        <div class="eq-block">
+          $$u = Ri + L\frac{di}{dt} + e$$
+        </div>
+        可知电流带宽实际上由还能留给 $L\,di/dt$ 的电压余量决定：
+        <div class="eq-block">
+          $$L\frac{di}{dt}=u-Ri-e.$$
+        </div>
+        逆变器受 dc-bus 限制，$u$ 不可能无限大。于是最高可实现电流变化率满足
+        <div class="eq-block">
+          $$\left|\frac{di}{dt}\right|_{\max}\le \frac{u_{\max}-|Ri+e|}{L}.$$
+        </div>
+        当转速升高时，反电势 $e$ 增大，剩给 $L\,di/dt$ 的电压余量变小，当前环就更容易碰到饱和；PI 仍在继续积分时，就会出现 windup，因此需要 anti-windup。电压一旦被削顶，等效闭环增益下降、相位滞后变重、动态响应变慢，严重时还会造成弱磁区外的性能明显恶化。</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>Part 2 小结：</strong>
+      逆变器不是理想电压源，而是一个受拓扑和母线约束的受限输入系统。控制器若停留在 $\alpha\beta$ 或 $dq$ 层而不继续映射到占空比，就没有真正完成“实现链条”。
+    </div>
+  </section>
+
+  <section class="content-section" id="part3">
+    <div class="content-section__tag">Part 3 / 第三部分 (40 分)</div>
+    <h2>SVPWM / SPWM、零序注入与电压利用率</h2>
+
+    <h3>Task 3.1 参考解答</h3>
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Solution 3.1</strong>
+      <div class="sub-q">直接使用正弦相电压参考的 SPWM 很自然，因为它等价于“每相各跟一条正弦”。但它默认三相命令始终以零公共偏置摆放，没有利用三相三线系统那一维零序自由度。结果是：虽然目标线电压还没碰到真正极限，三相中的某一相命令却可能先碰到母线边界，导致可用幅值提前受限。也就是说，SPWM 没有把三相命令在 bus window 中摆到最省空间的位置。</div>
+
+      <div class="sub-q">若三相相电压命令是纯正弦：
+        <div class="eq-block">
+          $$u_a^*=V_m\cos\omega t,\quad
+          u_b^*=V_m\cos\!\left(\omega t-\frac{2\pi}{3}\right),\quad
+          u_c^*=V_m\cos\!\left(\omega t+\frac{2\pi}{3}\right),$$
+        </div>
+        为了保证每相都不超过相对母线中点的极限，必须有 $V_m\le V_{dc}/2$。而线电压峰值满足
+        <div class="eq-block">
+          $$u_{ab,\text{pk}}=\sqrt{3}V_m\le \frac{\sqrt{3}}{2}V_{dc}\approx0.866V_{dc}.$$
+        </div>
+        这就是 SPWM 利用率上限的物理意义：在不做零序重排时，三相相电压的峰值只能做到 $V_{dc}/2$，对应线电压峰值只能做到 $0.866V_{dc}$。它低于线电压的理论极限 $V_{dc}$，因为桥臂两端实际上允许的最大相间差值是一个相接上母线、另一相接下母线时的整条 dc bus。</div>
+
+      <div class="sub-q">教材用
+        <div class="eq-block">
+          $$\eta_{Vdc}=\frac{\max(u_{an},u_{bn},u_{cn})-\min(u_{an},u_{bn},u_{cn})}{2}$$
+        </div>
+        来可视化利用率，是因为在三相三线系统里，公共偏置可以任意平移三相命令，但<strong>不能改变三相彼此之间的距离</strong>。因此“同一时刻最大值与最小值的差”就是这组三相命令必须占用的最小窗口宽度；其一半就是以零为中心时需要的半窗口高度。换句话说，真正决定是否会碰 bus limit 的，不是某一相本身有多大，而是三相命令当下的总 span 有多大。</div>
+    </div>
+
+    <h3>Task 3.2 参考解答</h3>
+    <div class="task-box" style="counter-reset: subq;">
+      <strong>Solution 3.2</strong>
+      <div class="sub-q">可按教材图示这样理解：black dots 表示某一时刻三相原始相电压命令的三个取值；red dots 强调其中真正限制母线利用率的边界点，也就是当前的最大值与最小值。把较低的 red dot 压到 0 V，本质上就是对三相同时加同一个偏置，把整组三相命令往上平移，从而消除下边界的浪费空间。若希望同时均匀利用上下两个边界，则应把最大值与最小值围绕 0 对称摆放。设
+        <div class="eq-block">
+          $$M=\max(u_{an},u_{bn},u_{cn}),\qquad m=\min(u_{an},u_{bn},u_{cn}),$$
+        </div>
+        则选择注入后新的中点为 0，要求
+        <div class="eq-block">
+          $$\frac{(M+u_{ZSM})+(m+u_{ZSM})}{2}=0,$$
+        </div>
+        解得
+        <div class="eq-block">
+          $$u_{ZSM}=-\frac{M+m}{2}=-u_{\text{mid}},\qquad
+          u_{\text{mid}}=\frac{M+m}{2}.$$
+        </div>
+        它的几何意义非常直接：<strong>沿公共偏置方向整体平移三相命令，使最小包络区间的中点落到 0 上</strong>，从而在不改变 span 的前提下，把 span 尽量居中地塞进 bus window。</div>
+
+      <div class="sub-q">零序注入为什么改变相对中性点波形、却不改变线电压，可从两层解释。
+        <div class="eq-block">
+          $$\tilde u_a=u_a+u_0,\qquad \tilde u_b=u_b+u_0,\qquad \tilde u_c=u_c+u_0.$$
+        </div>
+        公式证明：
+        <div class="eq-block">
+          $$\tilde u_{ab}=\tilde u_a-\tilde u_b=(u_a+u_0)-(u_b+u_0)=u_{ab},$$
+          $$\tilde u_{bc}=u_{bc},\qquad \tilde u_{ca}=u_{ca}.$$
+        </div>
+        所以所有线电压严格不变。物理解释是：三相三线电机绕组真正承受的是端子之间的电压差，而不是每个端子相对地的绝对电位。给三相同时加同一个公共偏置，相当于整个三相电势整体抬高或压低，中性点会一起漂移；绕组两端的差值没有变，因此理想情况下电流、转矩和基波线电压目标都不变。</div>
+
+      <div class="sub-q">SPWM 与 SVPWM 的幅值比可以这样推：
+        <ul>
+          <li>SPWM 时，相电压峰值上限是 $V_{SPWM}=V_{dc}/2$。</li>
+          <li>SVPWM 时，通过零序重排后，相电压峰值上限可增至 $V_{SVPWM}=V_{dc}/\sqrt{3}$。</li>
+        </ul>
+        因而
+        <div class="eq-block">
+          $$\frac{V_{SVPWM}}{V_{SPWM}}=
+          \frac{V_{dc}/\sqrt{3}}{V_{dc}/2}
+          =\frac{2}{\sqrt{3}}
+          \approx1.1547.$$
+        </div>
+        这表示相对于 SPWM，SVPWM 的可用电压幅值提高约 $15.47\%$。一个从 $u^*_{\alpha\beta}$ 到 $S_a^*,S_b^*,S_c^*$ 的实现链可以写成：
+        <pre><code>1. inverse Clarke:
+   u_a^* = u_alpha^*
+   u_b^* = -0.5 u_alpha^* + (sqrt(3)/2) u_beta^*
+   u_c^* = -0.5 u_alpha^* - (sqrt(3)/2) u_beta^*
+
+2. phase-command extrema:
+   M = max(u_a^*, u_b^*, u_c^*)
+   m = min(u_a^*, u_b^*, u_c^*)
+
+3. zero-sequence injection:
+   u_ZSM = -(M + m)/2
+   u'_x = u_x^* + u_ZSM
+
+4. dc-bus normalization:
+   S_x^* = u'_x / V_dc + 0.5
+
+5. duty saturation:
+   S_x = sat_[0,1](S_x^*)
+   (工程上也可 sat 到 [S_min, S_max])</code></pre>
+        若控制器上层先给的是 $u_{dq}^*$，那就再往前多一步 inverse Park，把 $u_{dq}^*$ 变成 $u_{\alpha\beta}^*$ 后，再进入上面的五步链条。</div>
+    </div>
+
+    <div class="highlight-box">
+      <strong>Part 3 小结：</strong>
+      SVPWM 的核心并不神秘。它本质上就是：在三相三线系统允许的零序自由度上，把三相相电压命令整体平移到最省母线空间的位置，从而在不改变线电压目标的前提下，把 dc-bus 用得更满。
+    </div>
+  </section>
+
+  <section class="content-section" id="usage-note">
+    <div class="content-section__tag">Usage Note / 使用说明</div>
+    <h2>如何使用这份参考解答 / How to Use This Page</h2>
+
+    <div class="highlight-box">
+      <strong>这是一份参考解答，不是唯一标准答案。</strong><br>
+      学生完全可以用不同的叙述顺序和不同的符号写出等价答案；只要逻辑完整、公式一致、物理解释自洽，原则上都应给高分。
+    </div>
+  </section>
+
+  <section class="content-section" id="grading-rubric">
+    <div class="content-section__tag">Grading Rubric / 评分标准</div>
+    <h2>逐题评分标准（满分 100 分） / Per-Question Rubric (100 Points Total)</h2>
+
+    <div class="highlight-box">
+      <strong>总原则：</strong><br>
+      优先看三件事：是否抓住了物理主线，是否写出了必要的关系式，是否把“为什么”讲清楚。只写结论不给解释，或只写直觉不给公式，都不能拿满分。
+    </div>
+
+    <div class="task-box">
+      <strong>Task 1.1（15 分）</strong>
+      <ul>
+        <li>1.1(a) 5 分：说清 sensorless 是“直接反馈不足”而不是“无信息”得 1 分；列出至少 3 个可测量得 2 分；列出至少 3 个需重建量得 2 分。</li>
+        <li>1.1(b) 5 分：正确解释预测项得 2 分；正确解释创新项得 2 分；说明二者缺一不可得 1 分。</li>
+        <li>1.1(c) 5 分：指出 $\hat{\omega}_d$ 是预测项得 1 分；指出 $k_0e_{d,ss}$ 是创新项得 1 分；说明 $\hat{\omega}_d$ 来自 q 轴模型关系得 1.5 分；说明 $e_{d,ss}$ 来自 d 轴不匹配得 1.5 分。</li>
+      </ul>
+    </div>
+
+    <div class="task-box">
+      <strong>Task 1.2（15 分）</strong>
+      <ul>
+        <li>1.2(a) 5 分：三类 observer 各自的测量输出、重建量、实现风险三项都交代清楚给满分；每漏一类或每少一个维度扣 1 至 2 分。</li>
+        <li>1.2(b) 5 分：三状态 observer 写对得 3 分；说明 $\hat d$ 的物理意义得 1 分；说明 ramp disturbance 需要再加一阶扩展状态得 1 分。</li>
+        <li>1.2(c) 5 分：说明低速困难含可观测性成分得 2 分；说明角度微分放大噪声得 1 分；说明高带宽 observer 会带来滞后 / 噪声 / 闭环耦合问题得 2 分。</li>
+      </ul>
+    </div>
+
+    <div class="task-box">
+      <strong>Task 2.1（15 分）</strong>
+      <ul>
+        <li>2.1(a) 5 分：$S_a,S_b,S_c,V_{dc},G$ 的物理意义各 1 分；volt-second equivalence 说明成“PWM 周期平均电压等效”得 1 分。</li>
+        <li>2.1(b) 5 分：写出 $u_{xn}=u_{xG}-u_{nG}$ 得 2 分；说明中性点漂移 / common-mode 原因得 2 分；指出端电压与相电压概念不同得 1 分。</li>
+        <li>2.1(c) 5 分：三条线电压公式各 1 分；证明和为零得 2 分。</li>
+      </ul>
+    </div>
+
+    <div class="task-box">
+      <strong>Task 2.2（15 分）</strong>
+      <ul>
+        <li>2.2(a) 5 分：说明为什么要从 $u_{\alpha\beta}^*$ 继续映射到开关变量得 2 分；零序不改变线电压的代数证明得 3 分。</li>
+        <li>2.2(b) 5 分：说明只有两个差分自由度得 2 分；说明公共偏置 / 零空间自由度得 2 分；表述清晰得 1 分。</li>
+        <li>2.2(c) 5 分：由 $u=Ri+Ldi/dt+e$ 解释带宽受母线电压限制得 2 分；说明高速时反电势增大、余量变小得 1.5 分；说明饱和、anti-windup 和动态恶化得 1.5 分。</li>
+      </ul>
+    </div>
+
+    <div class="task-box">
+      <strong>Task 3.1（18 分）</strong>
+      <ul>
+        <li>3.1(a) 6 分：说明 SPWM 未利用零序自由度得 2 分；说明会提前碰相电压边界得 2 分；说明因此 dc bus 没用满得 2 分。</li>
+        <li>3.1(b) 6 分：由 $V_m\le V_{dc}/2$ 推到 $\max(u_{ab})=\sqrt{3}V_m=\sqrt{3}V_{dc}/2$ 得 3 分；解释其物理意义得 2 分；说明为何低于理论上限 $V_{dc}$ 得 1 分。</li>
+        <li>3.1(c) 6 分：指出利用率由 span 决定得 3 分；说明公共偏置不能改变 span 得 2 分；叙述清楚得 1 分。</li>
+      </ul>
+    </div>
+
+    <div class="task-box">
+      <strong>Task 3.2（22 分）</strong>
+      <ul>
+        <li>3.2(a) 7 分：对 black dots / red dots 的角色解释合理得 2 分；说明“压到 0 V”为何腾出空间得 2 分；推导 $u_{\text{mid}}=(\max+\min)/2$ 得 2 分；说明几何平移本质得 1 分。</li>
+        <li>3.2(b) 7 分：线电压不变的公式证明得 4 分；物理解释“共同平移不改绕组差分电压”得 3 分。</li>
+        <li>3.2(c) 8 分：推导 $V_{SVPWM}/V_{SPWM}=2/\sqrt{3}$ 得 3 分；正确说明约提升 15.47% 得 1 分；从 $u_{\alpha\beta}^*$ 到 $S_a^*,S_b^*,S_c^*$ 的 5 步链条完整得 4 分。</li>
+      </ul>
+    </div>
+
+    <div class="highlight-box">
+      <strong>常见扣分项：</strong>
+      <ul>
+        <li>把端电压、相电压、线电压混为一谈。</li>
+        <li>只说“SVPWM 电压利用率更高”，却不说明是如何利用零序自由度和 span 的。</li>
+        <li>只说“低速难”，却没指出信息 / 可观测性为什么变差。</li>
+        <li>observer 题只背公式，不说明哪一项是 prediction、哪一项是 innovation。</li>
+        <li>推导中符号混乱，尤其把 $\theta,\omega,\Omega,e,u_0,u_{ZSM}$ 混写。</li>
+      </ul>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function() {
+  var io = new IntersectionObserver(function(entries) {
+    entries.forEach(function(e) {
+      if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.05, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.content-section').forEach(function(s) { io.observe(s); });
+})();
+</script>
+
+</body>
+</html>
