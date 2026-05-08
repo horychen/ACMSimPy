@@ -299,8 +299,11 @@ def run_sensorless_demo(d,
                         eso_omega_ob=200.0,
                         speed_observer='eso',
                         use_sensorless_speed=False,
+                        use_sensorless_angle=None,
                         use_sensorless_torque_ff=False,
                         pure_p_current=False,
+                        cmd_rpm_ref=200.0,
+                        load_step=0.15,
                         verbose=True):
     """
     Run a sensorless control demo simulation.
@@ -317,11 +320,13 @@ def run_sensorless_demo(d,
     Sensorless closed-loop switches
     --------------------------------
     use_sensorless_speed : bool
-        If True, the FOC speed loop uses the ESO-estimated speed ω_est
-        instead of the encoder speed. The Park transformation angle also
-        switches to θ_AF (Active Flux estimate).
+        If True, the FOC speed loop uses the observer-estimated speed
+        instead of the encoder speed.
+    use_sensorless_angle : bool or None
+        If True, the Park transformation angle switches to θ_AF.
+        If None (default), follows use_sensorless_speed for backward compat.
     use_sensorless_torque_ff : bool
-        If True, the ESO's load torque estimate is fed forward into the
+        If True, the observer's load torque estimate is fed forward into the
         iq command via CTRL.total_disrubance_feedforward.
 
     Parameters
@@ -388,6 +393,10 @@ def run_sensorless_demo(d,
     CTRL.bool_zero_id_control = dd['CTRL.bool_zero_id_control']
     CTRL.bool_apply_speed_closed_loop_control = True
 
+    # Resolve use_sensorless_angle: default follows use_sensorless_speed
+    if use_sensorless_angle is None:
+        use_sensorless_angle = use_sensorless_speed
+
     # ---- Sensorless injection setup ----
     if sensorless_closed_loop:
         # Enable the built-in speed observer path so that
@@ -402,7 +411,7 @@ def run_sensorless_demo(d,
         CTRL.ell4 = 0.0
 
         # Enable sensorless Park angle (θ from vartheta_d instead of encoder)
-        if use_sensorless_speed:
+        if use_sensorless_angle:
             CTRL.bool_use_sensorless_theta = 1
 
         # Enable disturbance feedforward
@@ -514,22 +523,22 @@ def run_sensorless_demo(d,
 
         # ---- Speed command & load profile ----
         if t_mid < 0.3:
-            CTRL.cmd_rpm = 200 * min(t_mid / 0.3, 1.0)
+            CTRL.cmd_rpm = cmd_rpm_ref * min(t_mid / 0.3, 1.0)
             ACM.TLoad = 0.0
         elif t_mid < 0.6:
-            CTRL.cmd_rpm = 200
+            CTRL.cmd_rpm = cmd_rpm_ref
             ACM.TLoad = 0.0
         elif t_mid < 0.8:
-            CTRL.cmd_rpm = 200
-            ACM.TLoad = 0.15    # step load applied
+            CTRL.cmd_rpm = cmd_rpm_ref
+            ACM.TLoad = load_step    # step load applied
         elif t_mid < 1.0:
-            CTRL.cmd_rpm = 200
+            CTRL.cmd_rpm = cmd_rpm_ref
             ACM.TLoad = 0.0     # load removed
         elif t_mid < 1.3:
-            CTRL.cmd_rpm = -200
+            CTRL.cmd_rpm = -cmd_rpm_ref
             ACM.TLoad = 0.0
         else:
-            CTRL.cmd_rpm = -200
+            CTRL.cmd_rpm = -cmd_rpm_ref
             ACM.TLoad = 0.0
 
         # ---- Inject sensorless observer outputs BEFORE the next control step ----
@@ -537,9 +546,14 @@ def run_sensorless_demo(d,
             # Inject ESO-estimated angle → CTRL.vartheta_d (used for Park if enabled)
             CTRL.vartheta_d = theta_af[ctrl_idx - 1]  # latest AF angle estimate
 
-            # Inject Observer-estimated speed → CTRL.xS[1] (used as omega_r_elec)
+            # Inject speed into xS[1] (used as omega_r_elec when index_separate_speed_estimation=1)
             if use_sensorless_speed:
                 CTRL.xS[1] = dyn_obs.omega_elec  # Observer's ω in elec. rad/s
+            else:
+                # Must still write xS[1] from encoder because built-in observer gains are zeroed.
+                # omega_true stores rpm; convert back to electrical rad/s for xS[1].
+                omega_rpm_prev = omega_true[ctrl_idx - 1]
+                CTRL.xS[1] = omega_rpm_prev / 60.0 * (2 * np.pi * n_pp)
 
             # Inject Observer disturbance → CTRL.xS[2] (used as feedforward)
             if use_sensorless_torque_ff:
@@ -914,89 +928,136 @@ def plot_sensorless_results(results, save_path='fig_sensorless_demo'):
 # ======================================================================
 if __name__ == '__main__':
     print('=' * 70)
-    print('  无传感器控制 Demo — Active Flux 估计 + ESO 速度观测')
-    print('  Sensorless Demo — Active Flux + 4th-order ESO Speed Observer')
+    print('  Sensorless Demo — Active Flux + Speed Observer (ESO / NSO)')
     print('=' * 70)
 
-    # ---------- 电机参数（小电感电机，与 ep6 一致） ----------
-    d = {
-        'CL_TS': 1e-4,
-        'VL_EXE_PER_CL_EXE': 5,
-        'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 1,
-        'TIME_SLICE': 0.1,
-        'NUMBER_OF_SLICES': 20,  # 2.0 s total
-        'init_npp': 22,
-        'init_IN': 1.3 * 6 / 1.414,
-        'init_R': 0.035,
-        'init_Ld': 1 * 0.036e-3,
-        'init_Lq': 1 * 0.036e-3,
-        'init_KE': 0.0125,
-        'init_Rreq': 0.0,
-        'init_Js': 0.44e-4,
-        'DC_BUS_VOLTAGE': 5,
+    # ====================================================
+    # Parse command-line switches  (parse early so --motor is available)
+    # ====================================================
+    import argparse
+    parser = argparse.ArgumentParser(description='Sensorless Active Flux + Speed Observer Demo')
+    parser.add_argument('--motor', type=str, choices=['small_L', 'servo', 'big_L'], default='small_L',
+                        help='Motor parameter preset: small_L (npp=22), servo (npp=4), big_L (npp=24)')
+    parser.add_argument('--use-sensorless-speed', action='store_true', default=False,
+                        help='Use observer-estimated speed for FOC speed loop (and AF angle for Park)')
+    parser.add_argument('--use-sensorless-torque-ff', action='store_true', default=False,
+                        help='Use observer load torque estimate for feedforward into iq command')
+    parser.add_argument('--eso-omega-ob', type=float, default=200.0,
+                        help='Dynamics observer bandwidth [rad/s] (default: 200)')
+    parser.add_argument('--speed-observer', type=str, choices=['eso', 'nso'], default='eso',
+                        help='Choose dynamics observer: eso (4th-order) or nso (Natural Speed Observer)')
+    parser.add_argument('--clbw', type=float, default=None,
+                        help='Current loop bandwidth [Hz] (default: auto per motor)')
+    parser.add_argument('--af-kp', type=float, default=None,
+                        help='Active flux error correction Kp (default: auto per motor)')
+    parser.add_argument('--af-ki', type=float, default=None,
+                        help='Active flux error correction Ki (default: auto per motor)')
+    parser.add_argument('--zeta', type=float, default=None,
+                        help='Speed loop damping ratio (default: auto per motor)')
+    parser.add_argument('--pure-p-current', action='store_true', default=False,
+                        help='Use pure P controller for current loops instead of PI')
+    args = parser.parse_args()
+
+    # ====================================================
+    # Motor parameter presets
+    # ====================================================
+    common_ctrl = {
         'CTRL.bool_apply_speed_closed_loop_control': True,
         'CTRL.bool_apply_decoupling_voltages_to_current_regulation': False,
         'CTRL.bool_apply_sweeping_frequency_excitation': False,
         'CTRL.bool_overwrite_speed_commands': True,
         'CTRL.bool_zero_id_control': True,
-        'FOC_delta': 15,
-        'FOC_desired_VLBW_HZ': 120,
         'FOC_CL_KI_factor_when__bool_apply_decoupling_voltages_to_current_regulation__is_False': 10,
-        'CL_SERIES_KP': None,
-        'CL_SERIES_KI': None,
-        'VL_SERIES_KP': None,
-        'VL_SERIES_KI': None,
+        'CL_SERIES_KP': None, 'CL_SERIES_KI': None,
+        'VL_SERIES_KP': None, 'VL_SERIES_KI': None,
         'VL_LIMIT_OVERLOAD_FACTOR': 3.0,
-        'disp.Kp': 0.0,
-        'disp.Ki': 0.0,
-        'disp.Kd': 0.0,
-        'disp.tau': 0.0,
-        'disp.OutLimit': 0.0,
-        'disp.IntLimit': 0.0,
+        'disp.Kp': 0.0, 'disp.Ki': 0.0, 'disp.Kd': 0.0,
+        'disp.tau': 0.0, 'disp.OutLimit': 0.0, 'disp.IntLimit': 0.0,
     }
 
-    # ====================================================
-    # Parse command-line switches
-    # ====================================================
-    import argparse
-    parser = argparse.ArgumentParser(description='Sensorless Active Flux + ESO Demo')
-    parser.add_argument('--use-sensorless-speed', action='store_true', default=False,
-                        help='Use ESO-estimated speed for FOC speed loop (and AF angle for Park)')
-    parser.add_argument('--use-sensorless-torque-ff', action='store_true', default=False,
-                        help='Use ESO load torque estimate for feedforward into iq command')
-    parser.add_argument('--eso-omega-ob', type=float, default=200.0,
-                        help='Dynamics observer bandwidth [rad/s] (default: 200)')
-    parser.add_argument('--speed-observer', type=str, choices=['eso', 'nso'], default='eso',
-                        help='Choose intermediate dynamics observer: eso (4th-order) or nso (Natural Speed Observer)')
-    parser.add_argument('--clbw', type=float, default=1000.0,
-                        help='Current loop bandwidth [Hz]')
-    parser.add_argument('--af-kp', type=float, default=500.0,
-                        help='Active flux error correction Kp')
-    parser.add_argument('--af-ki', type=float, default=5000.0,
-                        help='Active flux error correction Ki')
-    parser.add_argument('--zeta', type=float, default=15.0,
-                        help='Speed loop damping ratio')
-    parser.add_argument('--pure-p-current', action='store_true', default=False,
-                        help='Use pure P controller for current loops instead of PI')
-    args = parser.parse_args()
+    if args.motor == 'small_L':
+        d = {
+            'CL_TS': 1e-4, 'VL_EXE_PER_CL_EXE': 5,
+            'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 1,
+            'TIME_SLICE': 0.1, 'NUMBER_OF_SLICES': 20,   # 2.0 s
+            'init_npp': 22, 'init_IN': 1.3 * 6 / 1.414,
+            'init_R': 0.035, 'init_Ld': 0.036e-3, 'init_Lq': 0.036e-3,
+            'init_KE': 0.0125, 'init_Rreq': 0.0, 'init_Js': 0.44e-4,
+            'DC_BUS_VOLTAGE': 5,
+            'FOC_delta': 15, 'FOC_desired_VLBW_HZ': 120,
+            **common_ctrl,
+        }
+        # Defaults for this motor
+        clbw   = args.clbw   or 1000.0
+        af_kp  = args.af_kp  or 500.0
+        af_ki  = args.af_ki  or 5000.0
+        zeta   = args.zeta   or 15.0
+        r_mis  = 1.5
+        v_off_a, v_off_b = 0.02, -0.015
+        cmd_rpm_ref, load_step = 200.0, 0.15
+        print(f'  Motor: small_L (npp=22, Ld=Lq=36uH, R=35mOhm)')
+
+    elif args.motor == 'servo':
+        d = {
+            'CL_TS': 1e-4, 'VL_EXE_PER_CL_EXE': 5,
+            'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 1,
+            'TIME_SLICE': 0.1, 'NUMBER_OF_SLICES': 20,   # 2.0 s
+            'init_npp': 4, 'init_IN': 4.0,
+            'init_R': 1.1, 'init_Ld': 5e-3, 'init_Lq': 6e-3,
+            'init_KE': 0.1, 'init_Rreq': 0.0, 'init_Js': 0.008,
+            'DC_BUS_VOLTAGE': 200,
+            'FOC_delta': 10, 'FOC_desired_VLBW_HZ': 60,
+            **common_ctrl,
+        }
+        clbw   = args.clbw   or 500.0
+        af_kp  = args.af_kp  or 500.0
+        af_ki  = args.af_ki  or 1000.0
+        zeta   = args.zeta   or 10.0
+        r_mis  = 1.5
+        v_off_a, v_off_b = 0.5, -0.3
+        cmd_rpm_ref, load_step = 500.0, 1.27
+        print(f'  Motor: servo (npp=4, Ld=5mH, Lq=6mH, R=1.1Ohm)')
+
+    elif args.motor == 'big_L':
+        d = {
+            'CL_TS': 1e-4, 'VL_EXE_PER_CL_EXE': 5,
+            'MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD': 1,
+            'TIME_SLICE': 0.1, 'NUMBER_OF_SLICES': 20,   # 2.0 s
+            'init_npp': 24, 'init_IN': 4.93,
+            'init_R': 1.97, 'init_Ld': 0.1035, 'init_Lq': 0.1063,
+            'init_KE': 0.0745, 'init_Rreq': 0.0, 'init_Js': 1.5 * 0.051,
+            'DC_BUS_VOLTAGE': 800,
+            'FOC_delta': 6.5, 'FOC_desired_VLBW_HZ': 40,
+            **common_ctrl,
+        }
+        clbw   = args.clbw   or 200.0
+        af_kp  = args.af_kp  or 100.0
+        af_ki  = args.af_ki  or 1000.0
+        zeta   = args.zeta   or 6.5
+        r_mis  = 1.5
+        v_off_a, v_off_b = 1.0, -0.8
+        cmd_rpm_ref, load_step = 150.0, 20.0
+        print(f'  Motor: big_L (npp=24, Ld=103.5mH, Lq=106.3mH, R=1.97Ohm)')
 
     # ====================================================
     # Run sensorless demo
     # ====================================================
     results = run_sensorless_demo(
         d,
-        zeta=args.zeta,
-        CLBW_Hz=args.clbw,
-        af_Kp=args.af_kp,
-        af_Ki=args.af_ki,
-        R_mismatch_factor=1.5,
-        voltage_offset_alpha=0.02,
-        voltage_offset_beta=-0.015,
+        zeta=zeta,
+        CLBW_Hz=clbw,
+        af_Kp=af_kp,
+        af_Ki=af_ki,
+        R_mismatch_factor=r_mis,
+        voltage_offset_alpha=v_off_a,
+        voltage_offset_beta=v_off_b,
         eso_omega_ob=args.eso_omega_ob,
         speed_observer=args.speed_observer,
         use_sensorless_speed=args.use_sensorless_speed,
         use_sensorless_torque_ff=args.use_sensorless_torque_ff,
         pure_p_current=args.pure_p_current,
+        cmd_rpm_ref=cmd_rpm_ref,
+        load_step=load_step,
         verbose=True,
     )
 
@@ -1009,11 +1070,12 @@ if __name__ == '__main__':
     if args.use_sensorless_torque_ff:
         suffix += "_tqff"
         
-    base_name = f'fig_sensorless_demo{suffix}'
+    base_name = f'fig_sensorless_{args.motor}{suffix}'
     fig1, fig2, fig3 = plot_sensorless_results(results, save_path=base_name)
 
     plt.close('all')
-    print('\n--- 所有图已保存 ---')
-    print(f'  {base_name}_angles.png          (角度估计对比)')
-    print(f'  {base_name}_speed_eso.png       (转速: LPF vs 4th-order ESO)')
-    print(f'  {base_name}_flux_trajectory.png  (αβ 磁链轨迹)')
+    print(f'\n--- All plots saved ({args.motor}) ---')
+    obs_suffix = 'speed_nso' if args.speed_observer == 'nso' else 'speed_eso'
+    print(f'  {base_name}_angles.png')
+    print(f'  {base_name}_{obs_suffix}.png')
+    print(f'  {base_name}_flux_trajectory.png')

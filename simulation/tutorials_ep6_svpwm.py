@@ -1567,15 +1567,15 @@ if __name__ == '__main__':
         'TIME_SLICE': 0.2,
         'NUMBER_OF_SLICES': 6,
         # Motor data
-        'init_npp': 22,
+        'init_npp': 4,
         'init_IN': 1.3*6/1.414,
-        'init_R': 0.035,
-        'init_Ld': 1*0.036*1e-3,
-        'init_Lq': 1*0.036*1e-3,
-        'init_KE': 0.0125,
+        'init_R': 1.35,
+        'init_Ld': 3.6*1e-3,
+        'init_Lq': 3.6*1e-3,
+        'init_KE': 0.125,
         'init_Rreq': 0.0,
-        'init_Js': 0.44*1e-4,
-        'DC_BUS_VOLTAGE': 5,
+        'init_Js': 0.44*1e-5,
+        'DC_BUS_VOLTAGE': 48,
         'user_system_input_code': '''if ii < 1: CTRL.cmd_idq[0] = 0.0; CTRL.cmd_rpm = 50 \nelif ii <5: ACM.TLoad = 0.2 \nelif ii <100: CTRL.cmd_rpm = -50''',
         # Controller config
         'CTRL.bool_apply_speed_closed_loop_control': True,
@@ -1658,7 +1658,8 @@ if __name__ == '__main__':
     sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times; fig = 图1画图代码(); # fig.savefig(f'SliceFSPM-fig-{图}.pdf', dpi=400, bbox_inches='tight', pad_inches=0)
 
     图 = 2 # 空载加速、加载、反转（改变母线电压）
-    d['DC_BUS_VOLTAGE'] = 20
+    # d['DC_BUS_VOLTAGE'] = 20
+    d['MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD'] = 50
     sim1 = Simulation_Benchmark(d); gdd, global_machine_times = sim1.gdd, sim1.global_machine_times; fig = 图1画图代码()
 
     plt.show()
