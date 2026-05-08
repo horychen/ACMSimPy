@@ -1,18 +1,10 @@
 """
 Electric Motor Control - Course Server
 Run: python server.py
+  - The startup menu auto-discovers lecture*.html,
+    homework*.html, homework*_solution.html,
+    and codingProject*.html under this folder.
   - Home:       http://<ip>:8000/index.html      (students)
-  - Lecture 1:  http://<ip>:8000/lecture1.html   (students)
-  - Lecture 2:  http://<ip>:8000/lecture2.html   (students)
-  - Lecture 3:  http://<ip>:8000/lecture3.html   (students)
-  - Lecture 4:  http://<ip>:8000/lecture4.html   (students)
-  - Homework 1: http://<ip>:8000/homework1.html  (students)
-  - Homework 2: http://<ip>:8000/homework2.html  (students)
-  - Project 1:  http://<ip>:8000/codingProject1.html  (students)
-  - Project 2:  http://<ip>:8000/codingProject2.html  (students)
-  - Project 3:  http://<ip>:8000/codingProject3.html  (students)
-  - Project 4:  http://<ip>:8000/codingProject4.html  (students)
-  - Live:       http://<ip>:8000/live.html       (students)
   - Teacher:    http://localhost:8000/teacher.html
 """
 
@@ -20,35 +12,67 @@ import cgi
 import http.server
 import json
 import os
+import re
 import socket
 import threading
 import time
 from datetime import datetime
 
 PORT = 8000
-RESPONSES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "responses")
-LIVE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "live_responses")
-QUIZ_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quiz_responses")
-HOMEWORK_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "homework_submissions")
+COURSE_DIR = os.path.dirname(os.path.abspath(__file__))
+RESPONSES_DIR = os.path.join(COURSE_DIR, "responses")
+LIVE_DIR = os.path.join(COURSE_DIR, "live_responses")
+QUIZ_DIR = os.path.join(COURSE_DIR, "quiz_responses")
+HOMEWORK_DIR = os.path.join(COURSE_DIR, "homework_submissions")
 
-COURSE_PAGES = [
-    ("Home", "index.html"),
-    ("Lecture 1", "lecture1.html"),
-    ("Lecture 2", "lecture2.html"),
-    ("Lecture 3", "lecture3.html"),
-    ("Lecture 4", "lecture4.html"),
-    ("Homework 1", "homework1.html"),
-    ("Homework 2", "homework2.html"),
-    ("Homework 2 Solution", "homework2_solution.html"),
-    ("Coding Project 1", "codingProject1.html"),
-    ("Coding Project 2", "codingProject2.html"),
-    ("Coding Project 23", "codingProject23.html"),
-    ("Coding Project 3", "codingProject3.html"),
-    ("Coding Project 4", "codingProject4.html"),
-    ("Live Q&A", "live.html"),
-    ("Teacher Panel", "teacher.html"),
-    ("Q&A Demo", "qa-demo.html"),
-]
+
+def build_course_pages():
+    pages = []
+
+    if os.path.exists(os.path.join(COURSE_DIR, "index.html")):
+        pages.append(("Home", "index.html"))
+
+    discovered = []
+    for filename in os.listdir(COURSE_DIR):
+        if not filename.endswith(".html") or filename == "index.html":
+            continue
+
+        m = re.fullmatch(r"lecture(\d+)\.html", filename)
+        if m:
+            number = int(m.group(1))
+            discovered.append(((10, number, 0), f"Lecture {number}", filename))
+            continue
+
+        m = re.fullmatch(r"homework(\d+)(?:(_solution))?\.html", filename)
+        if m:
+            number = int(m.group(1))
+            is_solution = 1 if m.group(2) else 0
+            label = f"Homework {number}" + (" Solution" if is_solution else "")
+            discovered.append(((20, number, is_solution), label, filename))
+            continue
+
+        m = re.fullmatch(r"codingProject(\d+)\.html", filename)
+        if m:
+            number = int(m.group(1))
+            discovered.append(((30, number, 0), f"Coding Project {number}", filename))
+            continue
+
+    discovered.sort(key=lambda item: item[0])
+    pages.extend((label, filename) for _, label, filename in discovered)
+
+    tail_pages = [
+        ("Live Q&A", "live.html"),
+        ("Teacher Panel", "teacher.html"),
+        ("Q&A Demo", "qa-demo.html"),
+    ]
+    for label, filename in tail_pages:
+        if os.path.exists(os.path.join(COURSE_DIR, filename)):
+            pages.append((label, filename))
+
+    return pages
+
+
+COURSE_PAGES = build_course_pages()
 
 # --- In-memory live Q&A state ---
 live_state = {
@@ -73,7 +97,7 @@ class SurveyHandler(http.server.SimpleHTTPRequestHandler):
 
     def __init__(self, *args, **kwargs):
         try:
-            super().__init__(*args, directory=os.path.dirname(os.path.abspath(__file__)), **kwargs)
+            super().__init__(*args, directory=COURSE_DIR, **kwargs)
         except ConnectionResetError:
             pass
 
