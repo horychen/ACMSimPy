@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Lecture 6 - Inverter Modeling</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"
+  onerror="this.onerror=null;this.href='vendor/katex/katex.min.css';">
+<script>
+(function(){
+  var CDN = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/";
+  var LOCAL = "vendor/katex/";
+  var files = ["katex.min.js", "contrib/auto-render.min.js"];
+  var idx = 0, TIMEOUT = 3000;
+  function renderMath() {
+    if (window.renderMathInElement) {
+      renderMathInElement(document.body, {
+        delimiters: [
+          {left:"$$", right:"$$", display:true},
+          {left:"$", right:"$", display:false}
+        ]
+      });
+    }
+  }
+  function loadScript(src, ok, fail) {
+    var s = document.createElement("script");
+    var done = false;
+    var timer = setTimeout(function(){ if(!done){ done = true; s.onload = s.onerror = null; fail(); } }, TIMEOUT);
+    s.src = src;
+    s.onload = function(){ if(!done){ done = true; clearTimeout(timer); ok(); } };
+    s.onerror = function(){ if(!done){ done = true; clearTimeout(timer); fail(); } };
+    document.head.appendChild(s);
+  }
+  function loadChain(base, fallback) {
+    if (idx >= files.length) { renderMath(); return; }
+    loadScript(base + files[idx], function(){ idx++; loadChain(base, fallback); }, function(){ if (fallback) { idx = 0; loadChain(fallback, null); } });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){ loadChain(CDN, LOCAL); });
+  } else {
+    loadChain(CDN, LOCAL);
+  }
+})();
+</script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --panel: rgba(15, 22, 34, 0.90);
+    --line: rgba(255,255,255,0.10);
+    --text: #eef4ff;
+    --soft: #bac7dc;
+    --muted: #8190a9;
+    --gold: #efc46a;
+    --teal: #79dfd0;
+    --blue: #88aaff;
+    --rose: #efa69f;
+    --green: #9bdf93;
+    --shadow: 0 24px 80px rgba(0,0,0,0.34);
+    --font-display: "Palatino Linotype", Georgia, serif;
+    --font-body: Aptos, "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
+    --font-mono: "Cascadia Code", Consolas, monospace;
+  }
+  html { font-size: 16px; scroll-behavior: smooth; }
+  body {
+    min-height: 100vh;
+    font-family: var(--font-body);
+    color: var(--text);
+    background:
+      radial-gradient(circle at 15% 15%, rgba(121,223,208,0.16), transparent 28%),
+      radial-gradient(circle at 84% 9%, rgba(239,196,106,0.13), transparent 25%),
+      radial-gradient(circle at 56% 115%, rgba(136,170,255,0.12), transparent 34%),
+      linear-gradient(180deg, #070b11 0%, #0b111b 52%, #070b11 100%);
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  body[data-lang="en"] .lang-zh { display: none !important; }
+  body[data-lang="zh"] .lang-en { display: none !important; }
+  .app { width: min(1140px, calc(100vw - 20px)); margin: 0 auto; padding: 14px 0 48px; }
+  .topbar { position: sticky; top: 8px; z-index: 30; display: flex; justify-content: flex-end; margin-bottom: 12px; }
+  .lang-switch { display: inline-flex; gap: 6px; padding: 6px; border: 1px solid var(--line); border-radius: 999px; background: rgba(10,14,22,0.84); backdrop-filter: blur(12px); box-shadow: var(--shadow); }
+  .lang-switch button { border: none; border-radius: 999px; min-width: 84px; padding: 9px 14px; font-size: 0.9rem; font-weight: 700; cursor: pointer; background: transparent; color: var(--soft); transition: 0.2s ease; }
+  .lang-switch button.active { background: linear-gradient(135deg, var(--gold), #ffe4a8); color: #1b1407; }
+  .hero, .sidebar, .section { border: 1px solid var(--line); border-radius: 24px; background: var(--panel); backdrop-filter: blur(14px); box-shadow: var(--shadow); }
+  .hero { padding: 30px; margin-bottom: 14px; overflow: hidden; position: relative; }
+  .hero::after { content: ""; position: absolute; right: -24px; bottom: -70px; width: 230px; height: 230px; background: radial-gradient(circle, rgba(239,196,106,0.16), transparent 70%); pointer-events: none; }
+  .eyebrow, .section-tag, .side-title, .pill { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.16em; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 10px; color: var(--gold); font-size: 0.72rem; margin-bottom: 14px; }
+  .eyebrow::before, .section-tag::before { content: ""; width: 32px; height: 1px; background: linear-gradient(90deg, currentColor, transparent); }
+  .hero h1 { font-family: var(--font-display); font-size: clamp(2.1rem, 4vw, 3.55rem); line-height: 1.06; font-weight: 500; letter-spacing: -0.03em; margin-bottom: 14px; max-width: 930px; }
+  .hero h1 em { font-style: normal; color: var(--teal); }
+  .lead { max-width: 920px; color: var(--soft); line-height: 1.84; font-size: 1rem; }
+  .meta-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 22px; }
+  .meta-card { border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,0.03); padding: 13px 14px; }
+  .meta-label { display: block; color: var(--muted); font-size: 0.68rem; margin-bottom: 6px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.16em; }
+  .meta-value { line-height: 1.58; font-size: 0.95rem; }
+  .layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 14px; align-items: start; }
+  .layout > *, .main, .sidebar, .section, .grid-2, .grid-3, .q-grid, .card, .q-card, .callout, .eq-block, .table-wrap { min-width: 0; max-width: 100%; }
+  .sidebar { position: sticky; top: 72px; padding: 18px; }
+  .side-title { color: var(--gold); font-size: 0.75rem; margin-bottom: 10px; }
+  .nav-list { list-style: none; display: grid; gap: 8px; margin-bottom: 14px; padding-left: 0; }
+  .nav-list a { display: block; padding: 10px 12px; border-radius: 12px; color: var(--soft); text-decoration: none; border: 1px solid transparent; transition: 0.2s ease; }
+  .nav-list a:hover { color: var(--text); background: rgba(255,255,255,0.04); border-color: var(--line); transform: translateX(3px); }
+  .side-note { border-top: 1px solid var(--line); padding-top: 12px; color: var(--muted); font-size: 0.86rem; line-height: 1.75; }
+  .main { display: grid; gap: 14px; }
+  .section { padding: 24px; opacity: 0; transform: translateY(18px); transition: opacity 0.55s ease, transform 0.55s ease; }
+  .section.visible { opacity: 1; transform: translateY(0); }
+  .section-tag { display: inline-flex; align-items: center; gap: 10px; color: var(--teal); font-size: 0.7rem; margin-bottom: 12px; }
+  h2 { font-family: var(--font-display); font-size: 1.68rem; font-weight: 500; margin-bottom: 12px; }
+  h3 { font-size: 1.04rem; color: var(--gold); margin: 18px 0 10px; }
+  h4 { font-size: 1rem; margin-bottom: 8px; color: var(--text); }
+  p, li { color: var(--soft); line-height: 1.82; font-size: 0.97rem; }
+  strong { color: var(--text); }
+  em { color: var(--teal); }
+  ul, ol { padding-left: 1.2rem; margin: 10px 0 14px; }
+  li + li { margin-top: 6px; }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .grid-2, .grid-3, .q-grid { display: grid; gap: 14px; margin-top: 16px; }
+  .grid-2, .q-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .card, .q-card, .callout, .eq-block, .table-wrap { border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,0.03); }
+  .card, .q-card, .table-wrap { padding: 18px; }
+  .callout, .eq-block { padding: 16px 18px; margin: 16px 0; }
+  .callout--warn { background: rgba(239,196,106,0.08); border-color: rgba(239,196,106,0.24); }
+  .callout--ok { background: rgba(121,223,208,0.07); border-color: rgba(121,223,208,0.22); }
+  .callout--rose { background: rgba(239,166,159,0.07); border-color: rgba(239,166,159,0.22); }
+  .callout-title { display: block; color: var(--text); margin-bottom: 6px; font-weight: 700; }
+  .eq-block { background: #101823; overflow-x: auto; -webkit-overflow-scrolling: touch; touch-action: pan-x; }
+  .table-wrap { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; touch-action: pan-x; }
+  .katex-display { overflow-x: auto; overflow-y: hidden; padding-bottom: 2px; -webkit-overflow-scrolling: touch; touch-action: pan-x; }
+  code { font-family: var(--font-mono); color: var(--teal); background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); padding: 0.1rem 0.35rem; border-radius: 8px; }
+  .pill { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; color: var(--soft); font-size: 0.72rem; padding: 4px 9px; margin-right: 6px; margin-bottom: 6px; }
+  .q-index { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: rgba(136,170,255,0.14); color: var(--blue); font-family: var(--font-mono); font-size: 0.82rem; margin-bottom: 10px; }
+  .checklist { display: grid; gap: 10px; margin-top: 12px; }
+  .check { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,0.03); }
+  .check::before { content: "•"; flex: none; font-weight: 700; color: var(--green); margin-top: 1px; }
+  table { width: 100%; border-collapse: collapse; min-width: 560px; }
+  th, td { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  th { color: var(--text); background: rgba(255,255,255,0.05); font-size: 0.9rem; }
+  td { color: var(--soft); line-height: 1.72; font-size: 0.94rem; }
+  tr:last-child td { border-bottom: none; }
+  .footer-note { margin-top: 16px; color: var(--muted); font-size: 0.88rem; }
+  .katex { color: var(--text); }
+  @media (max-width: 980px) {
+    .meta-grid, .layout, .grid-3, .grid-2, .q-grid { grid-template-columns: 1fr; }
+    .sidebar, .topbar { position: static; }
+    .section { opacity: 1; transform: none; }
+  }
+  @media (max-width: 640px) {
+    .app { width: min(100vw - 14px, 1140px); padding-top: 10px; }
+    .hero, .sidebar, .section { padding: 20px; border-radius: 20px; }
+    .lang-switch { width: 100%; }
+    .lang-switch button { flex: 1; min-width: 0; }
+    h2 { font-size: 1.44rem; }
+    .lead, p, li { font-size: 0.95rem; }
+    table { min-width: 500px; }
+  }
+</style>
+</head>
+<body data-lang="en">
+<div class="app">
+  <div class="topbar">
+    <div class="lang-switch" aria-label="Language switch">
+      <button id="btn-en" class="active" type="button" onclick="setLang('en')">English</button>
+      <button id="btn-zh" type="button" onclick="setLang('zh')">中文</button>
+    </div>
+  </div>
+
+  <header class="hero">
+    <div class="eyebrow">Lecture 6 / Inverter Modeling</div>
+    <h1>
+      <span class="lang-en">Model the inverter as a <em>plant component</em>, not just a PWM afterthought.</span>
+      <span class="lang-zh">把逆变器建成<em>系统的一部分</em>，而不是 PWM 后处理的小尾巴。</span>
+    </h1>
+    <p class="lead">
+      <span class="lang-en">Lecture 5 explained how SVPWM chooses duty ratios. Lecture 6 asks the next engineering question: once the duty ratios are known, what voltage should the motor model actually receive? We will move between average models, switching models, sampling delay, dead time, and the small nonideal terms that make real current waveforms quietly disagree with beautiful control diagrams.</span>
+      <span class="lang-zh">Lecture 5 讲的是 SVPWM 怎样生成占空比。Lecture 6 接着问一个更工程的问题：占空比已经有了，电机模型到底应该接收到什么电压？本讲会在平均模型、开关模型、采样延迟、死区，以及那些让真实电流波形悄悄偏离漂亮框图的非理想项之间来回切换。</span>
+    </p>
+    <div class="meta-grid">
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Model levels</span><span class="lang-zh">模型层级</span></span>
+        <div class="meta-value">average / switching / nonideal</div>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Pairing</span><span class="lang-zh">配套内容</span></span>
+        <div class="meta-value"><a href="codingProject6.html">Coding Project 6</a></div>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Core variables</span><span class="lang-zh">核心变量</span></span>
+        <div class="meta-value"><code>S_a,S_b,S_c</code>, <code>T_a,T_b,T_c</code>, <code>u_{abc}</code></div>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Key question</span><span class="lang-zh">关键问题</span></span>
+        <div class="meta-value"><span class="lang-en">Which inverter model is accurate enough for the question being asked?</span><span class="lang-zh">面对当前问题，哪一级逆变器模型才够用？</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="side-title"><span class="lang-en">Contents</span><span class="lang-zh">目录</span></div>
+      <ul class="nav-list">
+        <li><a href="#why"><span class="lang-en">Why model it?</span><span class="lang-zh">为什么要建模</span></a></li>
+        <li><a href="#levels"><span class="lang-en">Three model levels</span><span class="lang-zh">三个模型层级</span></a></li>
+        <li><a href="#switching"><span class="lang-en">Switching equations</span><span class="lang-zh">开关方程</span></a></li>
+        <li><a href="#average"><span class="lang-en">Average model</span><span class="lang-zh">平均模型</span></a></li>
+        <li><a href="#timing"><span class="lang-en">Timing and delay</span><span class="lang-zh">时序与延迟</span></a></li>
+        <li><a href="#nonideal"><span class="lang-en">Dead time</span><span class="lang-zh">死区非理想项</span></a></li>
+        <li><a href="#code-bridge"><span class="lang-en">Code bridge</span><span class="lang-zh">代码落点</span></a></li>
+        <li><a href="#discussion"><span class="lang-en">Discussion</span><span class="lang-zh">课堂问题</span></a></li>
+      </ul>
+      <div class="side-note">
+        <span class="lang-en">The goal is not to make every simulation slower. The goal is to know when the fast model is lying.</span>
+        <span class="lang-zh">目标不是把所有仿真都变慢，而是知道快速模型什么时候开始撒谎。</span>
+      </div>
+    </aside>
+
+    <main class="main">
+      <section class="section" id="why">
+        <div class="section-tag">Motivation / The Missing Block</div>
+        <h2><span class="lang-en">The controller commands voltage, but the inverter delivers events</span><span class="lang-zh">控制器给的是电压指令，逆变器交付的是开关事件</span></h2>
+        <p>
+          <span class="lang-en">A field-oriented controller usually outputs $u_d^*$ and $u_q^*$. After inverse Park and SVPWM, this becomes three duty ratios. But the motor terminals do not see duty ratios directly. They see phase-leg switching states, dc-bus rails, diode conduction during dead time, and a waveform whose average may or may not match the command over one PWM period.</span>
+          <span class="lang-zh">FOC 控制器通常输出 $u_d^*$ 和 $u_q^*$。经过逆 Park 和 SVPWM 之后，它们变成三相占空比。但电机端子并不会直接“看见占空比”。它看见的是桥臂开关状态、直流母线电平、死区期间的二极管续流，以及一个在一个 PWM 周期内平均值可能等于也可能偏离指令的波形。</span>
+        </p>
+        <div class="callout callout--ok">
+          <span class="callout-title"><span class="lang-en">One sentence model hierarchy</span><span class="lang-zh">一句话模型层级</span></span>
+          <span class="lang-en">An average inverter model answers low-frequency control questions; a switching model answers ripple, sampling, common-mode, and implementation questions; a nonideal model answers why experiments refuse to look ideal.</span>
+          <span class="lang-zh">平均逆变器模型回答低频控制问题；开关模型回答纹波、采样、共模和实现问题；非理想模型回答为什么实验结果不愿意长得那么理想。</span>
+        </div>
+      </section>
+
+      <section class="section" id="levels">
+        <div class="section-tag">Modeling / Choose the Right Resolution</div>
+        <h2><span class="lang-en">Three useful inverter models</span><span class="lang-zh">三种常用逆变器模型</span></h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th><span class="lang-en">Model</span><span class="lang-zh">模型</span></th>
+                <th><span class="lang-en">Motor input</span><span class="lang-zh">给电机的输入</span></th>
+                <th><span class="lang-en">Good for</span><span class="lang-zh">适合分析</span></th>
+                <th><span class="lang-en">Can hide</span><span class="lang-zh">会隐藏什么</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong><span class="lang-en">Ideal voltage source</span><span class="lang-zh">理想电压源</span></strong></td>
+                <td><code>u_alpha_beta = command</code></td>
+                <td><span class="lang-en">Control design, observer tuning, fast sweeps.</span><span class="lang-zh">控制器设计、观测器调参、快速扫参。</span></td>
+                <td><span class="lang-en">PWM delay, ripple, bus saturation, common mode.</span><span class="lang-zh">PWM 延迟、纹波、母线饱和、共模电压。</span></td>
+              </tr>
+              <tr>
+                <td><strong><span class="lang-en">Average inverter</span><span class="lang-zh">平均逆变器</span></strong></td>
+                <td><code>u_xG = d_x V_dc</code></td>
+                <td><span class="lang-en">Voltage limitation, modulation comparison, low-frequency phase error.</span><span class="lang-zh">电压限幅、调制方式比较、低频相位误差。</span></td>
+                <td><span class="lang-en">Carrier-frequency ripple and exact switching sequence.</span><span class="lang-zh">载波频率纹波和精确开关序列。</span></td>
+              </tr>
+              <tr>
+                <td><strong><span class="lang-en">Switching inverter</span><span class="lang-zh">开关逆变器</span></strong></td>
+                <td><code>u_xG = S_x V_dc</code></td>
+                <td><span class="lang-en">Ripple, sampling instant, common-mode voltage, discrete implementation.</span><span class="lang-zh">纹波、采样点、共模电压、离散实现。</span></td>
+                <td><span class="lang-en">Semiconductor loss unless device model is added.</span><span class="lang-zh">若不加器件模型，仍然看不到损耗细节。</span></td>
+              </tr>
+              <tr>
+                <td><strong><span class="lang-en">Nonideal switching</span><span class="lang-zh">非理想开关模型</span></strong></td>
+                <td><code>S_x</code> + dead time + drops</td>
+                <td><span class="lang-en">Current distortion, low-speed error, compensation design.</span><span class="lang-zh">电流畸变、低速误差、补偿设计。</span></td>
+                <td><span class="lang-en">Thermal and EMI details unless more physics is included.</span><span class="lang-zh">若不继续加物理细节，仍看不到热和 EMI 全貌。</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section" id="switching">
+        <div class="section-tag">Equations / Switching Model</div>
+        <h2><span class="lang-en">From phase-leg states to motor phase voltages</span><span class="lang-zh">从桥臂状态到电机相电压</span></h2>
+        <p>
+          <span class="lang-en">For a two-level inverter, let $S_a,S_b,S_c\in\{0,1\}$ denote whether the upper switch of each phase leg is on. The terminal-to-negative-bus potentials are:</span>
+          <span class="lang-zh">对于两电平逆变器，令 $S_a,S_b,S_c\in\{0,1\}$ 表示各相上管是否导通。各相端子相对于母线负端的电位为：</span>
+        </p>
+        <div class="eq-block">$$u_{aG}=S_a V_{dc},\qquad u_{bG}=S_b V_{dc},\qquad u_{cG}=S_c V_{dc}$$</div>
+        <p>
+          <span class="lang-en">In a three-phase three-wire motor, the neutral potential is not fixed by an external wire. For a balanced star-connected machine model, the neutral-to-bus potential is the average terminal potential:</span>
+          <span class="lang-zh">三相三线制电机没有外部中性线，中性点电位不是被外部强行固定的。对于对称 Y 接电机模型，中性点相对母线负端电位就是三相端电位的平均：</span>
+        </p>
+        <div class="eq-block">$$u_{nG}=\frac{u_{aG}+u_{bG}+u_{cG}}{3}$$</div>
+        <p>
+          <span class="lang-en">The actual winding voltages are therefore terminal potentials minus neutral potential:</span>
+          <span class="lang-zh">因此真正加在绕组上的相电压是端电位减去中性点电位：</span>
+        </p>
+        <div class="eq-block">$$u_{an}=u_{aG}-u_{nG},\qquad u_{bn}=u_{bG}-u_{nG},\qquad u_{cn}=u_{cG}-u_{nG}$$</div>
+        <div class="callout callout--warn">
+          <span class="callout-title"><span class="lang-en">Common trap</span><span class="lang-zh">常见坑</span></span>
+          <span class="lang-en">$u_{aG}$ is not the same thing as $u_{an}$. The first is a terminal potential relative to the dc bus. The second is the winding voltage that enters the machine equation.</span>
+          <span class="lang-zh">$u_{aG}$ 不等于 $u_{an}$。前者是端子相对直流母线负端的电位，后者才是进入电机方程的绕组电压。</span>
+        </div>
+      </section>
+
+      <section class="section" id="average">
+        <div class="section-tag">Equations / Average Model</div>
+        <h2><span class="lang-en">The average model keeps the useful voltage and removes the carrier</span><span class="lang-zh">平均模型保留有用电压，去掉载波细节</span></h2>
+        <p>
+          <span class="lang-en">If the machine electrical dynamics are much slower than the PWM period, one period can be replaced by its average. With duty ratios $d_a,d_b,d_c$, the terminal potentials become:</span>
+          <span class="lang-zh">如果电机电气动态明显慢于 PWM 周期，可以用一个周期内的平均值代替开关波形。对于占空比 $d_a,d_b,d_c$，端电位为：</span>
+        </p>
+        <div class="eq-block">$$\bar u_{aG}=d_a V_{dc},\qquad \bar u_{bG}=d_b V_{dc},\qquad \bar u_{cG}=d_c V_{dc}$$</div>
+        <p>
+          <span class="lang-en">The same neutral subtraction gives the average winding voltages:</span>
+          <span class="lang-zh">同样减去中性点平均电位，就得到平均绕组电压：</span>
+        </p>
+        <div class="eq-block">$$\bar u_{an}=V_{dc}\left(d_a-\frac{d_a+d_b+d_c}{3}\right)$$</div>
+        <p>
+          <span class="lang-en">This is why adding the same offset to all three duty ratios changes common-mode voltage but not line-to-line voltage or balanced winding voltage. That little degree of freedom is the quiet machinery behind SVPWM.</span>
+          <span class="lang-zh">这也解释了为什么给三相占空比同时加同一个偏置，会改变共模电压，却不会改变线电压或对称绕组电压。SVPWM 背后那个小小的自由度就在这里。</span>
+        </p>
+      </section>
+
+      <section class="section" id="timing">
+        <div class="section-tag">Discrete-Time / Timing Matters</div>
+        <h2><span class="lang-en">PWM update delay is an inverter model too</span><span class="lang-zh">PWM 更新延迟也是逆变器模型的一部分</span></h2>
+        <p>
+          <span class="lang-en">In real code, the controller samples currents, computes voltage commands, writes compare registers, and the PWM hardware applies those compare values at a synchronization event. This creates an effective delay between the measured current and the realized voltage.</span>
+          <span class="lang-zh">真实代码里，控制器先采样电流，再计算电压指令，再写入比较寄存器，最后 PWM 硬件在同步事件处应用这些比较值。这会在“测到的电流”和“实际输出的电压”之间产生有效延迟。</span>
+        </p>
+        <div class="grid-2">
+          <div class="card">
+            <h4><span class="lang-en">Why it matters in $dq$</span><span class="lang-zh">为什么在 $dq$ 里重要</span></h4>
+            <p><span class="lang-en">A pure time delay looks like phase lag. In a rotating frame, phase lag couples $d$ and $q$ behavior and can reduce current-loop bandwidth.</span><span class="lang-zh">纯时间延迟表现为相位滞后。在旋转坐标系中，相位滞后会耦合 $d$、$q$ 行为，并降低电流环可用带宽。</span></p>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">Simple approximation</span><span class="lang-zh">简单近似</span></h4>
+            <p><span class="lang-en">For control analysis, the inverter and computation delay is often modeled as $e^{-sT_d}$ or a first-order lag with similar low-frequency phase.</span><span class="lang-zh">做控制分析时，逆变器与计算延迟常被近似成 $e^{-sT_d}$，或者近似成低频相位相近的一阶滞后。</span></p>
+          </div>
+        </div>
+        <div class="eq-block">$$G_{\mathrm{inv}}(s)\approx e^{-sT_d}\qquad\text{or}\qquad G_{\mathrm{inv}}(s)\approx \frac{1}{1+sT_d}$$</div>
+      </section>
+
+      <section class="section" id="nonideal">
+        <div class="section-tag">Nonideal / Dead Time and Drops</div>
+        <h2><span class="lang-en">Dead time creates a voltage error that depends on current direction</span><span class="lang-zh">死区会制造一个依赖电流方向的电压误差</span></h2>
+        <p>
+          <span class="lang-en">Dead time prevents shoot-through by briefly turning both devices in a phase leg off during commutation. During that interval, the phase current chooses the diode or device path, so the terminal voltage depends on current sign. A useful first-order model is:</span>
+          <span class="lang-zh">死区通过在换相时让同一桥臂上下管短暂同时关断来防止直通。在这段时间内，相电流会选择二极管或器件续流路径，因此端电压与电流方向有关。一个常用的一阶模型是：</span>
+        </p>
+        <div class="eq-block">$$\Delta u_x \approx -\operatorname{sgn}(i_x)\frac{t_{dead}}{T_{pwm}}V_{dc},\qquad x\in\{a,b,c\}$$</div>
+        <p>
+          <span class="lang-en">This approximation is intentionally simple. It captures the most important lesson for control: the inverter error is not just noise. It is a structured disturbance correlated with phase current.</span>
+          <span class="lang-zh">这个近似刻意保持简单。它抓住了控制上最重要的一点：逆变器误差不只是噪声，而是一个与相电流方向相关的结构化扰动。</span>
+        </p>
+        <div class="callout callout--rose">
+          <span class="callout-title"><span class="lang-en">Low-speed warning</span><span class="lang-zh">低速提醒</span></span>
+          <span class="lang-en">At high speed, back EMF may dominate small inverter errors. At low speed, dead-time voltage error can become a surprisingly visible part of the voltage budget.</span>
+          <span class="lang-zh">高速时反电势可能盖过小的逆变器误差；低速时，死区电压误差可能在电压预算里变得非常显眼。</span>
+        </div>
+      </section>
+
+      <section class="section" id="code-bridge">
+        <div class="section-tag">Repository / Bridge to Simulation</div>
+        <h2><span class="lang-en">Where this lands in ACMSimPy</span><span class="lang-zh">这些内容在 ACMSimPy 里落在哪里</span></h2>
+        <p>
+          <span class="lang-en">The practical bridge is still the SVPWM tutorial path. The important shift for this lecture is to separate the modulation calculation from the inverter model that feeds the machine ODE.</span>
+          <span class="lang-zh">工程落点仍然是 SVPWM tutorial 这条线。本讲的关键转变是：把“调制计算”与“真正喂给电机 ODE 的逆变器模型”分开看。</span>
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th><span class="lang-en">Concept</span><span class="lang-zh">概念</span></th>
+                <th><span class="lang-en">Code handle</span><span class="lang-zh">代码抓手</span></th>
+                <th><span class="lang-en">Question to ask</span><span class="lang-zh">要问的问题</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="lang-en">Duty generation</span><span class="lang-zh">占空比生成</span></td>
+                <td><code>SVGEN_DQ</code>, <code>T_a,T_b,T_c</code></td>
+                <td><span class="lang-en">What duty ratios did the controller request?</span><span class="lang-zh">控制器请求了什么占空比？</span></td>
+              </tr>
+              <tr>
+                <td><span class="lang-en">Switching realization</span><span class="lang-zh">开关实现</span></td>
+                <td><code>gate_signal_generator</code>, <code>S1</code>...<code>S6</code></td>
+                <td><span class="lang-en">What switching states did the motor actually see?</span><span class="lang-zh">电机实际看到了哪些开关状态？</span></td>
+              </tr>
+              <tr>
+                <td><span class="lang-en">Terminal potential</span><span class="lang-zh">端电位</span></td>
+                <td><code>voltage_potential_at_terminal</code></td>
+                <td><span class="lang-en">Is this bus-referenced potential or winding voltage?</span><span class="lang-zh">这是母线参考端电位，还是绕组电压？</span></td>
+              </tr>
+              <tr>
+                <td><span class="lang-en">Model resolution</span><span class="lang-zh">模型分辨率</span></td>
+                <td><code>MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD</code></td>
+                <td><span class="lang-en">Are we averaging the inverter or resolving switching events?</span><span class="lang-zh">我们是在平均逆变器，还是在解析开关事件？</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section" id="discussion">
+        <div class="section-tag">Discussion / Think in Class</div>
+        <h2><span class="lang-en">Questions students should be able to answer</span><span class="lang-zh">学完本讲后学生应能回答的问题</span></h2>
+        <div class="q-grid">
+          <div class="q-card">
+            <div class="q-index">Q1</div>
+            <p><span class="lang-en">When is an ideal voltage-source inverter model good enough?</span><span class="lang-zh">什么时候理想电压源逆变器模型已经够用？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q2</div>
+            <p><span class="lang-en">Why must $u_{xG}$ and $u_{xn}$ be kept separate in a three-phase three-wire model?</span><span class="lang-zh">为什么三相三线制模型里必须区分 $u_{xG}$ 和 $u_{xn}$？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q3</div>
+            <p><span class="lang-en">How does common-mode voltage appear in the inverter but disappear from balanced line-voltage control?</span><span class="lang-zh">共模电压如何出现在逆变器里，却从对称线电压控制中消失？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q4</div>
+            <p><span class="lang-en">Why does a PWM update delay reduce current-loop phase margin?</span><span class="lang-zh">为什么 PWM 更新延迟会降低电流环相位裕度？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q5</div>
+            <p><span class="lang-en">Why is dead-time voltage error current-direction dependent?</span><span class="lang-zh">为什么死区电压误差依赖电流方向？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q6</div>
+            <p><span class="lang-en">Which model would you choose to debug current ripple, low-speed distortion, and current-loop bandwidth?</span><span class="lang-zh">调试电流纹波、低速畸变、电流环带宽时，你会分别选择哪一级模型？</span></p>
+          </div>
+        </div>
+        <p class="footer-note"><span class="lang-en">Suggested summary sentence: inverter modeling is the art of deciding which physical details must survive the journey from switch events to machine voltage.</span><span class="lang-zh">建议课堂总结：逆变器建模的核心，是决定哪些物理细节必须从开关事件一路保留到电机电压里。</span></p>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script>
+function setLang(lang) {
+  document.body.setAttribute('data-lang', lang);
+  var btnEn = document.getElementById('btn-en');
+  var btnZh = document.getElementById('btn-zh');
+  btnEn.classList.toggle('active', lang === 'en');
+  btnZh.classList.toggle('active', lang === 'zh');
+  try { localStorage.setItem('ee275-lang', lang); } catch (e) {}
+}
+(function(){
+  var lang = 'en';
+  try {
+    var saved = localStorage.getItem('ee275-lang');
+    if (saved === 'en' || saved === 'zh') lang = saved;
+  } catch (e) {}
+  setLang(lang);
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(entry){
+      if (entry.isIntersecting) entry.target.classList.add('visible');
+    });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.section').forEach(function(el){ io.observe(el); });
+})();
+</script>
+</body>
+</html>

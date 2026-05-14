@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Coding Project 6 - Inverter Modeling Study</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"
+  onerror="this.onerror=null;this.href='vendor/katex/katex.min.css';">
+<script>
+(function(){
+  var CDN = "https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/";
+  var LOCAL = "vendor/katex/";
+  var files = ["katex.min.js", "contrib/auto-render.min.js"];
+  var idx = 0, TIMEOUT = 3000;
+  function renderMath() {
+    if (window.renderMathInElement) {
+      renderMathInElement(document.body, {
+        delimiters: [
+          {left:"$$", right:"$$", display:true},
+          {left:"$", right:"$", display:false}
+        ]
+      });
+    }
+  }
+  function loadScript(src, ok, fail) {
+    var s = document.createElement("script");
+    var done = false;
+    var timer = setTimeout(function(){ if(!done){ done = true; s.onload = s.onerror = null; fail(); } }, TIMEOUT);
+    s.src = src;
+    s.onload = function(){ if(!done){ done = true; clearTimeout(timer); ok(); } };
+    s.onerror = function(){ if(!done){ done = true; clearTimeout(timer); fail(); } };
+    document.head.appendChild(s);
+  }
+  function loadChain(base, fallback) {
+    if (idx >= files.length) { renderMath(); return; }
+    loadScript(base + files[idx], function(){ idx++; loadChain(base, fallback); }, function(){ if (fallback) { idx = 0; loadChain(fallback, null); } });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function(){ loadChain(CDN, LOCAL); });
+  } else {
+    loadChain(CDN, LOCAL);
+  }
+})();
+</script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --panel: rgba(17, 23, 37, 0.90);
+    --line: rgba(255,255,255,0.10);
+    --text: #eef4ff;
+    --soft: #bac6da;
+    --muted: #7e8ca3;
+    --gold: #efc46a;
+    --teal: #79dfd0;
+    --blue: #84a8ff;
+    --green: #9bdf93;
+    --rose: #efaaa2;
+    --shadow: 0 24px 80px rgba(0,0,0,0.34);
+    --font-display: "Palatino Linotype", Georgia, serif;
+    --font-body: Aptos, "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
+    --font-mono: "Cascadia Code", Consolas, monospace;
+  }
+  html { font-size: 16px; scroll-behavior: smooth; }
+  body {
+    min-height: 100vh;
+    font-family: var(--font-body);
+    color: var(--text);
+    background:
+      radial-gradient(circle at 14% 18%, rgba(132,168,255,0.16), transparent 29%),
+      radial-gradient(circle at 85% 8%, rgba(121,223,208,0.13), transparent 24%),
+      radial-gradient(circle at 50% 120%, rgba(239,196,106,0.10), transparent 34%),
+      linear-gradient(180deg, #070b12 0%, #0c111a 54%, #070b12 100%);
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  body[data-lang="en"] .lang-zh { display: none !important; }
+  body[data-lang="zh"] .lang-en { display: none !important; }
+  .app { width: min(1140px, calc(100vw - 20px)); margin: 0 auto; padding: 14px 0 48px; }
+  .topbar { position: sticky; top: 8px; z-index: 30; display: flex; justify-content: flex-end; margin-bottom: 12px; }
+  .lang-switch { display: inline-flex; gap: 6px; padding: 6px; border: 1px solid var(--line); border-radius: 999px; background: rgba(11,15,24,0.84); backdrop-filter: blur(12px); box-shadow: var(--shadow); }
+  .lang-switch button { border: none; border-radius: 999px; min-width: 84px; padding: 9px 14px; font-size: 0.9rem; font-weight: 700; cursor: pointer; background: transparent; color: var(--soft); transition: 0.2s ease; }
+  .lang-switch button.active { background: linear-gradient(135deg, var(--gold), #ffe4a8); color: #1a1407; }
+  .hero, .sidebar, .section { border: 1px solid var(--line); border-radius: 24px; background: var(--panel); backdrop-filter: blur(14px); box-shadow: var(--shadow); }
+  .hero { padding: 30px; margin-bottom: 14px; position: relative; overflow: hidden; }
+  .hero::before { content: ""; position: absolute; inset: -40px auto auto -40px; width: 180px; height: 180px; background: radial-gradient(circle, rgba(132,168,255,0.16), transparent 70%); pointer-events: none; }
+  .eyebrow, .section-tag, .side-title, .pill { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.16em; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 10px; color: var(--gold); font-size: 0.72rem; margin-bottom: 14px; }
+  .eyebrow::before, .section-tag::before { content: ""; width: 32px; height: 1px; background: linear-gradient(90deg, currentColor, transparent); }
+  .hero h1 { font-family: var(--font-display); font-size: clamp(2.05rem, 4vw, 3.4rem); line-height: 1.06; font-weight: 500; letter-spacing: -0.03em; margin-bottom: 14px; max-width: 920px; }
+  .hero h1 em { font-style: normal; color: var(--teal); }
+  .lead { max-width: 920px; color: var(--soft); line-height: 1.84; font-size: 1rem; }
+  .meta-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 22px; }
+  .meta-card { border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,0.03); padding: 13px 14px; }
+  .meta-label { display: block; color: var(--muted); font-size: 0.68rem; margin-bottom: 6px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.16em; }
+  .meta-value { line-height: 1.58; font-size: 0.95rem; }
+  .layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 14px; align-items: start; }
+  .layout > *, .main, .sidebar, .section, .grid-2, .q-grid, .card, .q-card, .callout, .eq-block, pre, .check, .table-wrap { min-width: 0; max-width: 100%; }
+  .sidebar { position: sticky; top: 72px; padding: 18px; }
+  .side-title { color: var(--gold); font-size: 0.75rem; margin-bottom: 10px; }
+  .nav-list { list-style: none; display: grid; gap: 8px; margin-bottom: 14px; padding-left: 0; }
+  .nav-list a { display: block; padding: 10px 12px; border-radius: 12px; color: var(--soft); text-decoration: none; border: 1px solid transparent; transition: 0.2s ease; }
+  .nav-list a:hover { color: var(--text); background: rgba(255,255,255,0.04); border-color: var(--line); transform: translateX(3px); }
+  .side-note { border-top: 1px solid var(--line); padding-top: 12px; color: var(--muted); font-size: 0.86rem; line-height: 1.75; }
+  .main { display: grid; gap: 14px; }
+  .section { padding: 24px; opacity: 0; transform: translateY(18px); transition: opacity 0.55s ease, transform 0.55s ease; }
+  .section.visible { opacity: 1; transform: translateY(0); }
+  .section-tag { display: inline-flex; align-items: center; gap: 10px; color: var(--teal); font-size: 0.7rem; margin-bottom: 12px; }
+  h2 { font-family: var(--font-display); font-size: 1.68rem; font-weight: 500; margin-bottom: 12px; }
+  h3 { font-size: 1.04rem; color: var(--gold); margin: 18px 0 10px; }
+  h4 { font-size: 1rem; margin-bottom: 8px; color: var(--text); }
+  p, li { color: var(--soft); line-height: 1.82; font-size: 0.97rem; }
+  strong { color: var(--text); }
+  em { color: var(--teal); }
+  ul, ol { padding-left: 1.2rem; margin: 10px 0 14px; }
+  li + li { margin-top: 6px; }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .grid-2, .q-grid { display: grid; gap: 14px; margin-top: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .card, .q-card, .callout, .eq-block, pre, .check, .table-wrap { border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,0.03); }
+  .card, .q-card, .table-wrap { padding: 18px; }
+  .callout, .eq-block, pre { padding: 16px 18px; margin: 16px 0; }
+  .callout--warn { background: rgba(239,196,106,0.08); border-color: rgba(239,196,106,0.24); }
+  .callout--ok { background: rgba(121,223,208,0.07); border-color: rgba(121,223,208,0.22); }
+  .callout--task { background: rgba(155,223,147,0.07); border-color: rgba(155,223,147,0.22); }
+  .callout--rose { background: rgba(239,170,162,0.07); border-color: rgba(239,170,162,0.22); }
+  .callout-title { display: block; color: var(--text); margin-bottom: 6px; font-weight: 700; }
+  .eq-block, pre { background: #101723; overflow-x: auto; -webkit-overflow-scrolling: touch; touch-action: pan-x; }
+  .table-wrap { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; touch-action: pan-x; }
+  .katex-display { overflow-x: auto; overflow-y: hidden; padding-bottom: 2px; }
+  pre code, code { font-family: var(--font-mono); font-size: 0.9rem; }
+  code { color: var(--teal); background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); padding: 0.1rem 0.35rem; border-radius: 8px; }
+  pre code { background: none; border: none; padding: 0; color: #d9e6ff; }
+  .pill { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; color: var(--soft); font-size: 0.72rem; padding: 4px 9px; margin-right: 6px; margin-bottom: 6px; }
+  .q-index { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: rgba(132,168,255,0.14); color: var(--blue); font-family: var(--font-mono); font-size: 0.82rem; margin-bottom: 10px; }
+  .checklist { display: grid; gap: 10px; margin-top: 12px; }
+  .check { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; }
+  .check::before { content: "•"; flex: none; font-weight: 700; color: var(--green); margin-top: 1px; }
+  table { width: 100%; border-collapse: collapse; min-width: 540px; }
+  th, td { padding: 13px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  th { color: var(--text); background: rgba(255,255,255,0.05); font-size: 0.9rem; }
+  td { color: var(--soft); line-height: 1.72; font-size: 0.94rem; }
+  tr:last-child td { border-bottom: none; }
+  .footer-note { margin-top: 16px; color: var(--muted); font-size: 0.88rem; }
+  .katex { color: var(--text); }
+  @media (max-width: 980px) {
+    .meta-grid, .layout, .grid-2, .q-grid { grid-template-columns: 1fr; }
+    .sidebar, .topbar { position: static; }
+    .section { opacity: 1; transform: none; }
+  }
+  @media (max-width: 640px) {
+    .app { width: min(100vw - 14px, 1140px); padding-top: 10px; }
+    .hero, .sidebar, .section { padding: 20px; border-radius: 20px; }
+    .lang-switch { width: 100%; }
+    .lang-switch button { flex: 1; min-width: 0; }
+    h2 { font-size: 1.44rem; }
+    .lead, p, li { font-size: 0.95rem; }
+    table { min-width: 480px; }
+  }
+</style>
+</head>
+<body data-lang="en">
+<div class="app">
+  <div class="topbar">
+    <div class="lang-switch" aria-label="Language switch">
+      <button id="btn-en" class="active" type="button" onclick="setLang('en')">English</button>
+      <button id="btn-zh" type="button" onclick="setLang('zh')">中文</button>
+    </div>
+  </div>
+
+  <header class="hero">
+    <div class="eyebrow">Coding Project 6 / Inverter Modeling Study</div>
+    <h1>
+      <span class="lang-en">Compare <em>ideal</em>, <em>average</em>, and <em>switching</em> inverter models in simulation.</span>
+      <span class="lang-zh">在仿真中比较<em>理想</em>、<em>平均</em>和<em>开关</em>逆变器模型。</span>
+    </h1>
+    <p class="lead">
+      <span class="lang-en">This project turns Lecture 6 into a concrete debugging exercise. You will run the SVPWM tutorial path, create or expose three inverter-model choices, then explain how the chosen model changes phase voltage, common-mode voltage, current ripple, and the apparent delay between command and realized voltage.</span>
+      <span class="lang-zh">这个项目把 Lecture 6 变成一个具体的调试练习。你需要运行 SVPWM tutorial 这条线，建立或暴露三种逆变器模型选择，然后解释模型选择如何改变相电压、共模电压、电流纹波，以及指令电压与实际电压之间看起来的延迟。</span>
+    </p>
+    <div class="meta-grid">
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Core script</span><span class="lang-zh">核心脚本</span></span>
+        <div class="meta-value"><code>simulation/tutorials_ep6_svpwm.py</code></div>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Deliverable</span><span class="lang-zh">提交物</span></span>
+        <div class="meta-value">PDF + modified script or patch</div>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Models</span><span class="lang-zh">模型</span></span>
+        <div class="meta-value">ideal / average / switching</div>
+      </div>
+      <div class="meta-card">
+        <span class="meta-label"><span class="lang-en">Optional bonus</span><span class="lang-zh">可选加分</span></span>
+        <div class="meta-value">dead-time error model</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="side-title"><span class="lang-en">Contents</span><span class="lang-zh">目录</span></div>
+      <ul class="nav-list">
+        <li><a href="#task"><span class="lang-en">Task</span><span class="lang-zh">任务</span></a></li>
+        <li><a href="#models"><span class="lang-en">Required models</span><span class="lang-zh">必做模型</span></a></li>
+        <li><a href="#signals"><span class="lang-en">Signals to log</span><span class="lang-zh">记录信号</span></a></li>
+        <li><a href="#figures"><span class="lang-en">Required figures</span><span class="lang-zh">必做图</span></a></li>
+        <li><a href="#questions"><span class="lang-en">Questions</span><span class="lang-zh">报告问题</span></a></li>
+        <li><a href="#report"><span class="lang-en">Report</span><span class="lang-zh">报告结构</span></a></li>
+      </ul>
+      <div class="side-note">
+        <span class="lang-en">Do not optimize for pretty plots first. Optimize for knowing exactly what each plotted voltage means.</span>
+        <span class="lang-zh">先别急着把图画漂亮。先确保你知道每一条电压曲线到底是什么。</span>
+      </div>
+    </aside>
+
+    <main class="main">
+      <section class="section" id="task">
+        <div class="section-tag">Assignment / Main Task</div>
+        <h2><span class="lang-en">Build a small inverter-model comparison harness</span><span class="lang-zh">建立一个小型逆变器模型对比框架</span></h2>
+        <p>
+          <span class="lang-en">Start from <code>simulation/tutorials_ep6_svpwm.py</code> or a copy of it. Your goal is to compare how the motor input changes when the inverter is represented at different levels of detail.</span>
+          <span class="lang-zh">从 <code>simulation/tutorials_ep6_svpwm.py</code> 或它的副本开始。你的目标是比较：当逆变器用不同详细程度表示时，电机输入会怎样改变。</span>
+        </p>
+        <div class="callout callout--task">
+          <span class="callout-title"><span class="lang-en">Minimum implementation requirement</span><span class="lang-zh">最低实现要求</span></span>
+          <span class="lang-en">Your code must let the user select at least three modes: ideal voltage source, average inverter, and switching inverter. The selection can be a string, integer flag, or command-line argument.</span>
+          <span class="lang-zh">你的代码必须至少能选择三种模式：理想电压源、平均逆变器、开关逆变器。选择方式可以是字符串、整数 flag 或命令行参数。</span>
+        </div>
+      </section>
+
+      <section class="section" id="models">
+        <div class="section-tag">Implementation / Required Models</div>
+        <h2><span class="lang-en">Three required inverter models</span><span class="lang-zh">三种必做逆变器模型</span></h2>
+        <div class="grid-2">
+          <div class="card">
+            <h4><span class="lang-en">Mode A: ideal voltage source</span><span class="lang-zh">模式 A：理想电压源</span></h4>
+            <p><span class="lang-en">Feed the commanded $\alpha\beta$ or phase voltage directly into the machine model after normal voltage limiting. This is the fast control-design baseline.</span><span class="lang-zh">在正常电压限幅之后，把控制器指令的 $\alpha\beta$ 或相电压直接送入电机模型。这是快速控制设计基线。</span></p>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">Mode B: average inverter</span><span class="lang-zh">模式 B：平均逆变器</span></h4>
+            <p><span class="lang-en">Use duty ratios to compute $\bar u_{xG}=d_xV_{dc}$, then subtract the neutral potential to obtain $\bar u_{xn}$.</span><span class="lang-zh">用占空比计算 $\bar u_{xG}=d_xV_{dc}$，然后减去中性点电位得到 $\bar u_{xn}$。</span></p>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">Mode C: switching inverter</span><span class="lang-zh">模式 C：开关逆变器</span></h4>
+            <p><span class="lang-en">Use actual switching states from the PWM carrier comparison and compute $u_{xG}=S_xV_{dc}$ at the machine integration time step.</span><span class="lang-zh">使用 PWM 载波比较得到的实际开关状态，并在电机积分步长上计算 $u_{xG}=S_xV_{dc}$。</span></p>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">Bonus: dead-time model</span><span class="lang-zh">加分：死区模型</span></h4>
+            <p><span class="lang-en">Add a simple current-sign-dependent voltage error $\Delta u_x\approx-\operatorname{sgn}(i_x)t_{dead}V_{dc}/T_{pwm}$ and compare it with Mode B or Mode C.</span><span class="lang-zh">加入一个简单的电流方向相关电压误差 $\Delta u_x\approx-\operatorname{sgn}(i_x)t_{dead}V_{dc}/T_{pwm}$，并与模式 B 或 C 对比。</span></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="signals">
+        <div class="section-tag">Logging / What to Record</div>
+        <h2><span class="lang-en">Signals your simulation must log</span><span class="lang-zh">仿真必须记录的信号</span></h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th><span class="lang-en">Signal group</span><span class="lang-zh">信号组</span></th>
+                <th><span class="lang-en">Required examples</span><span class="lang-zh">至少包含</span></th>
+                <th><span class="lang-en">Purpose</span><span class="lang-zh">用途</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="lang-en">Command voltage</span><span class="lang-zh">指令电压</span></td>
+                <td><code>u_alpha*</code>, <code>u_beta*</code> or <code>u_a*</code>, <code>u_b*</code>, <code>u_c*</code></td>
+                <td><span class="lang-en">Shows what the controller wanted.</span><span class="lang-zh">说明控制器想要什么。</span></td>
+              </tr>
+              <tr>
+                <td><span class="lang-en">Duty ratios</span><span class="lang-zh">占空比</span></td>
+                <td><code>T_a</code>, <code>T_b</code>, <code>T_c</code></td>
+                <td><span class="lang-en">Connects SVPWM output to inverter model input.</span><span class="lang-zh">连接 SVPWM 输出与逆变器模型输入。</span></td>
+              </tr>
+              <tr>
+                <td><span class="lang-en">Terminal potentials</span><span class="lang-zh">端电位</span></td>
+                <td><code>u_aG</code>, <code>u_bG</code>, <code>u_cG</code>, <code>u_nG</code></td>
+                <td><span class="lang-en">Separates bus-referenced voltages from winding voltages.</span><span class="lang-zh">区分母线参考电压与绕组电压。</span></td>
+              </tr>
+              <tr>
+                <td><span class="lang-en">Winding voltage and current</span><span class="lang-zh">绕组电压与电流</span></td>
+                <td><code>u_an</code>, <code>u_bn</code>, <code>i_a</code>, <code>i_b</code>, <code>i_c</code></td>
+                <td><span class="lang-en">Shows what the machine dynamics actually receive.</span><span class="lang-zh">说明电机动态真正接收了什么。</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section" id="figures">
+        <div class="section-tag">Figures / Required in the PDF</div>
+        <h2><span class="lang-en">Five required figures</span><span class="lang-zh">5 张必做图</span></h2>
+        <div class="q-grid">
+          <div class="q-card">
+            <div class="q-index">F1</div>
+            <p><strong><span class="lang-en">Model comparison overview</span><span class="lang-zh">模型对比总览</span></strong></p>
+            <p><span class="lang-en">Overlay one representative voltage signal from the ideal, average, and switching modes over the same time window.</span><span class="lang-zh">在同一个时间窗口中叠加理想、平均、开关三种模式下的一个代表性电压信号。</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">F2</div>
+            <p><strong><span class="lang-en">PWM-period zoom</span><span class="lang-zh">PWM 周期放大图</span></strong></p>
+            <p><span class="lang-en">Zoom into several PWM periods and show switching terminal voltage plus its average value.</span><span class="lang-zh">放大几个 PWM 周期，展示开关端电压及其平均值。</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">F3</div>
+            <p><strong><span class="lang-en">Common-mode voltage</span><span class="lang-zh">共模电压</span></strong></p>
+            <p><span class="lang-en">Plot $u_{nG}$ or an explicitly defined common-mode voltage for the average and switching models.</span><span class="lang-zh">画出平均模型与开关模型下的 $u_{nG}$ 或你明确定义的共模电压。</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">F4</div>
+            <p><strong><span class="lang-en">Current ripple comparison</span><span class="lang-zh">电流纹波对比</span></strong></p>
+            <p><span class="lang-en">Compare current ripple between at least two models. Use the same operating point and the same axis scale.</span><span class="lang-zh">比较至少两种模型下的电流纹波。必须使用相同工况和相同坐标尺度。</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">F5</div>
+            <p><strong><span class="lang-en">Error or delay visualization</span><span class="lang-zh">误差或延迟可视化</span></strong></p>
+            <p><span class="lang-en">Plot commanded voltage minus realized average voltage, or show the time shift between command update and voltage realization.</span><span class="lang-zh">画出指令电压减去实际平均电压，或展示指令更新与电压实现之间的时间偏移。</span></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="questions">
+        <div class="section-tag">Analysis / Explain the Results</div>
+        <h2><span class="lang-en">Questions your report must answer</span><span class="lang-zh">报告必须回答的问题</span></h2>
+        <div class="q-grid">
+          <div class="q-card">
+            <div class="q-index">Q1</div>
+            <p><span class="lang-en">For your chosen operating point, where do the ideal and average inverter models agree, and where do they disagree?</span><span class="lang-zh">在你选择的工况下，理想模型和平均逆变器模型在哪些地方一致？在哪些地方不一致？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q2</div>
+            <p><span class="lang-en">Why does the switching model show information that is invisible in the average model?</span><span class="lang-zh">为什么开关模型能显示平均模型中不可见的信息？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q3</div>
+            <p><span class="lang-en">How did you compute $u_{nG}$ and winding voltage from terminal potentials?</span><span class="lang-zh">你如何从端电位计算 $u_{nG}$ 和绕组电压？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q4</div>
+            <p><span class="lang-en">What changes when you increase or decrease <code>MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD</code>?</span><span class="lang-zh">增大或减小 <code>MACHINE_SIMULATIONs_PER_SAMPLING_PERIOD</code> 时，结果有什么变化？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q5</div>
+            <p><span class="lang-en">Which model would you use for current-loop controller design, and which model would you use for PWM waveform debugging?</span><span class="lang-zh">你会用哪种模型做电流环控制器设计？又会用哪种模型调试 PWM 波形？</span></p>
+          </div>
+          <div class="q-card">
+            <div class="q-index">Q6</div>
+            <p><span class="lang-en">If you implemented the dead-time bonus, how does its voltage error depend on current direction?</span><span class="lang-zh">如果你实现了死区加分项，它的电压误差如何依赖电流方向？</span></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="report">
+        <div class="section-tag">Report / PDF and Code</div>
+        <h2><span class="lang-en">Suggested submission structure</span><span class="lang-zh">建议提交结构</span></h2>
+        <div class="grid-2">
+          <div class="card">
+            <h4><span class="lang-en">PDF outline</span><span class="lang-zh">PDF 提纲</span></h4>
+            <ol>
+              <li><span class="lang-en">State the base script and the operating point.</span><span class="lang-zh">说明基础脚本和所选工况。</span></li>
+              <li><span class="lang-en">Define the three inverter models you implemented.</span><span class="lang-zh">定义你实现的三种逆变器模型。</span></li>
+              <li><span class="lang-en">List logged signals and sign conventions.</span><span class="lang-zh">列出记录信号和符号约定。</span></li>
+              <li><span class="lang-en">Show F1-F5 and answer Q1-Q6.</span><span class="lang-zh">展示 F1-F5，并回答 Q1-Q6。</span></li>
+              <li><span class="lang-en">Conclude which model is appropriate for which engineering question.</span><span class="lang-zh">总结不同工程问题适合哪一级模型。</span></li>
+            </ol>
+          </div>
+          <div class="card">
+            <h4><span class="lang-en">Checklist before export</span><span class="lang-zh">导出前检查</span></h4>
+            <div class="checklist">
+              <div class="check"><span class="lang-en">The model-selection flag is visible in your code.</span><span class="lang-zh">代码中能清楚看到模型选择 flag。</span></div>
+              <div class="check"><span class="lang-en">Every plotted voltage states whether it is bus-referenced or winding voltage.</span><span class="lang-zh">每条电压曲线都说明是母线参考电位还是绕组电压。</span></div>
+              <div class="check"><span class="lang-en">All comparisons use the same operating point.</span><span class="lang-zh">所有对比使用同一个工况。</span></div>
+              <div class="check"><span class="lang-en">Axes, units, legends, and time windows are readable.</span><span class="lang-zh">坐标轴、单位、图例和时间窗口清楚可读。</span></div>
+              <div class="check"><span class="lang-en">Your conclusion chooses models by purpose, not by which plot looks nicer.</span><span class="lang-zh">结论按用途选择模型，而不是按哪张图更好看。</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="footer-note"><span class="lang-en">Suggested filenames: <code>codingProject6_name.pdf</code> and <code>codingProject6_name.py</code>.</span><span class="lang-zh">建议文件名：<code>codingProject6_姓名.pdf</code> 和 <code>codingProject6_姓名.py</code>。</span></p>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script>
+function setLang(lang) {
+  document.body.setAttribute('data-lang', lang);
+  var btnEn = document.getElementById('btn-en');
+  var btnZh = document.getElementById('btn-zh');
+  btnEn.classList.toggle('active', lang === 'en');
+  btnZh.classList.toggle('active', lang === 'zh');
+  try { localStorage.setItem('ee275-lang', lang); } catch (e) {}
+}
+(function(){
+  var lang = 'en';
+  try {
+    var saved = localStorage.getItem('ee275-lang');
+    if (saved === 'en' || saved === 'zh') lang = saved;
+  } catch (e) {}
+  setLang(lang);
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(entry){
+      if (entry.isIntersecting) entry.target.classList.add('visible');
+    });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.section').forEach(function(el){ io.observe(el); });
+})();
+</script>
+</body>
+</html>
