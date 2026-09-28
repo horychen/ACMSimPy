@@ -35,6 +35,10 @@ class PidNumbaRegression(unittest.TestCase):
                     self.assertAlmostEqual(compiled(actual), pid(reference))
                     self.assertAlmostEqual(actual.integrator, reference.integrator)
                     self.assertAlmostEqual(actual.differentiator, reference.differentiator)
+                actual.Ki = reference.Ki = 0.0
+                actual.integrator = reference.integrator = 7.0
+                self.assertAlmostEqual(compiled(actual), pid(reference))
+                self.assertEqual(actual.integrator, 0.0)
                 self.assertTrue(compiled.nopython_signatures)
 
 
