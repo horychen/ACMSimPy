@@ -652,9 +652,9 @@ def tustin_pid(reg):
     elif reg.integrator< -reg.IntLimit:
         reg.integrator = -reg.IntLimit
 
-    # Derivative (band-limited differentiator) # Note: derivative on measurement, therefore minus sign in front of equation! */
-    reg.differentiator = -(2.0 * reg.Kd * (reg.measurement - reg.prevMeasurement) \
-                        + (2.0 * reg.tau - reg.T) * reg.differentiator) \
+    # Filtered derivative on measurement: negate the measurement increment only.
+    reg.differentiator = ((2.0 * reg.tau - reg.T) * reg.differentiator \
+                        - 2.0 * reg.Kd * (reg.measurement - reg.prevMeasurement)) \
                         / (2.0 * reg.tau + reg.T)
 
     # Compute output and apply limits
