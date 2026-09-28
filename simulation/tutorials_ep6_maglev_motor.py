@@ -594,9 +594,11 @@ def tustin_pid(reg):
     # Proportional
     proportional = reg.Kp * error
 
-    # Integral
-    reg.integrator = reg.integrator + 0.5 * reg.Ki * reg.T * (error + reg.prevError) # Tustin
-    # reg.integrator = reg.integrator + reg.Ki * reg.T * (error) # Euler
+    # Ki = 0 disables integral action, including previously stored state.
+    if reg.Ki == 0.0:
+        reg.integrator = 0.0
+    else:
+        reg.integrator = reg.integrator + 0.5 * reg.Ki * reg.T * (error + reg.prevError) # Tustin
 
     # Anti-wind-up via integrator clamping */
     if reg.integrator  >  reg.IntLimit:

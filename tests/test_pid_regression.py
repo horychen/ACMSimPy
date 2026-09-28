@@ -84,49 +84,115 @@ class PidRegression(unittest.TestCase):
                 pid(reg)
                 self.assertAlmostEqual(reg.integrator, 0.7)
 
-    def test_dynamic_bounds_use_current_proportional_term(self):
+    def test_saturation_does_not_create_opposing_integral(self):
         for name in DYNAMIC:
-            for proportional in (-12.0, -3.0, 3.0, 12.0):
-                for initial in (-100.0, 100.0):
-                    with self.subTest(file=name, p=proportional, initial=initial):
-                        reg = regulator(Kp=1.0, setpoint=proportional, integrator=initial,
-                                        OutLimit=10.0, IntLimit=0.25)
+            for sign in (-1.0, 1.0):
+                with self.subTest(file=name, sign=sign):
+                    reg = regulator(Kp=1.0, Ki=1.0, T=0.1,
+                                    setpoint=12.0 * sign, OutLimit=10.0)
+                    for _ in range(20):
                         self.pids[name](reg)
-                        expected_output = -10.0 if initial < 0.0 else 10.0
-                        self.assertAlmostEqual(reg.integrator, expected_output - proportional)
-                        self.assertAlmostEqual(reg.Out, expected_output)
-                        self.assertEqual(reg.IntLimit, 0.25)
+                        self.assertEqual(reg.integrator, 0.0)
+                        self.assertEqual(reg.Out, 10.0 * sign)
+                    # Reducing P releases saturation without an artificial offset.
+                    reg.setpoint = 3.0 * sign
+                    self.pids[name](reg)
+                    self.assertAlmostEqual(reg.integrator, 0.75 * sign)
+                    self.assertAlmostEqual(reg.Out, 3.75 * sign)
 
-    def test_dynamic_bounds_include_current_derivative(self):
+    def test_saturation_preserves_existing_integral_of_either_sign(self):
         for name in DYNAMIC:
-            for measurement in (-1.0, 1.0):
-                for initial in (-100.0, 100.0):
-                    with self.subTest(file=name, y=measurement, initial=initial):
-                        reg = regulator(Kp=1.0, Kd=3.0, measurement=measurement,
-                                        setpoint=measurement + 3.0,
-                                        integrator=initial, OutLimit=10.0)
+            for sign in (-1.0, 1.0):
+                for initial in (-1.0, 1.0):
+                    with self.subTest(file=name, sign=sign, initial=initial):
+                        reg = regulator(Kp=1.0, Ki=1.0, T=0.1,
+                                        setpoint=12.0 * sign, integrator=initial, OutLimit=10.0)
                         self.pids[name](reg)
-                        expected_output = -10.0 if initial < 0.0 else 10.0
-                        self.assertAlmostEqual(reg.differentiator, -2.0 * measurement)
-                        self.assertAlmostEqual(reg.integrator, expected_output - 3.0 + 2.0 * measurement)
-                        self.assertAlmostEqual(reg.Out, expected_output)
+                        self.assertEqual(reg.integrator, initial)
 
-    def test_dynamic_bound_changes_without_one_sample_delay(self):
+    def test_integration_can_unwind_while_output_remains_saturated(self):
+        for name in DYNAMIC:
+            for sign in (-1.0, 1.0):
+                with self.subTest(file=name, sign=sign):
+                    reg = regulator(Kp=1.0, Ki=1.0, T=0.1, setpoint=-sign,
+                                    prevError=-sign, integrator=20.0 * sign, OutLimit=10.0)
+                    self.pids[name](reg)
+                    self.assertAlmostEqual(reg.integrator, 19.9 * sign)
+                    self.assertEqual(reg.Out, 10.0 * sign)
+
+    def test_saturation_check_includes_current_derivative(self):
+        for name in DYNAMIC:
+            for sign in (-1.0, 1.0):
+                with self.subTest(file=name, sign=sign):
+                    reg = regulator(Kp=1.0, Ki=1.0, Kd=15.0, T=1.0,
+                                    measurement=-sign, setpoint=0.0, OutLimit=10.0)
+                    self.pids[name](reg)
+                    self.assertEqual(reg.differentiator, 10.0 * sign)
+                    self.assertEqual(reg.integrator, 0.0)
+                    self.assertEqual(reg.Out, 10.0 * sign)
+
+    def test_tustin_increment_direction_controls_freezing(self):
         for name in DYNAMIC:
             with self.subTest(file=name):
-                reg = regulator(Kp=1.0, setpoint=3.0, integrator=100.0, OutLimit=10.0)
+                # Error has reversed, but the trapezoidal increment is still positive.
+                reg = regulator(Ki=1.0, T=0.1, setpoint=-1.0, prevError=3.0,
+                                integrator=12.0, OutLimit=10.0)
                 self.pids[name](reg)
-                self.assertAlmostEqual(reg.integrator, 7.0)
-                reg.setpoint = 8.0
+                self.assertEqual(reg.integrator, 12.0)
                 self.pids[name](reg)
-                self.assertAlmostEqual(reg.integrator, 2.0)
-                self.assertAlmostEqual(reg.Out, 10.0)
+                self.assertAlmostEqual(reg.integrator, 11.9)
+
+    def test_zero_ki_has_no_integral_memory_or_saturation_offset(self):
+        for name, pid in self.pids.items():
+            for sign in (-1.0, 1.0):
+                with self.subTest(file=name, sign=sign):
+                    reg = regulator(Kp=1.0, Ki=1.0, T=0.1, setpoint=sign)
+                    pid(reg)
+                    self.assertNotEqual(reg.integrator, 0.0)
+                    reg.Ki = 0.0
+                    for p in (12.0 * sign, 0.0, -12.0 * sign, 0.0):
+                        reg.setpoint = p
+                        reg.OutLimit = 10.0
+                        pid(reg)
+                        self.assertEqual(reg.integrator, 0.0)
+                        self.assertEqual(reg.Out, max(-10.0, min(10.0, p)))
+                    reg.Ki = 1.0
+                    reg.setpoint = sign
+                    pid(reg)
+                    self.assertAlmostEqual(reg.integrator, 0.05 * sign)
+
+    def test_zero_ki_preserves_pd_response(self):
+        for name, pid in self.pids.items():
+            with self.subTest(file=name):
+                reg = regulator(Kp=1.0, Kd=3.0, setpoint=4.0,
+                                measurement=1.0, integrator=7.0)
+                pid(reg)
+                self.assertEqual(reg.integrator, 0.0)
+                self.assertAlmostEqual(reg.differentiator, -2.0)
+                self.assertAlmostEqual(reg.Out, 1.0)
+
+    def test_first_order_loop_recovers_from_both_saturation_directions(self):
+        for name in DYNAMIC:
+            for sign in (-1.0, 1.0):
+                with self.subTest(file=name, sign=sign):
+                    reg = regulator(Kp=2.0, Ki=4.0, T=0.01, OutLimit=1.0)
+                    measurement = 0.0
+                    # Euler simulation of 0.5 * dy/dt = -y + u.
+                    for reference, steps in ((2.0 * sign, 300), (0.25 * sign, 1000)):
+                        reg.setpoint = reference
+                        for _ in range(steps):
+                            reg.measurement = measurement
+                            self.pids[name](reg)
+                            self.assertLessEqual(abs(reg.Out), 1.0)
+                            measurement += reg.T / 0.5 * (reg.Out - measurement)
+                    self.assertAlmostEqual(measurement, 0.25 * sign, delta=0.001)
+                    self.assertAlmostEqual(reg.integrator, 0.25 * sign, delta=0.001)
 
     def test_fixed_integral_limits_remain_fixed(self):
         for name in self.pids.keys() - DYNAMIC:
             for initial in (-100.0, 100.0):
                 with self.subTest(file=name, initial=initial):
-                    reg = regulator(Kp=1.0, setpoint=3.0, integrator=initial,
+                    reg = regulator(Kp=1.0, Ki=1.0, setpoint=3.0, integrator=initial,
                                     OutLimit=10.0, IntLimit=2.0)
                     self.pids[name](reg)
                     self.assertEqual(reg.integrator, -2.0 if initial < 0.0 else 2.0)
